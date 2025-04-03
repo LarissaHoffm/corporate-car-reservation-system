@@ -43,7 +43,7 @@ Desenvolver um sistema seguro e eficiente para gerenciamento de reservas de veí
 
 ## Descrição do Projeto
 
-###Tema do Projeto
+### Tema do Projeto
 Sistema para reserva e gestão de frotas corporativas, permitindo agendamento de veículos, monitoramento de uso e otimização de rotas.
 
 ### Problemas a Resolver
@@ -52,9 +52,8 @@ Sistema para reserva e gestão de frotas corporativas, permitindo agendamento de
 - Ausência de integração com serviços corporativos.
 
 ### Limitações
-Não incluirá funcionalidades de manutenção veicular;
-Não contemplará gestão financeira da frota.
-
+- Não incluirá funcionalidades de manutenção veicular;
+- Não contemplará gestão financeira da frota.
 
 ## Especificação Técnica
 
