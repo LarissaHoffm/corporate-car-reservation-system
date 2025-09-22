@@ -1,0 +1,22 @@
+version: "3.9"
+services:
+  db:
+    image: postgres:16
+    container_name: reservcar_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: reservcar
+      POSTGRES_PASSWORD: reservcar
+      POSTGRES_DB: reservcar
+    ports: ["5432:5432"]
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: reservcar_redis
+    restart: unless-stopped
+    ports: ["6379:6379"]
+
+volumes:
+  db_data:
