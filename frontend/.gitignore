@@ -1,0 +1,42 @@
+# ── Node / Vite / React
+node_modules/
+dist/
+build/
+.eslintcache
+.stylelintcache
+*.tsbuildinfo
+
+# Vite cache (pode aparecer em alguns setups)
+.vite/
+vite.config.ts.timestamp-*
+
+# Tests / coverage
+coverage/
+*.coverage.*
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!/.vscode/extensions.json
+!/.vscode/settings.json
+
+# Env files (mantém apenas o exemplo)
+.env
+.env.*
+!.env.example
+
+# Storybook (se vier a usar)
+.storybook-out/
+out/
+
+# Docker (artefatos gerados em runtime)
+*.pid
