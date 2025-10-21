@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +12,9 @@ import { Label } from "@/components/ui/label";
 import { Users, UserPlus, Search, Edit } from "lucide-react";
 import { RoleGuard } from "@/components/role-guard";
 import { statusChipClasses } from "@/components/ui/status";
+
+import TemporaryPasswordDialog from "@/components/modals/TemporaryPasswordDialog";
+import { listUsers, createUser, type User as ApiUser, type UserRole, type CreatedUserResponse } from "@/lib/http/users";
 
 const BRANCHES = ["JLLE", "CWB", "MGA", "POA", "SP", "RJ", "CXS", "RBP"] as const;
 const DEPARTMENTS = ["IT", "ADM", "HR", "TAX"] as const;
@@ -26,41 +29,26 @@ type UserRow = {
   status: "Active" | "Inactive";
 };
 
-const getUsersFromLocalStorage = (): UserRow[] | null => {
-  if (typeof window === "undefined") return null;
-  const usersJson = localStorage.getItem("users");
-  try {
-    return usersJson ? (JSON.parse(usersJson) as UserRow[]) : null;
-  } catch {
-    return null;
-  }
-};
-
-const saveUsersToLocalStorage = (users: UserRow[]) => {
-  if (typeof window === "undefined") return;
-  localStorage.setItem("users", JSON.stringify(users));
-};
-
-const roleLabelFromCode = (code: string): UserRow["role"] => {
+const roleLabelFromCode = (code: UserRole): UserRow["role"] => {
   switch (code) {
-    case "ADMIN":
-      return "Administrator";
-    case "APPROVER":
-      return "Approver";
-    case "REQUESTER":
-      return "Requester";
-    default:
-      return (code as UserRow["role"]) || "Requester";
+    case "ADMIN": return "Administrator";
+    case "APPROVER": return "Approver";
+    default: return "Requester";
   }
 };
 
-const initialUsers: UserRow[] = [
-  { id: "1", name: "Alex Morgan", email: "alex.morgan@reservcar.com", role: "Administrator", department: "IT",  filial: "JLLE", status: "Active" },
-  { id: "2", name: "Alex Morgan", email: "alex.morgan@reservcar.com", role: "Approver",      department: "ADM", filial: "CWB",  status: "Active" },
-  { id: "3", name: "Alex Morgan", email: "alex.morgan@reservcar.com", role: "Approver",      department: "ADM", filial: "MGA",  status: "Active" },
-  { id: "4", name: "Alex Morgan", email: "alex.morgan@reservcar.com", role: "Requester",     department: "HR",  filial: "POA",  status: "Active" },
-  { id: "5", name: "Alex Morgan", email: "alex.morgan@reservcar.com", role: "Requester",     department: "TAX", filial: "JLLE", status: "Active" },
-];
+const statusLabelFromCode = (s: ApiUser["status"]): UserRow["status"] =>
+  s === "ACTIVE" ? "Active" : "Inactive";
+
+const apiUserToRow = (u: ApiUser): UserRow => ({
+  id: u.id,
+  name: u.name,
+  email: u.email,
+  role: roleLabelFromCode(u.role),
+  department: (u as any).department ?? "",
+  filial: (u as any).branchId ?? "",
+  status: statusLabelFromCode(u.status),
+});
 
 export default function AdminUsersPage() {
   const navigate = useNavigate();
@@ -73,49 +61,79 @@ export default function AdminUsersPage() {
 
   const [showNewUserModal, setShowNewUserModal] = useState(false);
   const [newUserData, setNewUserData] = useState({
-    name: "",
-    email: "",
-    unit: "",        
-    department: "",
-    role: "",        // ADMIN | APPROVER | REQUESTER
-    phone: "",
+    name: "", email: "", unit: "", department: "", role: "" as "" | UserRole, phone: "",
   });
 
-  const [users, setUsers] = useState<UserRow[]>(() => {
-    const stored = getUsersFromLocalStorage();
-    return stored ?? initialUsers;
-  });
+  const [users, setUsers] = useState<UserRow[]>([]);
+  const [loading, setLoading] = useState(false);
 
+  // Dialog de senha temporária
+  const [tempOpen, setTempOpen] = useState(false);
+  const [tempEmail, setTempEmail] = useState("");
+  const [tempPassword, setTempPassword] = useState("");
+
+  const fetchUsers = async () => {
+    setLoading(true);
+    try {
+      const data = await listUsers({
+        q: searchTerm || undefined,
+        branchId: filterFilial !== "all" ? filterFilial : undefined,
+      });
+      setUsers(data.map(apiUserToRow));
+    } catch (e: any) {
+      console.error(e);
+      alert("Erro ao listar usuários.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchUsers(); }, []);
   useEffect(() => {
-    saveUsersToLocalStorage(users);
-  }, [users]);
+    const t = setTimeout(fetchUsers, 300);
+    return () => clearTimeout(t);
+  }, [searchTerm, filterFilial]);
 
-  const stats = [
+  const stats = useMemo(() => [
     { title: "Total Users", value: String(users.length), icon: Users, isHighlighted: false },
-    { title: "Active This Month", value: "45", icon: Users, isHighlighted: true },
+    { title: "Active This Month", value: "—", icon: Users, isHighlighted: true },
     { title: "Approvers", value: String(users.filter(u => u.role === "Approver").length), icon: Users, isHighlighted: false },
     { title: "Administrator", value: String(users.filter(u => u.role === "Administrator").length), icon: Users, isHighlighted: false },
-  ];
+  ], [users]);
 
-  function handleNewUser() {
-    const nextId =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : String(users.reduce((max, u) => Math.max(max, Number.parseInt(u.id, 10) || 0), 0) + 1);
+  async function handleNewUser() {
+    try {
+      if (!newUserData.name.trim() || !newUserData.email.trim()) {
+        alert("Nome e e-mail são obrigatórios.");
+        return;
+      }
 
-    const newUser: UserRow = {
-      id: nextId,
-      name: newUserData.name.trim(),
-      email: newUserData.email.trim(),
-      role: roleLabelFromCode(newUserData.role),
-      department: newUserData.department.trim(),
-      filial: newUserData.unit.trim(),
-      status: "Active",
-    };
+      const created = await createUser({
+        name: newUserData.name.trim(),
+        email: newUserData.email.trim(),
+        branchId: newUserData.unit || undefined,
+        role: (newUserData.role || "REQUESTER") as UserRole,
+      });
 
-    setUsers((prev) => [...prev, newUser]);
-    setShowNewUserModal(false);
-    setNewUserData({ name: "", email: "", unit: "", department: "", role: "", phone: "" });
+      setShowNewUserModal(false);
+      setNewUserData({ name: "", email: "", unit: "", department: "", role: "", phone: "" });
+
+      await fetchUsers();
+
+      // Exibir senha temporária se o back enviou
+      const temp = (created as CreatedUserResponse).temporaryPassword;
+      if (temp) {
+        setTempEmail(created.email);
+        setTempPassword(temp);
+        setTempOpen(true);
+      } else {
+        alert("Usuário criado com sucesso!");
+      }
+    } catch (e: any) {
+      console.error(e);
+      const isConflict = e?.response?.status === 409;
+      alert(isConflict ? "E-mail já cadastrado." : "Erro ao criar usuário.");
+    }
   }
 
   function handleUserClick(userId: string) {
@@ -143,7 +161,7 @@ export default function AdminUsersPage() {
     });
 
   return (
-    <RoleGuard allowedRoles={["ADMIN"]} requireAuth={false}>
+    <RoleGuard allowedRoles={["ADMIN"]}>
       <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -250,7 +268,7 @@ export default function AdminUsersPage() {
         {/* Tabela */}
         <Card className="border-border/50 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-foreground">Users</CardTitle>
+            <CardTitle className="text-foreground">{loading ? "Carregando..." : "Users"}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="max-h-96 overflow-y-auto">
@@ -289,8 +307,8 @@ export default function AdminUsersPage() {
                           {user.role}
                         </Badge>
                       </td>
-                      <td className="py-3 px-4 text-sm text-gray-700">{user.department}</td>
-                      <td className="py-3 px-4 text-sm text-gray-700">{user.filial}</td>
+                      <td className="py-3 px-4 text-sm text-gray-700">{user.department || "-"}</td>
+                      <td className="py-3 px-4 text-sm text-gray-700">{user.filial || "-"}</td>
                       <td className="py-3 px-4">
                         <Badge className={statusChipClasses(user.status)}>{user.status}</Badge>
                       </td>
@@ -309,6 +327,13 @@ export default function AdminUsersPage() {
                       </td>
                     </tr>
                   ))}
+                  {!loading && filteredUsers.length === 0 && (
+                    <tr>
+                      <td className="py-6 text-center text-muted-foreground" colSpan={7}>
+                        Nenhum usuário encontrado.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -325,56 +350,35 @@ export default function AdminUsersPage() {
             <div className="space-y-4 pt-4">
               <div>
                 <Label htmlFor="name" className="text-sm font-medium text-gray-700">Full Name</Label>
-                <Input
-                  id="name"
-                  value={newUserData.name}
-                  onChange={(e) => setNewUserData((p) => ({ ...p, name: e.target.value }))}
-                  className="mt-1 border-border/50 focus:border-[#1558E9]"
-                />
+                <Input id="name" value={newUserData.name} onChange={(e) => setNewUserData((p) => ({ ...p, name: e.target.value }))} className="mt-1 border-border/50 focus:border-[#1558E9]" />
               </div>
 
               <div>
                 <Label htmlFor="email" className="text-sm font-medium text-gray-700">E-mail</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={newUserData.email}
-                  onChange={(e) => setNewUserData((p) => ({ ...p, email: e.target.value }))}
-                  className="mt-1 border-border/50 focus:border-[#1558E9]"
-                />
+                <Input id="email" type="email" value={newUserData.email} onChange={(e) => setNewUserData((p) => ({ ...p, email: e.target.value }))} className="mt-1 border-border/50 focus:border-[#1558E9]" />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-sm font-medium text-gray-700">Branch</Label>
-                  <Select
-                    value={newUserData.unit}
-                    onValueChange={(v) => setNewUserData((p) => ({ ...p, unit: v }))}
-                  >
+                  <Select value={newUserData.unit} onValueChange={(v) => setNewUserData((p) => ({ ...p, unit: v }))}>
                     <SelectTrigger className="mt-1 border-border/50 focus:border-[#1558E9]">
                       <SelectValue placeholder="Select branch" />
                     </SelectTrigger>
                     <SelectContent>
-                      {BRANCHES.map((b) => (
-                        <SelectItem key={b} value={b}>{b}</SelectItem>
-                      ))}
+                      {BRANCHES.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div>
-                  <Label htmlFor="department" className="text-sm font-medium text-gray-700">Department</Label>
-                  <Select
-                    value={newUserData.department}
-                    onValueChange={(v) => setNewUserData((p) => ({ ...p, department: v }))}
-                  >
+                  <Label className="text-sm font-medium text-gray-700">Department (UI)</Label>
+                  <Select value={newUserData.department} onValueChange={(v) => setNewUserData((p) => ({ ...p, department: v }))}>
                     <SelectTrigger className="mt-1 border-border/50 focus:border-[#1558E9]">
                       <SelectValue placeholder="Select department" />
                     </SelectTrigger>
                     <SelectContent>
-                      {DEPARTMENTS.map((d) => (
-                        <SelectItem key={d} value={d}>{d}</SelectItem>
-                      ))}
+                      {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -383,7 +387,7 @@ export default function AdminUsersPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="role" className="text-sm font-medium text-gray-700">Role</Label>
-                  <Select value={newUserData.role} onValueChange={(v) => setNewUserData((p) => ({ ...p, role: v }))}>
+                  <Select value={newUserData.role} onValueChange={(v: UserRole) => setNewUserData((p) => ({ ...p, role: v }))}>
                     <SelectTrigger className="mt-1 border-border/50 focus:border-[#1558E9]">
                       <SelectValue placeholder="Select role" />
                     </SelectTrigger>
@@ -395,13 +399,8 @@ export default function AdminUsersPage() {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="phone" className="text-sm font-medium text-gray-700">Telephone</Label>
-                  <Input
-                    id="phone"
-                    value={newUserData.phone}
-                    onChange={(e) => setNewUserData((p) => ({ ...p, phone: e.target.value }))}
-                    className="mt-1 border-border/50 focus:border-[#1558E9]"
-                  />
+                  <Label className="text-sm font-medium text-gray-700">Telephone (UI)</Label>
+                  <Input id="phone" value={newUserData.phone} onChange={(e) => setNewUserData((p) => ({ ...p, phone: e.target.value }))} className="mt-1 border-border/50 focus:border-[#1558E9]" />
                 </div>
               </div>
 
@@ -416,6 +415,14 @@ export default function AdminUsersPage() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Dialog de senha temporária */}
+        <TemporaryPasswordDialog
+          open={tempOpen}
+          onOpenChange={setTempOpen}
+          email={tempEmail}
+          password={tempPassword}
+        />
       </div>
     </RoleGuard>
   );

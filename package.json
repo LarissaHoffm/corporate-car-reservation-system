@@ -1,0 +1,21 @@
+{
+  "name": "corporate-car-reservation-system",
+  "private": true,
+  "dependencies": {
+    "@prisma/client": "^6.16.2",
+    "argon2": "^0.44.0",
+    "nest-winston": "^1.10.2",
+    "uuid": "^13.0.0",
+    "winston": "^3.18.3"
+  },
+  "scripts": {
+    "dev:api": "npm --prefix backend/server run start:dev",
+    "dev:web": "npm --prefix frontend run dev",
+    "build": "npm --prefix backend/server run build && npm --prefix frontend run build",
+    "start": "npm --prefix backend/server run start",
+    "db:migrate": "npm --prefix backend/server run db:migrate",
+    "db:deploy": "npm --prefix backend/server run db:deploy",
+    "db:seed": "npm --prefix backend/server run db:seed",
+    "db:generate": "npm --prefix backend/server run db:generate"
+  }
+}

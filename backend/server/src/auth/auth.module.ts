@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
@@ -9,15 +9,18 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { PrismaService } from '../infra/prisma.service';
 import { RedisService } from '../infra/redis.service';
+import { UsersModule } from '../users/users.module';
+
 
 @Module({
   imports: [
+    forwardRef(() => UsersModule),
     ConfigModule,
-    JwtModule.register({}), // via ConfigService
+    JwtModule.register({}), 
     ThrottlerModule.forRoot([
       {
         ttl: 10, // 10s
-        limit: 5, // 5 tentativas em 10s (anti brute-force)
+        limit: 5, // 5 tentativas em 10s 
       },
     ]),
   ],
