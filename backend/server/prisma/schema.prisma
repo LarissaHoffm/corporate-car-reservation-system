@@ -3,14 +3,57 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
+// ENUNS 
 enum Role {
   ADMIN
   APPROVER
   REQUESTER
+}
+
+enum CarStatus {
+  AVAILABLE
+  IN_USE
+  MAINTENANCE
+  INACTIVE
+  ACTIVE
+}
+
+enum ReservationStatus {
+  PENDING
+  APPROVED
+  CANCELED
+  COMPLETED
+  REJECTED
+}
+
+enum DocumentType {
+  CNH
+  RECEIPT
+  ODOMETER_PHOTO
+  OTHER
+}
+
+enum ValidationResult {
+  APPROVED
+  REJECTED
+}
+
+enum ChecklistItemType {
+  BOOLEAN
+  NUMBER
+  TEXT
+  SELECT
+  PHOTO
+}
+
+enum ChecklistSubmissionKind {
+  USER_RETURN
+  APPROVER_VALIDATION
 }
 
 enum UserStatus {
@@ -18,13 +61,219 @@ enum UserStatus {
   INACTIVE
 }
 
+// MODELOS 
+
+model Tenant {
+  id                  String                @id @default(uuid())
+  name                String                @unique
+  branches            Branch[]
+  users               User[]
+  cars                Car[]
+  stations            Station[]
+  templates           ChecklistTemplate[]
+  logs                AuditLog[]
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  Reservation         Reservation[]
+  Document            Document[]
+  ChecklistSubmission ChecklistSubmission[]
+}
+
+model Branch {
+  id           String        @id @default(uuid())
+  name         String
+  tenantId     String
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users        User[]
+  cars         Car[]
+  stations     Station[]
+  reservations Reservation[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@unique([tenantId, name])
+}
+
 model User {
   id           String     @id @default(uuid())
   email        String     @unique
   passwordHash String
+  name         String?
   role         Role       @default(REQUESTER)
   status       UserStatus @default(ACTIVE)
+  tenantId     String
+  branchId     String?
+  tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch       Branch?    @relation(fields: [branchId], references: [id])
 
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  reservations       Reservation[]         @relation("UserReservations")
+  approvals          Reservation[]         @relation("UserApprovals")
+  documents          Document[]            @relation("UserDocuments")
+  validatedDocuments Document[]            @relation("DocumentValidatedBy")
+  checklists         ChecklistSubmission[]
+
+  mustChangePassword Boolean @default(false)
+  passwordChangedAt  DateTime? @db.Timestamp(3)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, role])
+}
+
+model Car {
+  id String @id @default(uuid())
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  reservations Reservation[]
+
+  plate     String
+  model     String
+  color     String?
+  mileage   Int       @default(0)
+  status    CarStatus @default(AVAILABLE)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([tenantId, plate], name: "car_plate_tenant_unique")
+  @@index([tenantId, status])
+  @@index([tenantId, branchId])
+}
+
+model Station {
+  id String @id @default(uuid())
+
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  branchId String?
+  branch   Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  name    String
+  address String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, name], name: "station_tenant_name_unique")
+  @@index([tenantId, branchId])
+}
+
+model Reservation {
+  id         String  @id @default(uuid())
+  tenantId   String
+  branchId   String
+  userId     String
+  approverId String?
+  carId      String
+
+  origin      String
+  destination String
+  startAt     DateTime
+  endAt       DateTime
+  status      ReservationStatus @default(PENDING)
+
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch   Branch @relation(fields: [branchId], references: [id])
+  user     User   @relation("UserReservations", fields: [userId], references: [id])
+  approver User?  @relation("UserApprovals", fields: [approverId], references: [id])
+  car      Car    @relation(fields: [carId], references: [id])
+
+  checklists ChecklistSubmission[]
+
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  Document  Document[]
+
+  @@index([tenantId, branchId, carId])
+  @@index([status])
+}
+
+model Document {
+  id            String            @id @default(uuid())
+  tenantId      String
+  userId        String
+  reservationId String?
+  type          DocumentType
+  url           String
+  status        ValidationResult?
+  validatedById String?
+  validatedAt   DateTime?
+  metadata      Json?
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user        User         @relation("UserDocuments", fields: [userId], references: [id])
+  reservation Reservation? @relation(fields: [reservationId], references: [id])
+  validatedBy User?        @relation("DocumentValidatedBy", fields: [validatedById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId, reservationId, type])
+}
+
+model ChecklistTemplate {
+  id        String                  @id @default(uuid())
+  tenantId  String
+  name      String
+  active    Boolean                 @default(true)
+  items     ChecklistTemplateItem[]
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
+
+  tenant              Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ChecklistSubmission ChecklistSubmission[]
+
+  @@unique([tenantId, name])
+}
+
+model ChecklistTemplateItem {
+  id         String            @id @default(uuid())
+  templateId String
+  label      String
+  type       ChecklistItemType
+  required   Boolean           @default(true)
+  options    Json?
+  order      Int               @default(0)
+
+  template ChecklistTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+}
+
+model ChecklistSubmission {
+  id            String                  @id @default(uuid())
+  tenantId      String
+  reservationId String
+  templateId    String
+  submittedById String
+  kind          ChecklistSubmissionKind
+  payload       Json
+  createdAt     DateTime                @default(now())
+
+  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  reservation Reservation       @relation(fields: [reservationId], references: [id])
+  template    ChecklistTemplate @relation(fields: [templateId], references: [id])
+  submittedBy User              @relation(fields: [submittedById], references: [id])
+
+  @@index([tenantId, reservationId, kind])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  tenantId  String?
+  userId    String?
+  action    String
+  entity    String?
+  entityId  String?
+  ip        String?
+  userAgent String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+  Tenant    Tenant?  @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, entity, entityId])
 }

@@ -1,22 +1,74 @@
-version: "3.9"
 services:
   db:
-    image: postgres:16
-    container_name: reservcar_db
-    restart: unless-stopped
+    image: postgres:16-alpine
     environment:
-      POSTGRES_USER: reservcar
-      POSTGRES_PASSWORD: reservcar
-      POSTGRES_DB: reservcar
-    ports: ["5432:5432"]
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: app
+    ports:
+      - "5432:5432"
     volumes:
-      - db_data:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d app || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
-    container_name: reservcar_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
     restart: unless-stopped
-    ports: ["6379:6379"]
+
+  api:
+    build:
+      context: ../backend/server
+      dockerfile: Dockerfile
+    env_file:
+      - ../backend/server/.env.docker
+    environment:
+
+      DATABASE_URL: postgresql://app:app@db:5432/app?schema=public
+      SHADOW_DATABASE_URL: postgresql://app:app@db:5432/app_shadow?schema=public
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: development
+      UPLOADS_DIR: /app/uploads
+    volumes:
+      - uploads:/app/uploads
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    env_file:
+      - ../frontend/.env.docker
+    ports:
+      - "5173:5173"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
-  db_data:
+  pgdata:
+  uploads:

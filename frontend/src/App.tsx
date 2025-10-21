@@ -3,6 +3,8 @@ import { Routes, Route, Navigate } from "react-router-dom";
 // Auth
 import LoginPage from "@/pages/shared/auth/LoginPage";
 import ForgotPasswordPage from "@/pages/shared/auth/ForgotPasswordPage";
+import ChangePasswordPage from "@/pages/shared/auth/ChangePassword";
+
 
 // Requester
 import RequesterLayout from "@/pages/requester/layout";
@@ -65,6 +67,7 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/onboarding" element={<SharedOnboardingPage />} />
+        <Route path="/change-password" element={<ChangePasswordPage />} />
 
         {/* Requester (protegida) */}
         <Route

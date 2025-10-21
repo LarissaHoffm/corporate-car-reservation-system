@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Eye, EyeOff, Car } from "lucide-react";
-import { useAuth } from "@/lib/auth"; 
+import { useAuth } from "@/lib/auth";
+import { api } from "@/lib/http/api";
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -15,8 +16,16 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // ⬇️ Ajuste mínimo: se o usuário precisar trocar a senha, redireciona antes de qualquer dashboard
   useEffect(() => {
     if (!user) return;
+
+    // alguns backends retornam a flag direto no user; mantenho assim para não mudar design/fluxos
+    if ((user as any)?.mustChangePassword) {
+      navigate("/change-password", { replace: true });
+      return;
+    }
+
     const role = user.role;
     if (role === "ADMIN") navigate("/admin", { replace: true });
     else if (role === "APPROVER") navigate("/approver", { replace: true });
@@ -30,6 +39,20 @@ export default function LoginPage() {
     try {
       // usa o e-mail que você chamou de "username" e envia rememberMe=true (sem mudar o UI)
       await login(formData.username, formData.password, true);
+
+      // ⬇️ Ajuste mínimo pós-login: consulta /auth/me para checar a flag e forçar o redirecionamento
+      // (mantém seu design e uso do useAuth)
+      try {
+        const me = await api.get("/auth/me"); // ajuste a rota se a sua for diferente
+        const must =
+          (me?.data?.mustChangePassword ?? me?.data?.user?.mustChangePassword) === true;
+        if (must) {
+          navigate("/change-password", { replace: true });
+          return;
+        }
+      } catch {
+        // se /auth/me não existir, o efeito acima ainda cobre quando o contexto popular o user
+      }
     } catch (err: any) {
       const status = err?.response?.status;
       if (status === 429) setErrorMsg("Too many attempts. Please try again in a moment.");
