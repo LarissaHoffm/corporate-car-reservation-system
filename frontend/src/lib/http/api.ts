@@ -9,21 +9,6 @@ import { getAccessToken, setAccessToken, clearAccessToken } from "@/lib/auth/tok
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "/api",
   withCredentials: true, // necessário p/ cookie de refresh no mesmo domínio
-<<<<<<< HEAD
-  headers: { "Content-Type": "application/json" },
-=======
-<<<<<<< HEAD
-  headers: { "Content-Type": "application/json" },
-=======
-<<<<<<< HEAD
-<<<<<<< HEAD
-  headers: { "Content-Type": "application/json" },
-=======
->>>>>>> 946f3ceda114cc349b53aeccb7dd279a09d31415
-=======
->>>>>>> origin/main
->>>>>>> origin/main
->>>>>>> origin/main
 });
 export default api;
 
