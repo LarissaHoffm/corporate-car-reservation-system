@@ -1,44 +1,72 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import IORedis, { Redis } from 'ioredis';
+import Redis, { RedisOptions } from 'ioredis';
 
+/**
+ * Conecta sempre ao serviço Docker "redis" (nunca 127.0.0.1).
+ * Expõe wrappers compatíveis com o AuthService: set/get/del (TTL em segundos).
+ */
 @Injectable()
-export class RedisService implements OnModuleDestroy {
-  private client: Redis;
+export class RedisService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(RedisService.name);
+  private client!: Redis;
 
-  constructor(private cfg: ConfigService) {
-    const url = this.cfg.get<string>('REDIS_URL') ?? 'redis://localhost:6379';
-    this.client = new IORedis(url, {
-      lazyConnect: false,
-      maxRetriesPerRequest: 3,
-      enableOfflineQueue: true,
-    });
+  constructor(private readonly cfg: ConfigService) {
+    // Normaliza host para nunca usar localhost/127.0.0.1 em container
+    const rawHost = (this.cfg.get<string>('REDIS_HOST') || '').trim();
+    let host = rawHost || 'redis';
+    if (host === '127.0.0.1' || host === 'localhost') host = 'redis';
+
+    const port = Number(this.cfg.get<string>('REDIS_PORT') || 6379);
+    const password = this.cfg.get<string>('REDIS_PASSWORD') || undefined;
+    const db = Number(this.cfg.get<string>('REDIS_DB') || 0);
+
+    // Ignora REDIS_URL se contiver localhost/127.0.0.1
+    const rawUrl = (this.cfg.get<string>('REDIS_URL') || '').trim();
+    const useUrl = rawUrl && !/127\.0\.0\.1|localhost/i.test(rawUrl);
+
+    const base: RedisOptions = {
+      lazyConnect: true,
+      maxRetriesPerRequest: 1,
+      retryStrategy: (times) => Math.min(times * 500, 2000),
+    };
+
+    this.client = useUrl
+      ? new Redis(rawUrl, base)
+      : new Redis({ host, port, password, db, ...base });
+
+    const target = useUrl ? rawUrl : `${host}:${port}/${db}`;
+    this.client.on('connect', () => this.logger.log(`Connected to Redis at ${target}`));
+    this.client.on('error', (err) => this.logger.error(`Redis error: ${err?.message || err}`));
+  }
+
+  async onModuleInit() {
+    try { await this.client.connect(); }
+    catch (err: any) {
+      this.logger.error(`Failed to connect to Redis: ${err?.message || err}`);
+      // não derruba a API — funcionalidades dependentes degradam sem cache
+    }
   }
 
   async onModuleDestroy() {
-    try {
-      await this.client.quit();
-    } catch {
-      // ignore
-    }
+    try { await this.client.quit(); } catch {}
   }
 
-  /** Define valor com TTL em segundos (se informado). */
-  async set(key: string, value: string, ttlSeconds?: number): Promise<void> {
-    if (ttlSeconds && ttlSeconds > 0) {
-      await this.client.set(key, value, 'EX', ttlSeconds);
-    } else {
-      await this.client.set(key, value);
-    }
+  getClient(): Redis { return this.client; }
+
+  // TTL em segundos
+  async set(key: string, value: string | number, ttlSeconds?: number): Promise<'OK' | null> {
+    const val = String(value);
+    if (ttlSeconds && ttlSeconds > 0) return this.client.set(key, val, 'EX', ttlSeconds);
+    return this.client.set(key, val);
   }
 
-  /** Lê valor (ou null). */
   async get(key: string): Promise<string | null> {
     return this.client.get(key);
   }
 
-  /** Remove a chave. */
-  async del(key: string): Promise<void> {
-    await this.client.del(key);
+  async del(key: string | string[]): Promise<number> {
+    if (Array.isArray(key)) return this.client.del(...key);
+    return this.client.del(key);
   }
 }

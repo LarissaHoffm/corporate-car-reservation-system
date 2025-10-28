@@ -1,12 +1,11 @@
 services:
   db:
     image: postgres:16-alpine
+    container_name: ccrs-db
     environment:
       POSTGRES_USER: app
       POSTGRES_PASSWORD: app
       POSTGRES_DB: app
-    ports:
-      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -18,8 +17,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    container_name: ccrs-redis
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -30,41 +28,63 @@ services:
   api:
     build:
       context: ../backend/server
-      dockerfile: Dockerfile
+    container_name: ccrs-api
     env_file:
       - ../backend/server/.env.docker
     environment:
-
-      DATABASE_URL: postgresql://app:app@db:5432/app?schema=public
-      SHADOW_DATABASE_URL: postgresql://app:app@db:5432/app_shadow?schema=public
-      REDIS_URL: redis://redis:6379
       NODE_ENV: development
-      UPLOADS_DIR: /app/uploads
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_DB: "0"
+      REDIS_URL: ""     # evita 127.0.0.1 herdado
     volumes:
+      - ../backend/server:/app
+      - api_node_modules:/app/node_modules
       - uploads:/app/uploads
-    ports:
-      - "3000:3000"
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 10s
       timeout: 5s
       retries: 10
+    command: npm run start:dev
+    expose:
+      - "3000"
     restart: unless-stopped
 
   web:
     build:
       context: ../frontend
-      dockerfile: Dockerfile
-    env_file:
-      - ../frontend/.env.docker
-    ports:
-      - "5173:5173"
+    container_name: ccrs-web
+    environment:
+      - VITE_API_BASE_URL=/api
+    volumes:
+      - ../frontend:/app
+      - web_node_modules:/app/node_modules
     depends_on:
+      api:
+        condition: service_healthy
+    command: npm run dev -- --host 0.0.0.0
+    expose:
+      - "5173"
+    restart: unless-stopped
+
+  proxy:
+    image: caddy:2-alpine
+    container_name: ccrs-proxy
+    ports:
+      - "80:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_started
       api:
         condition: service_healthy
     restart: unless-stopped
@@ -72,3 +92,7 @@ services:
 volumes:
   pgdata:
   uploads:
+  api_node_modules:
+  web_node_modules:
+  caddy_data:
+  caddy_config:

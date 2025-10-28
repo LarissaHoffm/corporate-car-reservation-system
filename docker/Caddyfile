@@ -1,11 +1,15 @@
-:80 {
-  encode zstd gzip
+{
+  auto_https off
+}
 
-  @api path /api*
-  handle @api {
-    uri strip_prefix /api
+:80 {
+  encode gzip
+
+  # API (remove /api do path ao repassar)
+  handle_path /api/* {
     reverse_proxy api:3000
   }
 
+  # Frontend (Vite dev, com WS/HMR)
   reverse_proxy web:5173
 }

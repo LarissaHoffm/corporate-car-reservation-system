@@ -68,3 +68,38 @@ export async function me(): Promise<MeResponse> {
   setCurrentUser(me.data);
   return me.data;
 }
+
+// ... seu código existente (decodeJwtExp, listeners, etc.)
+
+export function schedulePreemptiveRefresh(fetchNewToken: () => Promise<void>) {
+  if (_refreshTimer) clearTimeout(_refreshTimer);
+  _refreshTimer = null;
+
+  if (!_accessToken) return;
+  const expSec = decodeJwtExp(_accessToken);
+  if (!expSec) return;
+
+  // agenda ~60s antes de expirar (ajuste fino se quiser 90s, 120s…)
+  const now = Date.now();
+  const fireAt = expSec * 1000 - 60_000;
+  const delay = Math.max(5_000, fireAt - now);
+
+  _refreshTimer = setTimeout(async () => {
+    try {
+      await fetchNewToken();
+    } finally {
+      // re-agenda (idempotente)
+      schedulePreemptiveRefresh(fetchNewToken);
+    }
+  }, delay);
+}
+
+// Chame isto após LOGIN bem-sucedido:
+export async function onLoginSuccess(accessToken: string, AuthAPI: any) {
+  setAccessToken(accessToken);
+  schedulePreemptiveRefresh(async () => {
+    const { data } = await AuthAPI.refresh();
+    setAccessToken(data.accessToken);
+  });
+}
+
