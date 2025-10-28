@@ -1,3 +1,5 @@
+// frontend/src/lib/auth/token.ts
+
 let _accessToken: string | null = null;
 let _expiresAtMs: number | null = null;
 let _refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -17,37 +19,48 @@ function decodeJwtExp(token: string): number | null {
   }
 }
 
-function notify() { listeners.forEach((cb) => cb()); }
+export function getAccessToken(): string | null {
+  return _accessToken;
+}
 
 export function setAccessToken(token: string | null) {
   _accessToken = token;
+  const exp = token ? decodeJwtExp(token) : null;
+  _expiresAtMs = exp ? exp * 1000 : null;
+
   if (_refreshTimer) clearTimeout(_refreshTimer);
   _refreshTimer = null;
 
-  if (token) {
-    const expSec = decodeJwtExp(token);
-    _expiresAtMs = expSec ? expSec * 1000 : null;
-  } else {
-    _expiresAtMs = null;
-  }
-  notify();
+  listeners.forEach((cb) => cb());
 }
 
-export function getAccessToken() { return _accessToken; }
-export function getExpiresAtMs() { return _expiresAtMs; }
+/**
+ * Agenda uma renovação proativa do access token
+ * @param refreshFn função que chama /auth/refresh e atualiza o access token
+ * @param skewSeconds antecedência em segundos (padrão 60s antes de expirar)
+ */
+export function schedulePreemptiveRefresh(
+  refreshFn: () => Promise<void>,
+  skewSeconds: number = 60
+) {
+  if (!_accessToken || !_expiresAtMs) return;
 
-export function isTokenExpired(skewSeconds = 0) {
-  if (!_accessToken || !_expiresAtMs) return true;
-  return Date.now() >= _expiresAtMs - skewSeconds * 1000;
-}
+  const now = Date.now();
+  const fireAt = _expiresAtMs - skewSeconds * 1000;
+  const delay = Math.max(5_000, fireAt - now);
 
-export function schedulePreemptiveRefresh(refreshFn: () => Promise<void>, skewSeconds = 30) {
-  if (!_expiresAtMs) return;
-  const delay = Math.max(_expiresAtMs - skewSeconds * 1000 - Date.now(), 0);
   if (_refreshTimer) clearTimeout(_refreshTimer);
   _refreshTimer = setTimeout(async () => {
     _refreshTimer = null;
-    try { await refreshFn(); } catch { /* silencioso */ }
+    try {
+      await refreshFn();
+    } catch {
+      // silencioso; se falhar, o interceptor 401 cobre
+    } finally {
+      if (_accessToken) {
+        schedulePreemptiveRefresh(refreshFn, skewSeconds);
+      }
+    }
   }, delay);
 }
 
@@ -56,4 +69,11 @@ export function subscribe(cb: () => void) {
   return () => listeners.delete(cb);
 }
 
-export function clearToken() { setAccessToken(null); }
+export function clearAccessToken() {
+  setAccessToken(null);
+}
+
+/** 🔧 Alias de compatibilidade para código legado que importa `clearToken` */
+export function clearToken() {
+  clearAccessToken();
+}

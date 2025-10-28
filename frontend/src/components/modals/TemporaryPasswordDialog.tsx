@@ -1,8 +1,5 @@
-import * as React from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Clipboard, Check } from "lucide-react";
 
 type Props = {
   open: boolean;
@@ -12,46 +9,31 @@ type Props = {
 };
 
 export default function TemporaryPasswordDialog({ open, onOpenChange, email, password }: Props) {
-  const [copied, setCopied] = React.useState(false);
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(password);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1200);
-    } catch {
-      const ok = window.confirm("Copiar falhou. Deseja salvar a senha temporária?\n\n" + password);
-      if (ok) setCopied(true);
-    }
-  };
+  const copy = async () => { try { await navigator.clipboard.writeText(password); } catch {} };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md bg-card border-border/50 shadow-lg">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-lg font-semibold text-foreground">Usuário criado</DialogTitle>
-          <DialogDescription>
-            Copie a <strong>senha temporária</strong>. Ela será exigida apenas no primeiro login.
-          </DialogDescription>
+          <DialogTitle>Senha temporária gerada</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-3 pt-2">
-          <div>
-            <label className="text-sm text-muted-foreground">E-mail</label>
-            <Input readOnly value={email} className="mt-1" />
+        <div className="space-y-3">
+          <div className="text-sm">
+            <div className="text-muted-foreground">Usuário</div>
+            <div className="font-medium break-all">{email}</div>
           </div>
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <label className="text-sm text-muted-foreground">Senha temporária</label>
-              <Input readOnly value={password} className="mt-1 font-mono" />
+
+          <div className="text-sm">
+            <div className="text-muted-foreground">Senha temporária</div>
+            <div className="font-mono text-base bg-muted/50 rounded px-2 py-1 select-all">
+              {password}
             </div>
-            <Button onClick={copy} className="self-end">
-              {copied ? <Check className="h-4 w-4 mr-1" /> : <Clipboard className="h-4 w-4 mr-1" />}
-              {copied ? "Copiado" : "Copiar"}
-            </Button>
           </div>
-          <div className="flex justify-end pt-2">
-            <Button onClick={() => onOpenChange(false)} variant="default">Fechar</Button>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={copy}>Copiar</Button>
+            <Button onClick={() => onOpenChange(false)}>Fechar</Button>
           </div>
         </div>
       </DialogContent>

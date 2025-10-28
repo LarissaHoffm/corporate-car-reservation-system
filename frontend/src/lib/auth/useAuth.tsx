@@ -1,88 +1,90 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { AuthAPI, MeResponse } from "@/lib/http/api";
-import { clearToken, schedulePreemptiveRefresh, setAccessToken } from "@/lib/auth/token";
-import { setCurrentUser } from "./state";
+// frontend/src/lib/auth/useAuth.tsx
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { AuthAPI, SessionUser } from "@/lib/http/api";
+import { setAccessToken, clearAccessToken, schedulePreemptiveRefresh } from "@/lib/auth/token";
 
-type AuthCtx = {
-  user: MeResponse | null;
+export type AuthContextValue = {
+  user: SessionUser | null;
   loading: boolean;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   logout: () => Promise<void>;
-  hasRole: (role: MeResponse["role"] | MeResponse["role"][]) => boolean;
-  reloadUser: () => Promise<void>;
 };
 
-const Ctx = createContext<AuthCtx | undefined>(undefined);
+const AuthCtx = createContext<AuthContextValue>({
+  user: null,
+  loading: true,
+  login: async () => {},
+  logout: async () => {},
+});
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<MeResponse | null>(null);
+export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
+  const [user, setUser] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const bootstrap = useCallback(async () => {
-    try {
-      const { data } = await AuthAPI.refresh();         // usa cookie httpOnly + CSRF
-      setAccessToken(data.accessToken);
-      const me = await AuthAPI.me();
-      setUser(me.data);
-      setCurrentUser(me.data);                           // <-- alimenta compat
+  // bootstrap: tenta obter sessão atual
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        await AuthAPI.csrf(); // garante cookie CSRF
+        const me = await AuthAPI.me();
+        setUser(me.data);
 
-      schedulePreemptiveRefresh(async () => {
-        const { data: r } = await AuthAPI.refresh();
-        setAccessToken(r.accessToken);
-      });
-    } catch {
-      clearToken();
-      setUser(null);
-      setCurrentUser(null);                              // <-- zera compat
+        // agenda refresh proativo após bootstrap
+        schedulePreemptiveRefresh(async () => {
+          const { data } = await AuthAPI.refresh();
+          setAccessToken(data.accessToken);
+        });
+      } catch {
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const login = async (email: string, password: string, rememberMe = false) => {
+    setLoading(true);
+    try {
+      const res = await AuthAPI.login(email, password, rememberMe);
+      if (res.data?.accessToken) {
+        setAccessToken(res.data.accessToken);
+
+        // agenda refresh proativo IMEDIATO após o login
+        schedulePreemptiveRefresh(async () => {
+          const { data } = await AuthAPI.refresh();
+          setAccessToken(data.accessToken);
+        });
+      }
+
+      const u: SessionUser | undefined = (res.data as any)?.user;
+      if (u) {
+        setUser(u);
+      } else {
+        const me = await AuthAPI.me();
+        setUser(me.data);
+      }
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
-  useEffect(() => { bootstrap(); }, [bootstrap]);
-
-  const login = useCallback(async (email: string, password: string, rememberMe?: boolean) => {
-    const { data } = await AuthAPI.login({ email, password, rememberMe });
-    setAccessToken(data.accessToken);
-    const me = await AuthAPI.me();
-    setUser(me.data);
-    setCurrentUser(me.data);                             // <-- compat
-
-    schedulePreemptiveRefresh(async () => {
-      const { data: r } = await AuthAPI.refresh();
-      setAccessToken(r.accessToken);
-    });
-  }, []);
-
-  const logout = useCallback(async () => {
-    try { await AuthAPI.logout(); } finally {
-      clearToken();
+  const logout = async () => {
+    setLoading(true);
+    try {
+      await AuthAPI.logout();
+    } catch {
+      // ignore
+    } finally {
+      clearAccessToken();
       setUser(null);
-      setCurrentUser(null);                              // <-- compat
+      setLoading(false);
     }
-  }, []);
+  };
 
-  const hasRole = useCallback((role: MeResponse["role"] | MeResponse["role"][]) => {
-    if (!user) return false;
-    const arr = Array.isArray(role) ? role : [role];
-    return arr.includes(user.role);
-  }, [user]);
+  const value = useMemo<AuthContextValue>(() => ({ user, loading, login, logout }), [user, loading]);
 
-  const reloadUser = useCallback(async () => {
-    const me = await AuthAPI.me();
-    setUser(me.data);
-    setCurrentUser(me.data);                             // <-- compat
-  }, []);
+  return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
+};
 
-  const value = useMemo<AuthCtx>(() => ({
-    user, loading, login, logout, hasRole, reloadUser
-  }), [user, loading, login, logout, hasRole, reloadUser]);
-
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
-}
-
-export function useAuth() {
-  const ctx = useContext(Ctx);
-  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
-  return ctx;
-}
+export const useAuth = () => useContext(AuthCtx);

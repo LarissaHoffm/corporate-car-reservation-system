@@ -21,12 +21,13 @@ async function bootstrap() {
   app.use('/uploads', express.static(uploadsDir));
 
   app.enableCors({
-    origin: cfg.get('FRONTEND_URL') ?? 'http://localhost:5173',
+    origin: cfg.get('FRONTEND_URL') ?? 'http://localhost',
     credentials: true,
   });
 
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
 
+  // Swagger base apontando para o proxy do Caddy (/api)
   const SWAGGER_SERVER_BASE = process.env.SWAGGER_SERVER_BASE ?? '/api';
 
   const swaggerCfg = new DocumentBuilder()
@@ -35,7 +36,7 @@ async function bootstrap() {
     .setVersion('1.0.0')
     .addBearerAuth(
       { type: 'http', scheme: 'bearer', bearerFormat: 'JWT', in: 'header', name: 'Authorization' },
-      'access-token',
+      'access-token', // nome do esquema no Swagger
     )
     .addCookieAuth('refreshToken', { type: 'apiKey', in: 'cookie' })
     .addServer(SWAGGER_SERVER_BASE)
@@ -43,10 +44,7 @@ async function bootstrap() {
 
   const document = SwaggerModule.createDocument(app, swaggerCfg);
   SwaggerModule.setup('docs', app, document, {
-    swaggerOptions: {
-      persistAuthorization: true,
-      withCredentials: true,
-    },
+    swaggerOptions: { persistAuthorization: true, withCredentials: true },
   });
 
   const port = Number(cfg.get('PORT') ?? 3000);

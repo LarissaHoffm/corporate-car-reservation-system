@@ -1,86 +1,46 @@
-import { Body, Controller, Get, Patch, Post, Req, Res, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiCookieAuth, ApiHeader, ApiTags, ApiBody, ApiOperation } from '@nestjs/swagger';
-import { AuthService } from './auth.service';
-import { LoginDto } from './dto/login.dto';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { RolesGuard } from './guards/roles.guard';
-import { Roles } from './decorators/roles.decorator';
-import type { Request, Response } from 'express';
-import { ChangePasswordDto } from './dto/change-password.dto';
+import { Body, Controller, Get, HttpCode, Post, Req, Res, UseGuards } from "@nestjs/common";
+import type { Response } from "express";
+import { AuthService } from "./auth.service";
+import { LoginDto } from "./dto/login.dto";
+import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 
-@ApiTags('Auth')
-@Controller('auth')
+@Controller("auth")
 export class AuthController {
-  constructor(private auth: AuthService) {}
+  constructor(private readonly auth: AuthService) {}
 
-  @Post('login')
-  @ApiOperation({ summary: 'Login (retorna accessToken + csrfToken + user resumo)' })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        email: { type: 'string', example: 'user@example.com' },
-        password: { type: 'string', example: 'P@ssw0rd123!' },
-        rememberMe: { type: 'boolean', example: false },
-      },
-      required: ['email', 'password'],
-    },
-  })
+  @Post("login")
+  @HttpCode(200)
   async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
-    return this.auth.login(dto, res);
+    const out = await this.auth.login(dto, res);
+    return { accessToken: out.accessToken, user: out.user }; // cookies setados no service
   }
 
-  @ApiCookieAuth('refreshToken')
-  @ApiHeader({
-    name: 'x-csrf-token',
-    required: true,
-    description: 'CSRF double-submit token (copiar do cookie csrfToken ou do body do login/refresh)',
-  })
-  @Post('refresh')
-  @ApiOperation({ summary: 'Refresh do accessToken (retorna novo accessToken + csrfToken + user resumo)' })
-  async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    return this.auth.refresh(req, res);
+  @Post("refresh")
+  @HttpCode(200)
+  async refresh(@Req() req: any, @Res({ passthrough: true }) res: Response) {
+    const out = await this.auth.refresh(req, res);
+    return { accessToken: out.accessToken };
   }
 
-  @ApiCookieAuth('refreshToken')
-  @ApiHeader({
-    name: 'x-csrf-token',
-    required: true,
-    description: 'CSRF double-submit token (copiar do cookie csrfToken ou do body do login/refresh)',
-  })
-  @Post('logout')
-  @ApiOperation({ summary: 'Logout (revoga refresh, limpa cookies)' })
-  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    return this.auth.logout(req, res);
+  @Post("logout")
+  @HttpCode(200)
+  async logout(@Req() req: any, @Res({ passthrough: true }) res: Response) {
+    await this.auth.logout(req, res);
+    return { ok: true };
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN', 'APPROVER', 'REQUESTER')
-  @ApiBearerAuth('access-token')
-  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  @Get("me")
+  @HttpCode(200)
   async me(@Req() req: any) {
     return this.auth.me(req.user.id);
   }
 
+  // alias de compatibilidade
   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth('access-token')
-  @Patch('change-password')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        currentPassword: { type: 'string', example: 'Tmp@1234Ab!' },
-        newPassword: { type: 'string', example: 'S3nh@Nova123!' },
-      },
-      required: ['currentPassword', 'newPassword'],
-    },
-  })
-  @ApiOperation({ summary: 'Trocar senha (usuário autenticado)' })
-  async changePassword(@Req() req: any, @Body() dto: ChangePasswordDto) {
-    await this.auth.changePassword(req.user.id, {
-      currentPassword: dto.currentPassword,
-      newPassword: dto.newPassword,
-    });
-    return { ok: true };
+  @Get("get")
+  @HttpCode(200)
+  async get(@Req() req: any) {
+    return this.auth.me(req.user.id);
   }
 }
