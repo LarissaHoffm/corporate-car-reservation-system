@@ -9,6 +9,7 @@ import { getAccessToken, setAccessToken, clearAccessToken } from "@/lib/auth/tok
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "/api",
   withCredentials: true, // necessário p/ cookie de refresh no mesmo domínio
+  headers: { "Content-Type": "application/json" },
 });
 export default api;
 

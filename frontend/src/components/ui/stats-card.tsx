@@ -2,16 +2,23 @@ import { Card, CardContent } from "@/components/ui/card";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/auth/utils";
 
-interface StatsCardProps {
+export type StatsCardProps = {
   title: string;
-  value: string;
+  value: string | number;
   icon: LucideIcon;
   color?: string;
   change?: string;
   className?: string;
-}
+};
 
-export function StatsCard({ title, value, icon: Icon, color = "text-[#1558E9]", change, className }: StatsCardProps) {
+function StatsCard({
+  title,
+  value,
+  icon: Icon,
+  color = "text-[#1558E9]",
+  change,
+  className,
+}: StatsCardProps) {
   return (
     <Card className={cn("border-border/50 shadow-sm", className)}>
       <CardContent className="p-6">
@@ -29,3 +36,6 @@ export function StatsCard({ title, value, icon: Icon, color = "text-[#1558E9]", 
     </Card>
   );
 }
+
+export default StatsCard;
+export { StatsCard }; 

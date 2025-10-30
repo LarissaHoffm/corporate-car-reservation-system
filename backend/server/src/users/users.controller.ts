@@ -1,4 +1,3 @@
-// backend/server/src/users/users.controller.ts
 import {
   Body,
   Controller,
@@ -25,7 +24,7 @@ import { Audit } from '../audit/audit.decorator';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth('access-token')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) { }
+  constructor(private readonly usersService: UsersService) {}
 
   @Get()
   @Roles('ADMIN')
@@ -34,13 +33,21 @@ export class UsersController {
     return this.usersService.findAll(req?.user?.tenantId);
   }
 
+  @Get(':id')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Obter detalhes de um usuário (ADMIN)' })
+  findOne(@Param('id') id: string, @Req() req: any) {
+    const tenantId = req?.user?.tenantId ?? req.headers['x-tenant-id'];
+    return this.usersService.findOne(id, { tenantId });
+  }
+
   @Post()
   @Roles('ADMIN')
   @Audit('USER_CREATE', 'User')
   @ApiOperation({ summary: 'Criar usuário (ADMIN)' })
   create(@Body() dto: CreateUserDto, @Req() req: any) {
     const tenantId = req?.user?.tenantId ?? req.headers['x-tenant-id'];
-    const actorId = req?.user?.sub;
+    const actorId = req?.user?.sub ?? req?.user?.id ?? null;
     return this.usersService.create(dto, { tenantId, actorId });
   }
 
@@ -77,16 +84,23 @@ export class UsersController {
     return this.usersService.revokeApprover(id);
   }
 
+  /**
+   * SELF + ADMIN
+   * Qualquer usuário autenticado pode alterar a PRÓPRIA senha (self).
+   * ADMIN pode alterar a senha de qualquer usuário.
+   * A checagem final (self/admin) é feita no service.
+   */
   @Patch(':id/password')
-  @Roles('ADMIN')
   @Audit('USER_PASSWORD_SET', 'User')
   @ApiBody({ type: UpdatePasswordDto })
-  @ApiOperation({ summary: 'Definir nova senha para o usuário (ADMIN)' })
+  @ApiOperation({ summary: 'Alterar a própria senha (SELF) ou definir senha (ADMIN)' })
   setPassword(@Param('id') id: string, @Body() dto: UpdatePasswordDto, @Req() req: any) {
+    const u = req?.user ?? {};
     const ctx = {
-      tenantId: req?.user?.tenantId ?? null,
-      actorId: req?.user?.sub ?? null,
-      actorRole: req?.user?.role ?? null,
+      tenantId: u.tenantId ?? null,
+      // 🔧 fix: usa id OU sub, conforme como o JwtStrategy populou o req.user
+      actorId: (u.id ?? u.sub) ?? null,
+      actorRole: u.role ?? null,
     };
     return this.usersService.updatePassword(id, dto, ctx);
   }
@@ -96,11 +110,20 @@ export class UsersController {
   @Audit('USER_PASSWORD_RESET', 'User')
   @ApiOperation({ summary: 'Resetar senha (gera temporaryPassword e força troca) (ADMIN)' })
   resetPassword(@Param('id') id: string, @Req() req: any) {
+    const u = req?.user ?? {};
     const ctx = {
-      tenantId: req?.user?.tenantId ?? null,
-      actorId: req?.user?.sub ?? null,
-      actorRole: req?.user?.role ?? null,
+      tenantId: u.tenantId ?? null,
+      actorId: (u.id ?? u.sub) ?? null,
+      actorRole: u.role ?? null,
     };
     return this.usersService.resetPassword(id, ctx);
+  }
+
+  @Get(':id/reservations')
+  @Roles('ADMIN')
+  @ApiOperation({ summary: 'Listar reservas do usuário (ADMIN)' })
+  reservations(@Param('id') id: string, @Req() req: any) {
+    const tenantId = req?.user?.tenantId;
+    return this.usersService.findReservationsByUser(id, { tenantId });
   }
 }

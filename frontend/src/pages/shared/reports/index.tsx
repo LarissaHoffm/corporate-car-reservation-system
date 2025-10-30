@@ -3,7 +3,7 @@ import { useMemo, useRef, useState } from "react";
 import { BarChart3, Users, Car, Building, Calendar, Download, X, Plus, Search } from "lucide-react";
 
 import { RoleGuard } from "@/components/role-guard";
-import { StatsCard } from "@/components/stats-card";
+import { StatsCard } from "@/components/ui/stats-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";

@@ -1,5 +1,3 @@
-// frontend/src/lib/auth/token.ts
-
 let _accessToken: string | null = null;
 let _expiresAtMs: number | null = null;
 let _refreshTimer: ReturnType<typeof setTimeout> | null = null;

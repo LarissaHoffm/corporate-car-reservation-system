@@ -13,9 +13,6 @@ import { Role, UserStatus } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { randomInt } from 'crypto';
 
-const isUuid = (v?: string) =>
-  !!v && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
-
 const isStrongPassword = (pwd: string) => {
   return (
     typeof pwd === 'string' &&
@@ -29,9 +26,9 @@ const isStrongPassword = (pwd: string) => {
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
-  //Senha forte (12–16) com maiúscula, minúscula, dígito e símbolo /
+  // Senha forte (12–16) com maiúscula, minúscula, dígito e símbolo
   private generateStrongPassword(): string {
     const minLen = 12, maxLen = 16;
     const len = minLen + randomInt(maxLen - minLen + 1);
@@ -43,7 +40,10 @@ export class UsersService {
     const pick = (s: string) => s[randomInt(s.length)];
     const chars = [pick(upper), pick(lower), pick(digits), pick(symbols)];
     for (let i = chars.length; i < len; i++) chars.push(pick(all));
-    for (let i = chars.length - 1; i > 0; i--) { const j = randomInt(i + 1); [chars[i], chars[j]] = [chars[j], chars[i]]; }
+    for (let i = chars.length - 1; i > 0; i--) {
+      const j = randomInt(i + 1);
+      [chars[i], chars[j]] = [chars[j], chars[i]];
+    }
     return chars.join('');
   }
 
@@ -65,12 +65,32 @@ export class UsersService {
     });
     if (exists) throw new ConflictException('E-mail já cadastrado para este tenant.');
 
+    // validação opcional de branch
+    let branchIdToPersist: string | null = null;
+    if (dto.branchId) {
+      const branch = await this.prisma.branch.findFirst({
+        where: { id: dto.branchId, tenantId },
+        select: { id: true },
+      });
+      if (!branch) {
+        throw new BadRequestException('Filial (branchId) inexistente para este tenant.');
+      }
+      branchIdToPersist = dto.branchId;
+    }
+
+    // senha
     let mustChangePassword = false;
     let rawPassword = dto.password?.trim();
-    if (!rawPassword) { rawPassword = this.generateStrongPassword(); mustChangePassword = true; }
+    if (!rawPassword) {
+      rawPassword = this.generateStrongPassword();
+      mustChangePassword = true;
+    }
     const passwordHash = await argon2.hash(rawPassword);
 
-    const branchIdToPersist = isUuid(dto.branchId) ? dto.branchId! : null;
+    // normaliza telefone (somente dígitos) ou null
+    const rawPhone = (dto as any).phone as string | undefined;
+    const normalizedPhone =
+      rawPhone && rawPhone.trim() !== '' ? rawPhone.replace(/\D/g, '') : null;
 
     const created = await this.prisma.user.create({
       data: {
@@ -78,11 +98,13 @@ export class UsersService {
         name: dto.name,
         email,
         branchId: branchIdToPersist,
+        department: dto.department ?? null,
         role: ((dto as any).role as Role) ?? Role.REQUESTER,
         status: UserStatus.ACTIVE,
         passwordHash,
         mustChangePassword,
-      } as any,
+        phone: normalizedPhone,
+      },
       select: {
         id: true,
         name: true,
@@ -90,8 +112,10 @@ export class UsersService {
         role: true,
         status: true,
         branchId: true,
+        department: true,
         mustChangePassword: true,
         createdAt: true,
+        phone: true,
       },
     });
 
@@ -112,6 +136,11 @@ export class UsersService {
     if (!dto.newPassword) {
       throw new BadRequestException('Campo "newPassword" é obrigatório.');
     }
+    if (!isStrongPassword(dto.newPassword)) {
+      throw new BadRequestException(
+        'Senha fraca. Requisitos: mín. 8, 1 maiúscula, 1 minúscula, 1 dígito e 1 símbolo.',
+      );
+    }
 
     const tenantId = ctx?.tenantId ?? null;
     const actorId = ctx?.actorId ?? null;
@@ -130,22 +159,20 @@ export class UsersService {
       throw new ForbiddenException('Sem permissão para alterar a senha deste usuário.');
     }
 
-    if (!isStrongPassword(dto.newPassword)) {
-      throw new BadRequestException(
-        'Senha fraca. Requisitos: mín. 8, 1 maiúscula, 1 minúscula, 1 dígito e 1 símbolo.',
-      );
-    }
-
+    
     if (!isAdmin) {
-      if (!dto.currentPassword) throw new BadRequestException('Informe a senha atual.');
-      const ok = await argon2.verify(target.passwordHash, dto.currentPassword);
-      if (!ok) throw new BadRequestException('Senha atual inválida.');
+      if (!target.mustChangePassword) {
+        if (!dto.currentPassword) throw new BadRequestException('Informe a senha atual.');
+        const ok = await argon2.verify(target.passwordHash, dto.currentPassword);
+        if (!ok) throw new BadRequestException('Senha atual inválida.');
+      }
+
     }
 
     const newHash = await argon2.hash(dto.newPassword);
     const updated = await this.prisma.user.update({
       where: { id },
-      data: { passwordHash: newHash, mustChangePassword: false, passwordChangedAt: new Date() } as any,
+      data: { passwordHash: newHash, mustChangePassword: false, passwordChangedAt: new Date() },
       select: { id: true },
     });
 
@@ -156,6 +183,7 @@ export class UsersService {
       passwordChangedAt: new Date().toISOString(),
     };
   }
+
 
   async resetPassword(
     id: string,
@@ -182,8 +210,8 @@ export class UsersService {
       data: {
         passwordHash,
         mustChangePassword: true,
-        passwordChangedAt: null as any,
-      } as any,
+        passwordChangedAt: null,
+      },
       select: { id: true },
     });
 
@@ -191,19 +219,41 @@ export class UsersService {
   }
 
   async update(id: string, dto: UpdateUserDto, ctx?: { tenantId?: string }) {
-    const tenantId = ctx?.tenantId;
+    const tenantId = ctx?.tenantId ?? undefined;
+
     const current = await this.prisma.user.findFirst({
-      where: { id, ...(tenantId ? { tenantId } : {}) }, select: { id: true },
+      where: { id, ...(tenantId ? { tenantId } : {}) },
+      select: { id: true, tenantId: true },
     });
     if (!current) throw new NotFoundException('Usuário não encontrado');
 
     const data: any = {};
     if (dto.name !== undefined) data.name = dto.name;
-    if (dto.branchId !== undefined) data.branchId = isUuid(dto.branchId) ? dto.branchId : null;
-    if ((dto as any).phone !== undefined) data.phone = (dto as any).phone;
+
+    if (dto.branchId !== undefined) {
+      if (dto.branchId === null) {
+        data.branchId = null;
+      } else {
+        const branch = await this.prisma.branch.findFirst({
+          where: { id: dto.branchId, tenantId: current.tenantId },
+          select: { id: true },
+        });
+        if (!branch) throw new BadRequestException('Filial (branchId) inexistente para este tenant.');
+        data.branchId = dto.branchId;
+      }
+    }
+
+    // normaliza telefone no update
+    if ((dto as any).phone !== undefined) {
+      const rp = String((dto as any).phone ?? '').trim();
+      data.phone = rp === '' ? null : rp.replace(/\D/g, '');
+    }
+
     if ((dto as any).role !== undefined) data.role = (dto as any).role as Role;
     if ((dto as any).status !== undefined) data.status = (dto as any).status as UserStatus;
-    if ((dto as any).email !== undefined) data.email = String((dto as any).email).trim().toLowerCase();
+    if ((dto as any).email !== undefined)
+      data.email = String((dto as any).email).trim().toLowerCase();
+    if (dto.department !== undefined) data.department = dto.department ?? null;
 
     if ((dto as any).password) {
       const passwordHash = await argon2.hash(String((dto as any).password).trim());
@@ -222,8 +272,10 @@ export class UsersService {
         role: true,
         status: true,
         branchId: true,
+        department: true,
         mustChangePassword: true,
         updatedAt: true,
+        phone: true,
       },
     });
 
@@ -234,19 +286,36 @@ export class UsersService {
     return this.prisma.user.findMany({
       where: tenantId ? { tenantId } : undefined,
       select: {
-        id: true, email: true, name: true, role: true, status: true,
-        branchId: true, tenantId: true, createdAt: true,
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        status: true,
+        branchId: true,
+        department: true,
+        tenantId: true,
+        createdAt: true,
+        phone: true,
       },
       orderBy: { createdAt: 'desc' },
     });
   }
 
-  async findOne(id: string) {
-    const u = await this.prisma.user.findUnique({
-      where: { id },
+  async findOne(id: string, ctx?: { tenantId?: string }) {
+    const u = await this.prisma.user.findFirst({
+      where: { id, ...(ctx?.tenantId ? { tenantId: ctx.tenantId } : {}) },
       select: {
-        id: true, email: true, name: true, role: true, status: true,
-        branchId: true, tenantId: true, createdAt: true,
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        status: true,
+        department: true,
+        branch: { select: { id: true, name: true } },
+        tenantId: true,
+        createdAt: true,
+        updatedAt: true,
+        phone: true,
       },
     });
     if (!u) throw new NotFoundException('Usuário não encontrado');
@@ -260,15 +329,42 @@ export class UsersService {
 
   async makeApprover(id: string) {
     return this.prisma.user.update({
-      where: { id }, data: { role: Role.APPROVER },
+      where: { id },
+      data: { role: Role.APPROVER },
       select: { id: true, email: true, role: true, status: true },
     });
   }
 
   async revokeApprover(id: string) {
     return this.prisma.user.update({
-      where: { id }, data: { role: Role.REQUESTER },
+      where: { id },
+      data: { role: Role.REQUESTER },
       select: { id: true, email: true, role: true, status: true },
     });
+  }
+
+  /**
+   * Histórico de reservas do usuário.
+   * Seleciona apenas campos presentes no schema.
+   */
+  async findReservationsByUser(userId: string, ctx?: { tenantId?: string }) {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, ...(ctx?.tenantId ? { tenantId: ctx.tenantId } : {}) },
+      select: { id: true },
+    });
+    if (!user) throw new NotFoundException('Usuário não encontrado');
+
+    const reservations = await this.prisma.reservation.findMany({
+      where: { userId, ...(ctx?.tenantId ? { tenantId: ctx.tenantId } : {}) },
+      select: {
+        id: true,
+        status: true,
+        createdAt: true,
+
+      },
+      orderBy: [{ createdAt: 'desc' }],
+    });
+
+    return reservations;
   }
 }

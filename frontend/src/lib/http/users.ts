@@ -1,76 +1,85 @@
 import { api } from "./api";
 
+/** Tipos usados nas páginas */
 export type UserRole = "ADMIN" | "APPROVER" | "REQUESTER";
 export type UserStatus = "ACTIVE" | "INACTIVE";
 
-export interface User {
+export type User = {
   id: string;
-  name: string;
   email: string;
+  name: string;
   role: UserRole;
   status: UserStatus;
   branchId?: string | null;
-  mustChangePassword?: boolean;
+  department?: string | null;
+  phone?: string | null;
   createdAt?: string;
-}
+  updatedAt?: string;
+  branch?: { id: string; name: string } | null;
+};
 
-export interface CreatedUserResponse extends User {
+export type CreatedUserResponse = User & {
+  /** vem quando o ADMIN cria um usuário sem informar senha */
   temporaryPassword?: string;
-}
+};
 
-export interface CreateUserInput {
-  name: string;
-  email: string;
-  password?: string;
-  branchId?: string;
-  role?: UserRole;
-}
-
-export async function createUser(input: CreateUserInput) {
-  const body = Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined && v !== ""));
-  const { data } = await api.post<CreatedUserResponse>("/users", body);
-  return data;
-}
-
-export interface ListUsersParams {
-  q?: string;
-  branchId?: string;
-  page?: number;
-  pageSize?: number;
-}
-
-export async function listUsers(params: ListUsersParams = {}) {
+/** Listar usuários (filtros opcionais) */
+export async function listUsers(params?: { q?: string; branchId?: string }) {
   const { data } = await api.get<User[]>("/users", { params });
   return data;
 }
 
+/** Criar usuário */
+export async function createUser(payload: {
+  name: string;
+  email: string;
+  role?: UserRole;
+  branchId?: string;
+  department?: string;
+  phone?: string; // somente dígitos
+}) {
+  const { data } = await api.post<CreatedUserResponse>("/users", payload);
+  return data;
+}
+
+/** Remover usuário */
+export async function deleteUser(id: string) {
+  const { data } = await api.delete<{ ok: boolean }>(`/users/${id}`);
+  return data;
+}
+
+/** Detalhes de usuário */
 export async function getUser(id: string) {
   const { data } = await api.get<User>(`/users/${id}`);
   return data;
 }
 
-export interface UpdateUserInput {
-  name?: string;
-  branchId?: string;
-  status?: UserStatus;
-}
-
-export async function updateUser(id: string, input: UpdateUserInput) {
-  const body = Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined));
-  const { data } = await api.patch<User>(`/users/${id}`, body);
+/** Atualizar usuário (admin) */
+export async function updateUser(
+  id: string,
+  payload: Partial<
+    Omit<User, "id" | "createdAt" | "updatedAt" | "branch">
+  >
+) {
+  const { data } = await api.patch<User>(`/users/${id}`, payload);
   return data;
 }
 
-export async function deleteUser(id: string) {
-  await api.delete<void>(`/users/${id}`);
-}
-
-export async function makeApprover(id: string) {
-  const { data } = await api.patch<User>(`/users/${id}/make-approver`, {});
+/** Histórico de reservas do usuário */
+export async function listUserReservations(userId: string) {
+  const { data } = await api.get<any[]>(`/users/${userId}/reservations`);
   return data;
 }
 
-export async function revokeApprover(id: string) {
-  const { data } = await api.patch<User>(`/users/${id}/revoke-approver`, {});
+/** Alterar a PRÓPRIA senha (SELF) – envia cookies (refresh) */
+export async function setOwnPassword(
+  userId: string,
+  body: { currentPassword?: string; newPassword: string }
+) {
+  const { data } = await api.patch<{ ok: boolean }>(
+    `/users/${userId}/password`,
+    body,
+    { withCredentials: true } // garante envio dos cookies
+  );
   return data;
 }
