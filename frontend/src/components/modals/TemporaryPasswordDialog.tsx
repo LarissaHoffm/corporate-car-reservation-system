@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 import React from "react";
 import CopyableSecret from "@/components/ui/copyable-secret";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -6,6 +7,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 >>>>>>> 946f3ceda114cc349b53aeccb7dd279a09d31415
+=======
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+>>>>>>> origin/main
 
 type Props = {
   open: boolean;
@@ -16,7 +21,10 @@ type Props = {
 
 export default function TemporaryPasswordDialog({ open, onOpenChange, email, password }: Props) {
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
+=======
+>>>>>>> origin/main
   const copy = async () => { try { await navigator.clipboard.writeText(password); } catch {} };
 
 >>>>>>> 946f3ceda114cc349b53aeccb7dd279a09d31415
@@ -24,6 +32,7 @@ export default function TemporaryPasswordDialog({ open, onOpenChange, email, pas
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
+<<<<<<< HEAD
 <<<<<<< HEAD
           <DialogTitle className="text-lg font-semibold text-foreground">Usuário criado</DialogTitle>
         </DialogHeader>
@@ -39,6 +48,8 @@ export default function TemporaryPasswordDialog({ open, onOpenChange, email, pas
             Fechar
           </button>
 =======
+=======
+>>>>>>> origin/main
           <DialogTitle>Senha temporária gerada</DialogTitle>
         </DialogHeader>
 

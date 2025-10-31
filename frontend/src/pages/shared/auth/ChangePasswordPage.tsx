@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 import * as React from "react";
 import { useState, useMemo } from "react";
 import { Eye, EyeOff, Lock, Save } from "lucide-react";
@@ -90,6 +91,8 @@ export default function ChangePasswordPage() {
         "Não foi possível alterar a senha.";
       toast({ title: msg, variant: "destructive" });
 =======
+=======
+>>>>>>> origin/main
 // frontend/src/pages/shared/auth/ChangePasswordPage.tsx
 import { useState, FormEvent } from "react";
 import { AuthAPI } from "@/lib/http/api";
@@ -124,12 +127,16 @@ export default function ChangePasswordPage() {
     } catch (error: any) {
       setErr(error?.response?.data?.message ?? "Erro ao alterar senha");
     } finally {
+<<<<<<< HEAD
 >>>>>>> 946f3ceda114cc349b53aeccb7dd279a09d31415
+=======
+>>>>>>> origin/main
       setLoading(false);
     }
   }
 
   return (
+<<<<<<< HEAD
 <<<<<<< HEAD
     <div className="min-h-[calc(100vh-80px)] w-full flex items-center justify-center p-6">
       <form onSubmit={handleSubmit} className="w-full max-w-2xl">
@@ -246,6 +253,8 @@ export default function ChangePasswordPage() {
         </Card>
       </form>
 =======
+=======
+>>>>>>> origin/main
     <div className="min-h-screen grid place-items-center p-6">
       <div className="w-full max-w-xl mx-auto">
         <h1 className="text-xl font-bold mb-6">Definir nova senha</h1>
@@ -286,7 +295,10 @@ export default function ChangePasswordPage() {
           </button>
         </form>
       </div>
+<<<<<<< HEAD
 >>>>>>> 946f3ceda114cc349b53aeccb7dd279a09d31415
+=======
+>>>>>>> origin/main
     </div>
   );
 }

@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -374,6 +375,17 @@ type User = {
   branch?: { id: string; name: string } | null;
 };
 
+=======
+import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+import { api } from "@/lib/http/api";
+
+type User = {
+  id: string; name: string; email: string; role: string; status: string;
+  branch?: { id: string; name: string } | null;
+};
+
+>>>>>>> origin/main
 export default function UserDetailsPage() {
   const { id } = useParams<{ id: string }>();
   const [user, setUser] = useState<User | null>(null);
@@ -399,7 +411,10 @@ export default function UserDetailsPage() {
         <div><span className="text-muted-foreground">Status:</span> {user.status}</div>
         {user.branch && <div><span className="text-muted-foreground">Filial:</span> {user.branch.name}</div>}
       </div>
+<<<<<<< HEAD
 >>>>>>> 946f3ceda114cc349b53aeccb7dd279a09d31415
+=======
+>>>>>>> origin/main
     </div>
   );
 }
