@@ -3,7 +3,7 @@ import { BarChart3, Users, Car, Building, Calendar, Download } from "lucide-reac
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { StatsCard } from "@/components/stats-card";        
+import { StatsCard } from "@/components/ui/stats-card";        
 import { RoleGuard } from "@/components/role-guard";
 
 export default function RequesterReportsPage() {

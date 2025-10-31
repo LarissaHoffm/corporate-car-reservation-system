@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength, IsEnum } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength, IsEnum, Matches } from 'class-validator';
 
 export enum UserRole {
   ADMIN = 'ADMIN',
@@ -42,5 +42,9 @@ export class CreateUserDto {
 
   @IsOptional()
   @IsString()
-  phone?: string;
+  department?: string;
+
+  @IsOptional()
+  @Matches(/^\d{10,11}$/)
+  phone?: string | null;
 }

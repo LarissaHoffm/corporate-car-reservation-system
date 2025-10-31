@@ -10,67 +10,72 @@ import { RoleGuard } from "@/components/role-guard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { statusChipClasses } from "@/components/ui/status";
 
-type FleetStatus = "Available" | "Reserved" | "Maintenance" | "Unavailable";
-type CarType = "SUV" | "SEDAN" | "HATCH";
-type FuelType = "Petrol" | "Diesel" | "Electric";
+import { Car, CarStatus, useCar, useCarMutations } from "@/hooks/use-cars";
+import { useBranchesMap } from "@/hooks/use-branches-map";
+import { toast } from "@/hooks/use-toast";
 
-type Vehicle = {
-  id: string;
-  model: string;
-  plate: string;
-  color: string;
-  lastService: string;
-  status: FleetStatus;
-  type: CarType;
-  fuel: FuelType;
-  branch: string;
-};
+const COLORS = ["PRETO", "CINZA", "PRATA", "BRANCO", "VERMELHO", "OUTRO"] as const;
+const UUID_V4 = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
 
-const FLEET_KEY = "fleet";
-const BRANCHES = ["JLLE", "CWB", "MGA", "POA", "SP", "RJ", "CXS", "RBP", "Centro"] as const;
-
-function statusClasses(s: FleetStatus) {
-  switch (s) {
-    case "Available": return "bg-green-100/60 text-green-700 border border-green-200";
-    case "Reserved": return "bg-blue-100/60 text-blue-700 border border-blue-200";
-    case "Maintenance": return "bg-orange-100/60 text-orange-700 border border-orange-200";
-    default: return "bg-gray-100/60 text-gray-700 border border-gray-200";
-  }
-}
-
-export default function CarInfo() {
+export default function CarDetailsPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const { data: car, refresh, setData } = useCar(id);
+  const { update } = useCarMutations();
+  const { idToName, nameToId, names } = useBranchesMap();
 
-  const [isEditing, setIsEditing] = useState(false);
-  const [car, setCar] = useState<Vehicle | null>(null);
+  const [isEditing, setEditing] = useState(false);
+  const [form, setForm] = useState({
+    model: "",
+    plate: "",
+    color: "",
+    mileage: 0,
+    status: "AVAILABLE" as CarStatus,
+    branchName: "" as string,
+  });
 
   useEffect(() => {
-    const raw = localStorage.getItem(FLEET_KEY);
-    if (!raw) return;
-    const list = JSON.parse(raw) as Vehicle[];
-    const v = list.find((x) => x.id === id);
-    if (v) setCar(v);
-  }, [id]);
-
-  const reservationHistory = useMemo(
-    () => [
-      { reservationId: "R2023001", userName: "Diana Prince", pickupDate: "2025-10-27", returnDate: "2025-10-27", status: "Completed" },
-      { reservationId: "R2023008", userName: "Bruce Wayne",  pickupDate: "2025-10-28", returnDate: "2025-10-28", status: "Pending"   },
-    ],
-    []
-  );
-
-  const handleSave = () => {
     if (!car) return;
-    const raw = localStorage.getItem(FLEET_KEY);
-    if (!raw) return;
-    const list = JSON.parse(raw) as Vehicle[];
-    const updated = list.map((v) => (v.id === car.id ? car : v));
-    localStorage.setItem(FLEET_KEY, JSON.stringify(updated));
-    setIsEditing(false);
-  };
+    setForm({
+      model: car.model,
+      plate: car.plate,
+      color: car.color ?? "",
+      mileage: car.mileage,
+      status: car.status,
+      branchName: idToName[car.branchId ?? ""] ?? "",
+    });
+  }, [car, idToName]);
+
+  const reservationHistory = useMemo(() => [], []);
+
+  async function onSave() {
+    if (!car) return;
+    try {
+      const branchName = form.branchName || undefined;
+      const candidateId = branchName ? nameToId[branchName] : undefined;
+      const branchId = candidateId && UUID_V4.test(candidateId) ? candidateId : undefined;
+
+      const updated = await update(car.id, {
+        plate: form.plate.toUpperCase(),
+        model: form.model,
+        color: form.color || undefined,
+        mileage: Number.isFinite(form.mileage) ? form.mileage : 0,
+        status: form.status,
+        branchName,
+        ...(branchId ? { branchId } : {}), // só envia se for UUID válido
+      });
+
+      setData(updated as Car);
+      setEditing(false);
+      toast.success("Car updated!");
+      await refresh();
+    } catch (e: any) {
+      const msg = e?.response?.data?.message ?? "Error updating car";
+      toast.error(Array.isArray(msg) ? msg.join("\n") : msg);
+    }
+  }
 
   if (!car) {
     return (
@@ -100,126 +105,104 @@ export default function CarInfo() {
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
-              <h1 className="text-2xl font-bold text-foreground">Car Infos</h1>
+              <h1 className="text-2xl font-bold text-foreground">Car Information</h1>
             </div>
           </div>
           <div className="flex items-center gap-2">
             {!isEditing ? (
-              <Button variant="outline" onClick={() => setIsEditing(true)} className="border-border/50">
-                Edit
-              </Button>
+              <Button variant="outline" onClick={() => setEditing(true)} className="border-border/50">Edit</Button>
             ) : (
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setIsEditing(false)} className="border-border/50">Cancel</Button>
-                <Button className="bg-[#1558E9] hover:bg-[#1558E9]/90" onClick={handleSave}>Save</Button>
+                <Button variant="outline" onClick={() => { setEditing(false); refresh(); }} className="border-border/50">Cancel</Button>
+                <Button className="bg-[#1558E9] hover:bg-[#1558E9]/90" onClick={onSave}>Save</Button>
               </div>
             )}
           </div>
         </div>
 
-        {/* Car Information */}
+        {/* Info */}
         <Card className="border-border/50 shadow-sm">
           <CardContent className="p-8">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {/* col 1 */}
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-lg font-semibold text-[#1558E9] mb-4">Model</h3>
+                  <Label>Model</Label>
                   {isEditing ? (
-                    <Input value={car.model} onChange={(e) => setCar({ ...car, model: e.target.value })} />
-                  ) : (
-                    <p className="text-foreground font-medium">{car.model}</p>
-                  )}
+                    <Input value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} />
+                  ) : (<p className="text-foreground font-medium">{car.model}</p>)}
                 </div>
                 <div>
-                  <Label className="text-sm font-medium text-gray-700 mb-2">Plate</Label>
+                  <Label>Plate</Label>
                   {isEditing ? (
-                    <Input value={car.plate} onChange={(e) => setCar({ ...car, plate: e.target.value.toUpperCase() })} />
-                  ) : (
-                    <p className="text-foreground">{car.plate}</p>
-                  )}
-                </div>
-                <div>
-                  <Label className="text-sm font-medium text-gray-700 mb-2">Type</Label>
-                  {isEditing ? (
-                    <Select value={car.type} onValueChange={(v: CarType) => setCar({ ...car, type: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="SUV">SUV</SelectItem>
-                        <SelectItem value="SEDAN">SEDAN</SelectItem>
-                        <SelectItem value="HATCH">HATCH</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <p className="text-foreground">{car.type}</p>
-                  )}
+                    <Input value={form.plate} onChange={(e) => setForm({ ...form, plate: e.target.value.toUpperCase().slice(0,7) })} />
+                  ) : (<p className="text-foreground">{car.plate}</p>)}
                 </div>
               </div>
 
-              {/* col 2 */}
               <div className="space-y-6">
                 <div>
-                  <Label className="text-sm font-medium text-gray-700 mb-2">Color</Label>
+                  <Label>Color</Label>
                   {isEditing ? (
-                    <Input value={car.color} onChange={(e) => setCar({ ...car, color: e.target.value })} />
-                  ) : (
-                    <p className="text-foreground">{car.color}</p>
-                  )}
-                </div>
-                <div>
-                  <Label className="text-sm font-medium text-gray-700 mb-2">Fuel</Label>
-                  {isEditing ? (
-                    <Select value={car.fuel} onValueChange={(v: FuelType) => setCar({ ...car, fuel: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                    <Select value={form.color || undefined} onValueChange={(v) => setForm({ ...form, color: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select color" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Petrol">Petrol</SelectItem>
-                        <SelectItem value="Diesel">Diesel</SelectItem>
-                        <SelectItem value="Electric">Electric</SelectItem>
+                        {COLORS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                       </SelectContent>
                     </Select>
-                  ) : (
-                    <p className="text-foreground">{car.fuel}</p>
-                  )}
+                  ) : (<p className="text-foreground">{car.color ?? "-"}</p>)}
                 </div>
                 <div>
-                  <Label className="text-sm font-medium text-gray-700 mb-2">Last Service</Label>
+                  <Label>Mileage (km)</Label>
                   {isEditing ? (
-                    <Input type="date" value={car.lastService} onChange={(e) => setCar({ ...car, lastService: e.target.value })} />
-                  ) : (
-                    <p className="text-foreground">{car.lastService}</p>
-                  )}
+                    <Input
+                      value={String(form.mileage)}
+                      onChange={(e) => {
+                        const raw = e.target.value.replace(/\D+/g, "");
+                        setForm({ ...form, mileage: raw ? parseInt(raw, 10) : 0 });
+                      }}
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                    />
+                  ) : (<p className="text-foreground">{car.mileage.toLocaleString()}</p>)}
                 </div>
               </div>
 
-              {/* col 3 */}
               <div className="space-y-6">
                 <div>
-                  <Label className="text-sm font-medium text-gray-700 mb-2">Status</Label>
+                  <Label>Status</Label>
                   {isEditing ? (
-                    <Select value={car.status} onValueChange={(v: FleetStatus) => setCar({ ...car, status: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                    <Select value={form.status} onValueChange={(v: CarStatus) => setForm({ ...form, status: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Available">Available</SelectItem>
-                        <SelectItem value="Reserved">Reserved</SelectItem>
-                        <SelectItem value="Maintenance">Maintenance</SelectItem>
-                        <SelectItem value="Unavailable">Unavailable</SelectItem>
+                        <SelectItem value="AVAILABLE">AVAILABLE</SelectItem>
+                        <SelectItem value="IN_USE">IN_USE</SelectItem>
+                        <SelectItem value="MAINTENANCE">MAINTENANCE</SelectItem>
+                        <SelectItem value="INACTIVE">INACTIVE</SelectItem>
+                        <SelectItem value="ACTIVE">ACTIVE</SelectItem>
                       </SelectContent>
                     </Select>
                   ) : (
-                    <Badge className={statusClasses(car.status)}>{car.status}</Badge>
+                    <Badge className={statusChipClasses(
+                      car.status === "AVAILABLE" ? "Available" :
+                      car.status === "IN_USE" ? "Reserved" :
+                      car.status === "MAINTENANCE" ? "Maintenance" : "Unavailable"
+                    )}>
+                      {car.status}
+                    </Badge>
                   )}
                 </div>
+
                 <div>
-                  <Label className="text-sm font-medium text-gray-700 mb-2">Branch</Label>
+                  <Label>Branch (by name)</Label>
                   {isEditing ? (
-                    <Select value={car.branch} onValueChange={(v: string) => setCar({ ...car, branch: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                    <Select value={form.branchName || undefined} onValueChange={(v) => setForm({ ...form, branchName: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select branch" /></SelectTrigger>
                       <SelectContent>
-                        {BRANCHES.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
+                        {(names ?? []).map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   ) : (
-                    <p className="text-foreground">{car.branch}</p>
+                    <p className="text-foreground">{idToName[car.branchId ?? ""] ?? "-"}</p>
                   )}
                 </div>
               </div>
@@ -227,36 +210,15 @@ export default function CarInfo() {
           </CardContent>
         </Card>
 
-        {/* Reservation History (mock) */}
+        {/* Histórico (placeholder) */}
         <Card className="border-border/50 shadow-sm">
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-lg font-semibold text-[#1558E9]">Reservation History</h2>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border/50">
-                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">RESERVATION ID</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">USER NAME</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">PICK-UP DATE</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">RETURN DATE</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">STATUS</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {reservationHistory.map((r) => (
-                    <tr key={r.reservationId} className="border-b border-gray-100/50">
-                      <td className="py-3 px-4 text-sm text-foreground">{r.reservationId}</td>
-                      <td className="py-3 px-4 text-sm text-foreground">{r.userName}</td>
-                      <td className="py-3 px-4 text-sm text-foreground">{r.pickupDate}</td>
-                      <td className="py-3 px-4 text-sm text-foreground">{r.returnDate}</td>
-                      <td className="py-3 px-4 text-sm text-foreground">{r.status}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            {reservationHistory.length === 0 ? (
+              <p className="text-muted-foreground">No reservations.</p>
+            ) : null}
           </CardContent>
         </Card>
       </div>

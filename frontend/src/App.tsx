@@ -3,8 +3,7 @@ import { Routes, Route, Navigate } from "react-router-dom";
 // Auth
 import LoginPage from "@/pages/shared/auth/LoginPage";
 import ForgotPasswordPage from "@/pages/shared/auth/ForgotPasswordPage";
-import ChangePasswordPage from "@/pages/shared/auth/ChangePassword";
-
+import ChangePasswordPage from "@/pages/shared/auth/ChangePasswordPage";
 
 // Requester
 import RequesterLayout from "@/pages/requester/layout";

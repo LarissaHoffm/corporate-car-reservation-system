@@ -77,6 +77,7 @@ model Tenant {
   Reservation         Reservation[]
   Document            Document[]
   ChecklistSubmission ChecklistSubmission[]
+  departments         Department[]
 }
 
 model Branch {
@@ -103,6 +104,8 @@ model User {
   status       UserStatus @default(ACTIVE)
   tenantId     String
   branchId     String?
+  department   String?
+  phone        String?    @db.VarChar(20)
   tenant       Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   branch       Branch?    @relation(fields: [branchId], references: [id])
 
@@ -112,7 +115,7 @@ model User {
   validatedDocuments Document[]            @relation("DocumentValidatedBy")
   checklists         ChecklistSubmission[]
 
-  mustChangePassword Boolean @default(false)
+  mustChangePassword Boolean   @default(false)
   passwordChangedAt  DateTime? @db.Timestamp(3)
 
   createdAt DateTime @default(now())
@@ -157,6 +160,7 @@ model Station {
   name    String
   address String?
 
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -276,4 +280,17 @@ model AuditLog {
   Tenant    Tenant?  @relation(fields: [tenantId], references: [id])
 
   @@index([tenantId, entity, entityId])
+}
+
+model Department {
+  id        String   @id @default(uuid())
+  name      String
+  code      String?
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, name])
+  @@index([tenantId, name])
 }

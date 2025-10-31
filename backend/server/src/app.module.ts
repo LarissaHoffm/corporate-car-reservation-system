@@ -12,7 +12,8 @@ import { CarsModule } from './cars/cars.module';
 import { StationsModule } from './stations/stations.module';
 import { ReservationsModule } from './reservations/reservations.module';
 import { DocumentsModule } from './documents/documents.module';
-
+import { BranchesModule } from './branches/branches.module';
+import { DepartmentsModule } from './departments/departments.module';
 
 @Module({
   imports: [
@@ -25,6 +26,8 @@ import { DocumentsModule } from './documents/documents.module';
     StationsModule,
     ReservationsModule,
     DocumentsModule,
+    BranchesModule,
+    DepartmentsModule,
   ],
   providers: [
     PrismaService, 
