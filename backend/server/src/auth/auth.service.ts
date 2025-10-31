@@ -28,6 +28,14 @@ function toSeconds(input: string | number | undefined, fallback: number): number
   }
 }
 
+/** Normaliza qualquer entrada para um valor válido do enum Role (UPPERCASE) */
+function normalizeRole(input: unknown): Role {
+  const v = String(input ?? '').toUpperCase();
+  if (v === 'ADMIN') return Role.ADMIN;
+  if (v === 'APPROVER') return Role.APPROVER;
+  return Role.REQUESTER;
+}
+
 /** Claims comuns */
 type BaseJwtClaims = {
   sub: string;                 // user id
@@ -58,6 +66,7 @@ export class AuthService {
 
   private signAccessToken(payload: AccessJwtPayload): string {
     return this.jwt.sign(payload, { secret: this.accessSecret, expiresIn: this.accessTtlSec });
+    // (Mantemos secret/ttl aqui pois seu projeto já usa esse padrão.)
   }
 
   private signRefreshToken(payload: RefreshJwtPayload): string {
@@ -83,7 +92,7 @@ export class AuthService {
    * - Procura usuário por e-mail (case-insensitive).
    * - Valida senha e status.
    * - Gera access + refresh (com JTI) e armazena JTI no Redis (TTL).
-   * - Nunca lança 500 por falha de Redis (apenas segue sem refresh).
+   * - Role é normalizado para UPPERCASE, garantindo compatibilidade com @Roles(...)
    */
   async login(dto: LoginDto, res: Response) {
     const email = dto.email.trim().toLowerCase();
@@ -110,9 +119,11 @@ export class AuthService {
     const ok = await argon2.verify(user.passwordHash, dto.password);
     if (!ok) throw new UnauthorizedException('Credenciais inválidas');
 
+    const role = normalizeRole(user.role);
+
     const accessPayload: AccessJwtPayload = {
       sub: user.id,
-      role: user.role,
+      role,
       tenantId: user.tenantId,
       mustChangePassword: user.mustChangePassword ?? false,
     };
@@ -126,16 +137,15 @@ export class AuthService {
 
       await this.redis.set(`rt:${jti}`, JSON.stringify({ uid: user.id }), this.refreshTtlSec);
       this.setRefreshCookie(res, refreshToken);
-    } catch (err) {
-      // loga, mas não quebra o login
-      // console.error('[auth.login] Falha ao preparar refresh:', err);
+    } catch {
+      // logar se desejar, mas não quebrar o login
     }
 
     const safeUser = {
       id: user.id,
       email: user.email,
       name: user.name,
-      role: user.role,
+      role, // já normalizado (ADMIN|APPROVER|REQUESTER)
       status: user.status,
       mustChangePassword: user.mustChangePassword ?? false,
     };
@@ -148,7 +158,7 @@ export class AuthService {
    * - Lê cookie 'rt'.
    * - Verifica token e jti no Redis.
    * - Rotaciona refresh (revoga jti antigo, grava novo).
-   * - Emite novo access.
+   * - Emite novo access (com role normalizado UPPERCASE).
    */
   async refresh(req: Request, res: Response) {
     const token = (req as any).cookies?.['rt'];
@@ -169,10 +179,12 @@ export class AuthService {
     // rotação
     await this.redis.del(jtiKey);
 
+    const role = normalizeRole(payload.role);
+
     const newJti = randomUUID();
     const newRefreshPayload: RefreshJwtPayload = {
       sub: payload.sub,
-      role: payload.role,
+      role,
       tenantId: payload.tenantId,
       mustChangePassword: payload.mustChangePassword ?? false,
       jti: newJti,
@@ -183,7 +195,7 @@ export class AuthService {
 
     const accessPayload: AccessJwtPayload = {
       sub: payload.sub,
-      role: payload.role,
+      role,
       tenantId: payload.tenantId,
       mustChangePassword: payload.mustChangePassword ?? false,
     };
@@ -227,6 +239,9 @@ export class AuthService {
       },
     });
     if (!u) throw new UnauthorizedException();
-    return u;
+    return {
+      ...u,
+      role: normalizeRole(u.role),
+    };
   }
 }

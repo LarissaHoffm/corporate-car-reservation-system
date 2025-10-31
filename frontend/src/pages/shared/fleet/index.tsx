@@ -1,141 +1,171 @@
 import * as React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+} from "@/components/ui/select";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Car, Plus, Search, Eye, ArrowLeft } from "lucide-react";
+import { Eye, Plus, Trash2 } from "lucide-react";
 import { RoleGuard } from "@/components/role-guard";
 import { statusChipClasses } from "@/components/ui/status";
 
-type FleetStatus = "Available" | "Reserved" | "Maintenance" | "Unavailable";
-type CarType = "SUV" | "SEDAN" | "HATCH";
-type FuelType = "Petrol" | "Diesel" | "Electric";
+import { Car, CarStatus, useCars, useCarMutations } from "@/hooks/use-cars";
+import { useBranchesMap } from "@/hooks/use-branches-map";
+import { toast } from "@/hooks/use-toast";
 
-type Vehicle = {
-  id: string;
-  model: string;
-  plate: string;
-  color: string;
-  lastService: string; // ISO date
-  status: FleetStatus;
-  type: CarType;
-  fuel: FuelType;
-  branch: string;
-};
+const COLORS = ["PRETO", "CINZA", "PRATA", "BRANCO", "VERMELHO", "OUTRO"] as const;
+const STATUSES: CarStatus[] = ["AVAILABLE", "IN_USE", "MAINTENANCE", "INACTIVE", "ACTIVE"];
+const UUID_V4 = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
 
-const FLEET_KEY = "fleet";
+// sentinelas para Radix (nunca use string vazia nos <SelectItem/>)
+const STATUS_ALL = "__ALL_STATUS__";
+const BRANCH_ALL = "__ALL_BRANCH__";
 
-const loadFleet = (): Vehicle[] => {
-  try {
-    const raw = localStorage.getItem(FLEET_KEY);
-    if (raw) return JSON.parse(raw) as Vehicle[];
-  } catch {}
-  return [
-    { id: "1", model: "BMW X5",        plate: "ABC-1234", color: "Black",  lastService: "2025-10-15", status: "Available",   type: "SUV",   fuel: "Petrol",  branch: "JLLE" },
-    { id: "2", model: "Toyota Camry",  plate: "DEF-5678", color: "Blue",   lastService: "2025-10-10", status: "Reserved",    type: "SEDAN", fuel: "Petrol",  branch: "CWB"  },
-    { id: "3", model: "Honda Civic",   plate: "GHI-9012", color: "Silver", lastService: "2025-09-25", status: "Maintenance", type: "SEDAN", fuel: "Diesel",  branch: "MGA"  },
-    { id: "4", model: "Tesla Model 3", plate: "JES-3003", color: "White",  lastService: "2025-09-20", status: "Unavailable", type: "HATCH", fuel: "Electric",branch: "POA"  },
-  ];
-};
+function mapStatusToChip(s: CarStatus) {
+  switch (s) {
+    case "AVAILABLE": return "Available";
+    case "IN_USE": return "Reserved";
+    case "MAINTENANCE": return "Maintenance";
+    default: return "Unavailable";
+  }
+}
 
-const saveFleet = (list: Vehicle[]) => localStorage.setItem(FLEET_KEY, JSON.stringify(list));
-
-const BRANCHES = ["JLLE", "CWB", "MGA", "POA", "SP", "RJ", "CXS", "RBP", "Centro"] as const;
-
-export default function FleetManagement() {
+export default function FleetPage() {
   const navigate = useNavigate();
-
-  const [vehicles, setVehicles] = useState<Vehicle[]>(loadFleet);
-  useEffect(() => saveFleet(vehicles), [vehicles]);
+  const { data: cars, refresh } = useCars();
+  const { create, remove } = useCarMutations();
+  const { idToName, nameToId, names } = useBranchesMap();
 
   // filtros
   const [searchTerm, setSearchTerm] = useState("");
-  const [modelFilter, setModelFilter] = useState<string>("all");
-  const [branchFilter, setBranchFilter] = useState<string>("all");
-  const [fuelFilter, setFuelFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>(STATUS_ALL);
+  const [branchFilterName, setBranchFilterName] = useState<string>(BRANCH_ALL);
 
-  // modal
-  const [isNewCarModalOpen, setIsNewCarModalOpen] = useState(false);
-  const [newCarData, setNewCarData] = useState<Partial<Vehicle>>({
+  // modal criar
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
     model: "",
     plate: "",
-    color: "",
-    lastService: new Date().toISOString().slice(0, 10),
-    status: "Available",
-    type: undefined,
-    fuel: undefined,
-    branch: undefined,
+    color: "" as string,
+    mileage: 0,
+    status: "AVAILABLE" as CarStatus,
+    branchName: "" as string,
   });
 
-  const modelOptions = useMemo(() => ["all", ...Array.from(new Set(vehicles.map(v => v.model)))], [vehicles]);
+  // modal excluir (novo)
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; label: string } | null>(null);
+  const [removing, setRemoving] = useState(false);
 
-  // KPIs
-  const stats = useMemo(() => {
-    const total = vehicles.length;
-    const available = vehicles.filter(v => v.status === "Available").length;
-    const reserved = vehicles.filter(v => v.status === "Reserved").length;
-    const maintenance = vehicles.filter(v => v.status === "Maintenance").length;
-    return [
-      { title: "Total Fleet", value: String(total), icon: Car, highlighted: true },
-      { title: "Available", value: String(available), icon: Car },
-      { title: "Reserved", value: String(reserved), icon: Car },
-      { title: "Maintenance", value: String(maintenance), icon: Car },
-    ];
-  }, [vehicles]);
+  function resetForm() {
+    setForm({ model: "", plate: "", color: "", mileage: 0, status: "AVAILABLE", branchName: "" });
+  }
+
+  const kpis = useMemo(() => {
+    const total = cars.length;
+    return {
+      total,
+      available: cars.filter(c => c.status === "AVAILABLE").length,
+      reserved: cars.filter(c => c.status === "IN_USE").length,
+      maintenance: cars.filter(c => c.status === "MAINTENANCE").length,
+    };
+  }, [cars]);
 
   const filtered = useMemo(() => {
-    const text = searchTerm.trim().toLowerCase();
-    return vehicles.filter(v => {
+    const t = searchTerm.trim().toLowerCase();
+    const branchNameFilter = branchFilterName === BRANCH_ALL ? "" : branchFilterName;
+    const branchIdFilter = branchNameFilter ? nameToId[branchNameFilter] : undefined;
+    const statusFilterVal = statusFilter === STATUS_ALL ? undefined : (statusFilter as CarStatus);
+
+    return cars.filter((c) => {
+      const branchName = idToName[c.branchId ?? ""] ?? "";
       const byText =
-        !text ||
-        v.model.toLowerCase().includes(text) ||
-        v.plate.toLowerCase().includes(text) ||
-        v.color.toLowerCase().includes(text);
-      const byModel = modelFilter === "all" ? true : v.model === modelFilter;
-      const byBranch = branchFilter === "all" ? true : v.branch === branchFilter;
-      const byFuel = fuelFilter === "all" ? true : v.fuel === (fuelFilter as FuelType);
-      return byText && byModel && byBranch && byFuel;
+        !t ||
+        c.model.toLowerCase().includes(t) ||
+        c.plate.toLowerCase().includes(t) ||
+        (c.color ?? "").toLowerCase().includes(t) ||
+        branchName.toLowerCase().includes(t);
+
+    const byStatus = statusFilterVal ? c.status === statusFilterVal : true;
+    const byBranch = branchIdFilter ? c.branchId === branchIdFilter : true;
+
+    return byText && byStatus && byBranch;
     });
-  }, [vehicles, searchTerm, modelFilter, branchFilter, fuelFilter]);
+  }, [cars, searchTerm, statusFilter, branchFilterName, idToName, nameToId]);
 
-  const handleViewDetails = (vehicleId: string) => navigate(`${vehicleId}`);
+  async function onCreate() {
+    if (saving) return;
+    setSaving(true);
+    try {
+      const branchName = form.branchName || undefined;
+      const candidateId = branchName ? nameToId[branchName] : undefined;
+      const branchId = candidateId && UUID_V4.test(candidateId) ? candidateId : undefined;
 
-  const resetForm = () =>
-    setNewCarData({
-      model: "",
-      plate: "",
-      color: "",
-      lastService: new Date().toISOString().slice(0, 10),
-      status: "Available",
-      type: undefined,
-      fuel: undefined,
-      branch: undefined,
-    });
+      await create({
+        plate: form.plate.toUpperCase(),
+        model: form.model.trim(),
+        color: form.color || undefined,
+        mileage: Number.isFinite(form.mileage) ? form.mileage : 0,
+        status: form.status,
+        branchName,
+        ...(branchId ? { branchId } : {}),
+      });
 
-  const handleNewCarSubmit = () => {
-    if (!newCarData.model || !newCarData.plate || !newCarData.type || !newCarData.fuel || !newCarData.branch) return;
+      setOpen(false);
+      resetForm();
+      toast.success("Car created!");
+      await refresh({
+        status: statusFilter === STATUS_ALL ? undefined : (statusFilter as CarStatus),
+        branchId:
+          branchFilterName === BRANCH_ALL ? undefined : nameToId[branchFilterName],
+      });
+    } catch (e: any) {
+      const msg = e?.response?.data?.message;
+      toast.error(Array.isArray(msg) ? msg.join("\n") : (msg || "Erro ao criar carro"));
+    } finally {
+      setSaving(false);
+    }
+  }
 
-    const newV: Vehicle = {
-      id: crypto.randomUUID(),
-      model: newCarData.model!,
-      plate: newCarData.plate!,
-      color: newCarData.color || "-",
-      lastService: newCarData.lastService || new Date().toISOString().slice(0, 10),
-      status: (newCarData.status as FleetStatus) || "Available",
-      type: newCarData.type as CarType,
-      fuel: newCarData.fuel as FuelType,
-      branch: newCarData.branch as string,
-    };
-    setVehicles(prev => [newV, ...prev]);
-    setIsNewCarModalOpen(false);
-    resetForm();
-  };
+  // agora, ao clicar na lixeira, apenas abrimos o modal
+  function onRemove(id: string, label: string) {
+    setDeleteTarget({ id, label });
+  }
+
+  // confirmação do modal (padrão do projeto)
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    try {
+      setRemoving(true);
+      await remove(deleteTarget.id);
+      toast.success("Car deleted!");
+      await refresh({
+        status: statusFilter === STATUS_ALL ? undefined : (statusFilter as CarStatus),
+        branchId:
+          branchFilterName === BRANCH_ALL ? undefined : nameToId[branchFilterName],
+      });
+    } catch (e: any) {
+      const msg = e?.response?.data?.message;
+      toast.error(Array.isArray(msg) ? msg.join("\n") : (msg || "Erro ao remover carro"));
+    } finally {
+      setRemoving(false);
+      setDeleteTarget(null);
+    }
+  }
+
+  // nomes únicos de filiais (evita warnings de keys duplicadas)
+  const uniqueBranchNames = useMemo(
+    () => Array.from(new Set(names ?? [])),
+    [names]
+  );
 
   return (
     <RoleGuard allowedRoles={["ADMIN", "APPROVER"]} requireAuth={false}>
@@ -147,7 +177,7 @@ export default function FleetManagement() {
             <p className="text-muted-foreground">Manage your corporate vehicle fleet</p>
           </div>
 
-          <Dialog open={isNewCarModalOpen} onOpenChange={(o) => { setIsNewCarModalOpen(o); if (!o) resetForm(); }}>
+          <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) resetForm(); }}>
             <DialogTrigger asChild>
               <Button className="bg-[#1558E9] hover:bg-[#1558E9]/90 shadow-sm">
                 <Plus className="h-4 w-4 mr-2" />
@@ -157,124 +187,93 @@ export default function FleetManagement() {
             <DialogContent className="sm:max-w-[560px] border-border/50 shadow-lg">
               <DialogHeader>
                 <DialogTitle className="text-lg font-semibold text-foreground">New Vehicle</DialogTitle>
+                <DialogDescription className="sr-only">
+                  Formulário para cadastrar um novo veículo.
+                </DialogDescription>
               </DialogHeader>
 
               <div className="grid grid-cols-2 gap-4 py-4">
                 <div className="space-y-2 col-span-2">
-                  <Label className="text-sm font-medium text-gray-700">Model</Label>
+                  <Label>Model</Label>
                   <Input
-                    placeholder="e.g. Honda Civic"
-                    value={newCarData.model || ""}
-                    onChange={(e) => setNewCarData({ ...newCarData, model: e.target.value })}
-                    className="border-border/50 focus:border-[#1558E9] shadow-sm"
+                    placeholder="Onix 1.0"
+                    value={form.model}
+                    onChange={(e) => setForm({ ...form, model: e.target.value })}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">Plate</Label>
+                  <Label>Plate</Label>
                   <Input
-                    placeholder="ABC-1234"
-                    value={newCarData.plate || ""}
-                    onChange={(e) => setNewCarData({ ...newCarData, plate: e.target.value.toUpperCase() })}
-                    className="border-border/50 focus:border-[#1558E9] shadow-sm"
+                    placeholder="ABC1D23"
+                    value={form.plate}
+                    onChange={(e) => setForm({ ...form, plate: e.target.value.toUpperCase().slice(0, 7) })}
+                    inputMode="latin"
+                    maxLength={7}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">Color</Label>
-                  <Input
-                    placeholder="Color"
-                    value={newCarData.color || ""}
-                    onChange={(e) => setNewCarData({ ...newCarData, color: e.target.value })}
-                    className="border-border/50 focus:border-[#1558E9] shadow-sm"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">Type</Label>
+                  <Label>Color</Label>
                   <Select
-                    value={newCarData.type as CarType | undefined}
-                    onValueChange={(v: CarType) => setNewCarData({ ...newCarData, type: v })}
+                    value={form.color || undefined}
+                    onValueChange={(v) => setForm({ ...form, color: v })}
                   >
-                    <SelectTrigger className="border-border/50 focus:border-[#1558E9] shadow-sm">
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="Select color" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="SUV">SUV</SelectItem>
-                      <SelectItem value="SEDAN">SEDAN</SelectItem>
-                      <SelectItem value="HATCH">HATCH</SelectItem>
+                      {COLORS.map((c) => <SelectItem key={`clr-${c}`} value={c}>{c}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">Fuel</Label>
-                  <Select
-                    value={newCarData.fuel as FuelType | undefined}
-                    onValueChange={(v: FuelType) => setNewCarData({ ...newCarData, fuel: v })}
-                  >
-                    <SelectTrigger className="border-border/50 focus:border-[#1558E9] shadow-sm">
-                      <SelectValue placeholder="Select fuel" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Petrol">Petrol</SelectItem>
-                      <SelectItem value="Diesel">Diesel</SelectItem>
-                      <SelectItem value="Electric">Electric</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">Branch</Label>
-                  <Select
-                    value={newCarData.branch}
-                    onValueChange={(v: string) => setNewCarData({ ...newCarData, branch: v })}
-                  >
-                    <SelectTrigger className="border-border/50 focus:border-[#1558E9] shadow-sm">
-                      <SelectValue placeholder="Select branch" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {BRANCHES.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">Status</Label>
-                  <Select
-                    value={newCarData.status as FleetStatus}
-                    onValueChange={(v: FleetStatus) => setNewCarData({ ...newCarData, status: v })}
-                  >
-                    <SelectTrigger className="border-border/50 focus:border-[#1558E9] shadow-sm">
-                      <SelectValue placeholder="Select status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Available">Available</SelectItem>
-                      <SelectItem value="Reserved">Reserved</SelectItem>
-                      <SelectItem value="Maintenance">Maintenance</SelectItem>
-                      <SelectItem value="Unavailable">Unavailable</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-gray-700">Last Service</Label>
+                  <Label>Mileage (km)</Label>
                   <Input
-                    type="date"
-                    value={newCarData.lastService || ""}
-                    onChange={(e) => setNewCarData({ ...newCarData, lastService: e.target.value })}
-                    className="border-border/50 focus:border-[#1558E9] shadow-sm"
+                    value={String(form.mileage)}
+                    onChange={(e) => {
+                      const raw = e.target.value.replace(/\D+/g, "");
+                      setForm({ ...form, mileage: raw ? parseInt(raw, 10) : 0 });
+                    }}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    placeholder="0"
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select value={form.status} onValueChange={(v: CarStatus) => setForm({ ...form, status: v })}>
+                    <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+                    <SelectContent>
+                      {STATUSES.map(s => <SelectItem key={`st-${s}`} value={s}>{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Branch (by name)</Label>
+                  <Select
+                    value={form.branchName || undefined}
+                    onValueChange={(v) => setForm({ ...form, branchName: v })}
+                  >
+                    <SelectTrigger><SelectValue placeholder="Select branch" /></SelectTrigger>
+                    <SelectContent>
+                      {uniqueBranchNames.map((n, i) => (
+                        <SelectItem key={`branch-${i}-${n}`} value={n}>{n}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
-              <div className="flex justify-between pt-4">
-                <Button variant="outline" onClick={() => setIsNewCarModalOpen(false)} className="border-border/50 hover:bg-card/50 shadow-sm">
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back
-                </Button>
-                <Button onClick={handleNewCarSubmit} className="bg-[#1558E9] hover:bg-[#1558E9]/90 shadow-sm">
-                  Save Vehicle
+              <div className="flex justify-end pt-2">
+                <Button
+                  type="button"
+                  onClick={onCreate}
+                  disabled={saving}
+                  className="bg-[#1558E9] hover:bg-[#1558E9]/90 shadow-sm disabled:opacity-70"
+                >
+                  {saving ? "Saving..." : "Save Vehicle"}
                 </Button>
               </div>
             </DialogContent>
@@ -283,107 +282,148 @@ export default function FleetManagement() {
 
         {/* KPIs */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          {stats.map((stat) => (
-            <Card key={stat.title} className={`border-border/50 shadow-sm ${stat.highlighted ? "bg-[#1558E9] text-white" : ""}`}>
+          {[
+            { title: "Total Fleet", value: String(kpis.total), highlight: true },
+            { title: "Available", value: String(kpis.available) },
+            { title: "Reserved", value: String(kpis.reserved) },
+            { title: "Maintenance", value: String(kpis.maintenance) },
+          ].map((k) => (
+            <Card key={k.title} className={`border-border/50 shadow-sm ${k.highlight ? "bg-[#1558E9] text-white" : ""}`}>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className={`text-sm font-medium ${stat.highlighted ? "text-white/80" : "text-muted-foreground"}`}>{stat.title}</p>
-                    <p className={`text-2xl font-bold ${stat.highlighted ? "text-white" : "text-foreground"}`}>{stat.value}</p>
+                    <p className={`text-sm font-medium ${k.highlight ? "text-white/80" : "text-muted-foreground"}`}>{k.title}</p>
+                    <p className={`text-2xl font-bold ${k.highlight ? "text-white" : "text-foreground"}`}>{k.value}</p>
                   </div>
-                  <stat.icon className={`h-8 w-8 ${stat.highlighted ? "text-white/80" : "text-[#1558E9]"}`} />
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
 
-        {/* Filtros */}
+        {/* Filtros (com botão Atualizar) */}
         <Card className="border-border/50 shadow-sm">
           <CardContent className="p-6">
-            <div className="flex flex-wrap gap-4">
+            <div className="flex flex-wrap gap-4 items-center">
               <div className="flex-1 min-w-[220px]">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search by model, plate or color…"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 border-border/50 focus:border-[#1558E9] shadow-sm"
-                  />
-                </div>
+                <Input
+                  placeholder="Search by model, plate, color or branch…"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
               </div>
 
-              <Select value={modelFilter} onValueChange={setModelFilter}>
-                <SelectTrigger className="w-[180px] border-border/50 focus:border-[#1558E9] shadow-sm">
-                  <SelectValue placeholder="Model" />
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {modelOptions.map(m => (
-                    <SelectItem key={m} value={m}>{m === "all" ? "All Models" : m}</SelectItem>
+                  <SelectItem value={STATUS_ALL}>All Status</SelectItem>
+                  {STATUSES.map((s) => <SelectItem key={`flt-st-${s}`} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+
+              <Select value={branchFilterName} onValueChange={setBranchFilterName}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={BRANCH_ALL}>All Branches</SelectItem>
+                  {uniqueBranchNames.map((n, i) => (
+                    <SelectItem key={`flt-br-${i}-${n}`} value={n}>{n}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
 
-              <Select value={branchFilter} onValueChange={setBranchFilter}>
-                <SelectTrigger className="w-[160px] border-border/50 focus:border-[#1558E9] shadow-sm">
-                  <SelectValue placeholder="Branch" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Branches</SelectItem>
-                  {BRANCHES.map(b => <SelectItem key={b} value={b}>{b}</SelectItem>)}
-                </SelectContent>
-              </Select>
-
-              <Select value={fuelFilter} onValueChange={setFuelFilter}>
-                <SelectTrigger className="w-[160px] border-border/50 focus:border-[#1558E9] shadow-sm">
-                  <SelectValue placeholder="Fuel Type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Fuel Types</SelectItem>
-                  <SelectItem value="Petrol">Petrol</SelectItem>
-                  <SelectItem value="Diesel">Diesel</SelectItem>
-                  <SelectItem value="Electric">Electric</SelectItem>
-                </SelectContent>
-              </Select>
+              <Button
+                type="button"
+                onClick={() => refresh({
+                  status: statusFilter === STATUS_ALL ? undefined : (statusFilter as CarStatus),
+                  branchId:
+                    branchFilterName === BRANCH_ALL ? undefined : nameToId[branchFilterName],
+                })}
+                className="bg-muted text-foreground hover:bg-muted/80"
+              >
+                Atualizar
+              </Button>
             </div>
           </CardContent>
         </Card>
 
-        {/* Cards de veículos */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filtered.map((v) => (
-            <Card key={v.id} className="border-border/50 shadow-sm">
-              <CardContent className="p-6">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-foreground">{v.model}</h3>
-                    <Badge className={statusChipClasses(v.status)}>{v.status}</Badge>
-                  </div>
+        {/* Grid de cards com scroll próprio */}
+        <div className="max-h-[60vh] overflow-y-auto pr-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {filtered.map((v) => {
+              const branchName = idToName[v.branchId ?? ""] ?? "-";
+              return (
+                <Card key={v.id} className="border-border/50 shadow-sm">
+                  <CardContent className="p-6">
+                    <div className="space-y-4">
+                      <div className="flex items-start justify-between">
+                        <h3 className="font-semibold text-foreground">{v.model}</h3>
+                        <div className="flex items-center gap-3">
+                          <Badge className={statusChipClasses(mapStatusToChip(v.status))}>
+                            {mapStatusToChip(v.status)}
+                          </Badge>
+                          <button
+                            type="button"
+                            aria-label="Excluir"
+                            className="text-red-500 hover:text-red-600"
+                            onClick={() => onRemove(v.id, v.model)}
+                            title="Excluir"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
 
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between"><span className="text-muted-foreground">Plate</span><span className="text-foreground">{v.plate}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Color</span><span className="text-foreground">{v.color}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Type</span><span className="text-foreground">{v.type}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Fuel</span><span className="text-foreground">{v.fuel}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Branch</span><span className="text-foreground">{v.branch}</span></div>
-                    <div className="flex justify-between"><span className="text-muted-foreground">Last Service</span><span className="text-foreground">{v.lastService}</span></div>
-                  </div>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between"><span className="text-muted-foreground">Plate</span><span className="text-foreground">{v.plate}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Color</span><span className="text-foreground">{v.color ?? "-"}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Km</span><span className="text-foreground">{v.mileage.toLocaleString()}</span></div>
+                        <div className="flex justify-between"><span className="text-muted-foreground">Branch</span><span className="text-foreground">{branchName}</span></div>
+                      </div>
 
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full bg-transparent border-border/50 hover:bg-card/50 shadow-sm"
-                    onClick={() => handleViewDetails(v.id)}
-                  >
-                    <Eye className="h-4 w-4 mr-2" />
-                    View Details
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full bg-transparent border-border/50 hover:bg-card/50 shadow-sm"
+                        onClick={() => navigate(`${v.id}`)}
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        View Details
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
         </div>
+
+        {/* Dialog de confirmação de exclusão (padrão do projeto) */}
+        <Dialog
+          open={!!deleteTarget}
+          onOpenChange={(o) => { if (!removing) setDeleteTarget(o ? deleteTarget : null); }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Remover veículo</DialogTitle>
+              <DialogDescription>
+                Tem certeza que deseja remover <strong>{deleteTarget?.label ?? "este veículo"}</strong>? Esta ação não pode ser desfeita.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={removing}>
+                Cancelar
+              </Button>
+              <Button variant="destructive" onClick={confirmDelete} disabled={removing}>
+                {removing ? "Removendo..." : "Remover"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </RoleGuard>
   );
