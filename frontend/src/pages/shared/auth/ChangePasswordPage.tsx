@@ -1,5 +1,8 @@
 <<<<<<< HEAD
+=======
 <<<<<<< HEAD
+<<<<<<< HEAD
+>>>>>>> origin/main
 import * as React from "react";
 import { useState, useMemo } from "react";
 import { Eye, EyeOff, Lock, Save } from "lucide-react";
@@ -90,6 +93,8 @@ export default function ChangePasswordPage() {
         err?.message ||
         "Não foi possível alterar a senha.";
       toast({ title: msg, variant: "destructive" });
+<<<<<<< HEAD
+=======
 =======
 =======
 >>>>>>> origin/main
@@ -131,13 +136,17 @@ export default function ChangePasswordPage() {
 >>>>>>> 946f3ceda114cc349b53aeccb7dd279a09d31415
 =======
 >>>>>>> origin/main
+>>>>>>> origin/main
       setLoading(false);
     }
   }
 
   return (
 <<<<<<< HEAD
+=======
 <<<<<<< HEAD
+<<<<<<< HEAD
+>>>>>>> origin/main
     <div className="min-h-[calc(100vh-80px)] w-full flex items-center justify-center p-6">
       <form onSubmit={handleSubmit} className="w-full max-w-2xl">
         <Card className="border-border/50 shadow-sm">
@@ -252,6 +261,8 @@ export default function ChangePasswordPage() {
           </CardContent>
         </Card>
       </form>
+<<<<<<< HEAD
+=======
 =======
 =======
 >>>>>>> origin/main
@@ -298,6 +309,7 @@ export default function ChangePasswordPage() {
 <<<<<<< HEAD
 >>>>>>> 946f3ceda114cc349b53aeccb7dd279a09d31415
 =======
+>>>>>>> origin/main
 >>>>>>> origin/main
     </div>
   );
