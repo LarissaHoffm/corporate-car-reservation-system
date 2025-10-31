@@ -17,8 +17,17 @@ export class StationsService {
           branchId: dto.branchId ?? null,
           name: dto.name.trim(),
           address: dto.address?.trim() ?? null,
+          // isActive usa o default do banco (true) se não enviado
         },
-        select: { id: true, name: true, address: true, branchId: true, createdAt: true },
+        select: {
+          id: true,
+          name: true,
+          address: true,
+          branchId: true,
+          isActive: true,        // ⬅️ adicionado
+          createdAt: true,
+          updatedAt: true,
+        },
       });
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
@@ -35,7 +44,14 @@ export class StationsService {
     const where: Prisma.StationWhereInput = {
       tenantId: actor.tenantId,
       ...(q.branchId ? { branchId: q.branchId } : {}),
-      ...(q.q ? { name: { contains: q.q, mode: 'insensitive' } } : {}),
+      ...(q.q
+        ? {
+            OR: [
+              { name: { contains: q.q, mode: 'insensitive' } },
+              { address: { contains: q.q, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
     };
 
     const [items, total] = await this.prisma.$transaction([
@@ -44,18 +60,34 @@ export class StationsService {
         orderBy: { name: 'asc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
-        select: { id: true, name: true, address: true, branchId: true, createdAt: true },
+        select: {
+          id: true,
+          name: true,
+          address: true,
+          branchId: true,
+          isActive: true,        // ⬅️ adicionado
+          createdAt: true,
+          updatedAt: true,
+        },
       }),
       this.prisma.station.count({ where }),
     ]);
 
-    return { page, pageSize, total, items };
+    return { page, pageSize, total, items, data: items };
   }
 
   async get(actor: { tenantId: string }, id: string) {
     const s = await this.prisma.station.findFirst({
       where: { id, tenantId: actor.tenantId },
-      select: { id: true, name: true, address: true, branchId: true, createdAt: true, updatedAt: true },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        branchId: true,
+        isActive: true,          // ⬅️ adicionado
+        createdAt: true,
+        updatedAt: true,
+      },
     });
     if (!s) throw new NotFoundException('Posto não encontrado');
     return s;
@@ -71,13 +103,22 @@ export class StationsService {
           ...(dto.branchId !== undefined
             ? (dto.branchId ? { branchId: dto.branchId } : { branchId: null })
             : {}),
+          // isActive pode ser mapeado depois quando ajustarmos o DTO
         },
-        select: { id: true, name: true, address: true, branchId: true, updatedAt: true },
+        select: {
+          id: true,
+          name: true,
+          address: true,
+          branchId: true,
+          isActive: true,        // ⬅️ adicionado
+          updatedAt: true,
+        },
       });
 
-      // segurança de tenant (garante que o ID pertence ao tenant)
-      const count = await this.prisma.station.count({ where: { id, tenantId: actor.tenantId } });
-      if (count === 0) throw new NotFoundException('Posto não encontrado');
+      const belongs = await this.prisma.station.count({
+        where: { id, tenantId: actor.tenantId },
+      });
+      if (belongs === 0) throw new NotFoundException('Posto não encontrado');
 
       return s;
     } catch (e) {
@@ -89,8 +130,12 @@ export class StationsService {
   }
 
   async remove(actor: { tenantId: string }, id: string) {
-    const s = await this.prisma.station.findFirst({ where: { id, tenantId: actor.tenantId }, select: { id: true } });
+    const s = await this.prisma.station.findFirst({
+      where: { id, tenantId: actor.tenantId },
+      select: { id: true },
+    });
     if (!s) throw new NotFoundException('Posto não encontrado');
+
     await this.prisma.station.delete({ where: { id: s.id } });
     return { ok: true };
   }
