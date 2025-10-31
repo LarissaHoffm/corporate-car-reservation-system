@@ -1,12 +1,13 @@
 import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
-import { PrismaService } from '../infra/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import type { Response, Request } from 'express';
 import * as argon2 from 'argon2';
+import { randomUUID } from 'crypto';
+
+import { PrismaService } from '../infra/prisma.service';
 import { RedisService } from '../infra/redis.service';
 import { LoginDto } from './dto/login.dto';
 import { Role, UserStatus } from '@prisma/client';
-import { randomUUID } from 'crypto';
 
 /** Converte "15m" | "7d" | "3600" para segundos */
 function toSeconds(input: string | number | undefined, fallback: number): number {
@@ -51,9 +52,9 @@ export class AuthService {
   private readonly cookieSecure  = (process.env.NODE_ENV === 'production');
 
   constructor(
-    private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly redis: RedisService,
+    private readonly prisma: PrismaService,
   ) {}
 
   private signAccessToken(payload: AccessJwtPayload): string {
@@ -126,9 +127,8 @@ export class AuthService {
 
       await this.redis.set(`rt:${jti}`, JSON.stringify({ uid: user.id }), this.refreshTtlSec);
       this.setRefreshCookie(res, refreshToken);
-    } catch (err) {
-      // loga, mas não quebra o login
-      // console.error('[auth.login] Falha ao preparar refresh:', err);
+    } catch {
+      // log opcional — não quebrar o login
     }
 
     const safeUser = {
