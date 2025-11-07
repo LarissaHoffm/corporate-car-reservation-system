@@ -32,12 +32,12 @@ services:
     environment:
       NODE_ENV: production
       UPLOADS_DIR: /app/uploads
+    working_dir: /app
     volumes:
       - uploads:/app/uploads
     depends_on:
       db:     { condition: service_healthy }
       redis:  { condition: service_healthy }
-    ports: []
     expose:
       - "3000"
     healthcheck:
@@ -45,6 +45,21 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    # Migrate + seed; usa build se existir; senão fallback TS com **módulos locais**
+    command: >
+      sh -lc '
+        set -e;
+        npx prisma generate >/dev/null 2>&1 || true;
+        npx prisma migrate deploy;
+        npx prisma db seed || true;
+        TARGET="$( [ -f dist/main.js ] && echo dist/main.js || ( [ -f dist/src/main.js ] && echo dist/src/main.js ) || find dist -type f -name main.js | head -n1 )";
+        if [ -n "$TARGET" ]; then
+          echo "▶️  Executando build: node $TARGET";
+          exec node "$TARGET";
+        fi;
+        echo "ℹ️  dist não encontrado — iniciando via TS runtime (local modules)";
+        exec node -r ./node_modules/ts-node/register -r ./node_modules/tsconfig-paths/register src/main.ts
+      '
     restart: unless-stopped
     logging:
       driver: json-file
@@ -56,7 +71,6 @@ services:
       dockerfile: Dockerfile
     env_file:
       - ../frontend/.env.production
-    ports: []
     expose:
       - "5173"
     depends_on:
