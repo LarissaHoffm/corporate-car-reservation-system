@@ -1,316 +1,238 @@
 import * as React from "react";
-import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { MapPin, Calendar, Clock, Send, ArrowLeft } from "lucide-react";
-import { RoleGuard } from "@/components/role-guard";
 
-export default function NewReservation() {
+import useReservations from "@/hooks/use-reservations";
+
+function toISO(localDateTime: string) { return new Date(localDateTime).toISOString(); }
+function diffHuman(start?: string, end?: string) {
+  if (!start || !end) return "—";
+  const a = new Date(start).getTime(); const b = new Date(end).getTime();
+  if (Number.isNaN(a) || Number.isNaN(b) || b <= a) return "—";
+  const h = Math.floor((b - a) / 36e5), d = Math.floor(h / 24), hh = h % 24;
+  return d > 0 ? `${d} day${d>1?"s":""} ${hh} hour${hh!==1?"s":""}` : `${h} hour${h!==1?"s":""}`;
+}
+function nowInputLocal() {
+  const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 16);
+}
+
+export default function NewReservationPage() {
   const navigate = useNavigate();
+  const { createReservation, loading, errors } = useReservations();
 
-  useEffect(() => {
-    console.log("[v0] New Reservation page mounted successfully");
-    console.log("[v0] Current URL:", window.location.pathname);
-  }, []);
+  const [origin, setOrigin] = useState("");
+  const [destination, setDestination] = useState("");
+  const [startAtLocal, setStartAtLocal] = useState("");
+  const [endAtLocal, setEndAtLocal] = useState("");
 
-  const [formData, setFormData] = useState({
-    origin: "",
-    destination: "",
-    departureDate: "",
-    departureTime: "",
-    returnDate: "",
-    returnTime: "",
-    passengerCount: "1",
-    purpose: "",
-    notes: "",
-    transmission: "Automatic",
-    fuelType: "Any",
-    vehicleClass: "Compact",
-  });
+  const [passengers, setPassengers] = useState("1");
+  const [purpose, setPurpose] = useState("Project");
+  const [prefTransmission, setPrefTransmission] = useState("Automatic");
+  const [prefFuel, setPrefFuel] = useState("Any");
+  const [prefClass, setPrefClass] = useState("Compact");
+  const [notes, setNotes] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // validação simples e robusta (datas válidas, início no futuro e antes do fim)
+  const valid = useMemo(() => {
+    const a = origin.trim(), b = destination.trim();
+    if (!a || !b || !startAtLocal || !endAtLocal) return false;
+    const s = Date.parse(startAtLocal);
+    const e = Date.parse(endAtLocal);
+    if (Number.isNaN(s) || Number.isNaN(e)) return false;
+    return s < e && s > Date.now();
+  }, [origin, destination, startAtLocal, endAtLocal]);
+
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    console.log("[v0] Submitting new reservation:", formData);
-    navigate("/requester/reservations");
-  };
+    setFormError(null);
+    if (!valid) { setFormError("Preencha os campos e garanta que o início é no futuro e antes do fim."); return; }
+
+    try {
+      setSubmitting(true);
+
+      // 🔴 Sem listar/atribuir carros aqui (evita 403). Apenas cria a solicitação.
+      const res = await createReservation({
+        origin: origin.trim(),
+        destination: destination.trim(),
+        startAt: toISO(startAtLocal),
+        endAt: toISO(endAtLocal),
+        // opcionais/visuais; backend pode ignorar se não estiver no DTO
+        purpose,
+        notes: notes?.trim() || undefined,
+        passengers: Number(passengers),
+      } as any);
+
+      if (res.ok) navigate("/requester/reservations");
+      else setFormError(res.error || "Não foi possível criar a reserva.");
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || "Falha ao enviar a solicitação.";
+      setFormError(typeof msg === "string" ? msg : "Falha ao enviar a solicitação.");
+    } finally { setSubmitting(false); }
+  }
+
+  const minStart = nowInputLocal();
+  const minEnd = startAtLocal || minStart;
+
+  const startISO = startAtLocal ? toISO(startAtLocal) : undefined;
+  const endISO = endAtLocal ? toISO(endAtLocal) : undefined;
+  const pickupReturn = origin && destination ? `${origin} → ${destination}` : "—";
 
   return (
-    <RoleGuard allowedRoles={["REQUESTER"]} requireAuth={false}>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-4">
-          <Link to="/requester/reservations">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <h1 className="text-2xl font-bold text-foreground">New Reservation</h1>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Form */}
-          <div className="lg:col-span-2 space-y-6">
-            <Card className="border-border/50 shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold text-foreground">Trip Details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
+    <div className="mx-auto p-6 max-w-[1400px]">
+      <form onSubmit={onSubmit} className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2 space-y-6">
+          <Card className="border-border/50 shadow-sm">
+            <CardHeader><CardTitle>New Reservation</CardTitle></CardHeader>
+            <CardContent className="space-y-8">
+              {/* Trip Details */}
+              <section className="space-y-4">
+                <h3 className="text-sm font-medium text-muted-foreground">Trip Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Origin</label>
-                    <Select
-                      value={formData.origin}
-                      onValueChange={(value) => setFormData((prev) => ({ ...prev, origin: value }))}
-                    >
-                      <SelectTrigger className="border-border/50 focus:border-[#1558E9] focus:ring-2 focus:ring-[#1558E9] focus:ring-offset-2">
-                        <SelectValue placeholder="Select origin office" />
-                      </SelectTrigger>
+                  <div className="space-y-2">
+                    <Label>Origin</Label>
+                    <Input value={origin} onChange={(e) => setOrigin(e.target.value)} placeholder="Type origin" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Destination</Label>
+                    <Input value={destination} onChange={(e) => setDestination(e.target.value)} placeholder="Type destination" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Departure</Label>
+                    <Input type="datetime-local" min={minStart} value={startAtLocal} onChange={(e) => setStartAtLocal(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Return</Label>
+                    <Input type="datetime-local" min={minEnd} value={endAtLocal} onChange={(e) => setEndAtLocal(e.target.value)} />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Passengers</Label>
+                    <Select value={passengers} onValueChange={setPassengers}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="lisbon">Lisbon HQ</SelectItem>
-                        <SelectItem value="porto">Porto Office</SelectItem>
-                        <SelectItem value="downtown">Downtown Branch</SelectItem>
+                        <SelectItem value="1">1</SelectItem>
+                        <SelectItem value="2">2</SelectItem>
+                        <SelectItem value="3">3</SelectItem>
+                        <SelectItem value="4">4</SelectItem>
+                        <SelectItem value="5">5</SelectItem>
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-muted-foreground mt-1">Choose your pickup location</p>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Destination</label>
-                    <Select
-                      value={formData.destination}
-                      onValueChange={(value) => setFormData((prev) => ({ ...prev, destination: value }))}
-                    >
-                      <SelectTrigger className="border-border/50 focus:border-[#1558E9] focus:ring-2 focus:ring-[#1558E9] focus:ring-offset-2">
-                        <SelectValue placeholder="Select destination" />
-                      </SelectTrigger>
+                  <div className="space-y-2">
+                    <Label>Purpose</Label>
+                    <Select value={purpose} onValueChange={setPurpose}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="lisbon">Lisbon HQ</SelectItem>
-                        <SelectItem value="porto">Porto Office</SelectItem>
-                        <SelectItem value="airport">Airport</SelectItem>
+                        <SelectItem value="Project">Project</SelectItem>
+                        <SelectItem value="Client Visit">Client Visit</SelectItem>
+                        <SelectItem value="Others">Others</SelectItem>
                       </SelectContent>
                     </Select>
-                    <p className="text-xs text-muted-foreground mt-1">Where you need to go</p>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Departure</label>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 relative">
-                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          type="date"
-                          value={formData.departureDate}
-                          onChange={(e) => setFormData((prev) => ({ ...prev, departureDate: (e.target as HTMLInputElement).value }))}
-                          className="pl-10 border-border/50 focus:border-[#1558E9] focus:ring-2 focus:ring-[#1558E9] focus:ring-offset-2"
-                        />
-                      </div>
-                      <div className="flex-1 relative">
-                        <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          type="time"
-                          value={formData.departureTime}
-                          onChange={(e) => setFormData((prev) => ({ ...prev, departureTime: (e.target as HTMLInputElement).value }))}
-                          className="pl-10 border-border/50 focus:border-[#1558E9] focus:ring-2 focus:ring-[#1558E9] focus:ring-offset-2"
-                        />
-                      </div>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">Select date & time</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Return</label>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 relative">
-                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          type="date"
-                          value={formData.returnDate}
-                          onChange={(e) => setFormData((prev) => ({ ...prev, returnDate: (e.target as HTMLInputElement).value }))}
-                          className="pl-10 border-border/50 focus:border-[#1558E9] focus:ring-2 focus:ring-[#1558E9] focus:ring-offset-2"
-                        />
-                      </div>
-                      <div className="flex-1 relative">
-                        <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                          type="time"
-                          value={formData.returnTime}
-                          onChange={(e) => setFormData((prev) => ({ ...prev, returnTime: (e.target as HTMLInputElement).value }))}
-                          className="pl-10 border-border/50 focus:border-[#1558E9] focus:ring-2 focus:ring-[#1558E9] focus:ring-offset-2"
-                        />
-                      </div>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">Select date & time</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Passengers</label>
-                    <Select
-                      value={formData.passengerCount}
-                      onValueChange={(value) => setFormData((prev) => ({ ...prev, passengerCount: value }))}
-                    >
-                      <SelectTrigger className="border-border/50 focus:border-[#1558E9] focus:ring-2 focus:ring-[#1558E9] focus:ring-offset-2">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">1 passenger</SelectItem>
-                        <SelectItem value="2">2 passengers</SelectItem>
-                        <SelectItem value="3">3 passengers</SelectItem>
-                        <SelectItem value="4">4 passengers</SelectItem>
-                        <SelectItem value="5">5+ passengers</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground mt-1">Number of passengers</p>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Purpose</label>
-                    <Select
-                      value={formData.purpose}
-                      onValueChange={(value) => setFormData((prev) => ({ ...prev, purpose: value }))}
-                    >
-                      <SelectTrigger className="border-border/50 focus:border-[#1558E9] focus:ring-2 focus:ring-[#1558E9] focus:ring-offset-2">
-                        <SelectValue placeholder="Project / Meeting / Client visit" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="meeting">Meeting</SelectItem>
-                        <SelectItem value="project">Project</SelectItem>
-                        <SelectItem value="client">Client visit</SelectItem>
-                        <SelectItem value="training">Training</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Notes</Label>
+                    <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any additional information…" className="min-h-[96px]" />
                   </div>
                 </div>
+              </section>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
-                  <Textarea
-                    value={formData.notes}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, notes: (e.target as HTMLTextAreaElement).value }))}
-                    placeholder="Any additional information about your trip..."
-                    className="min-h-[100px] border-border/50 focus:border-[#1558E9] focus:ring-2 focus:ring-[#1558E9] focus:ring-offset-2"
-                  />
+              {/* Route Preview */}
+              <section className="space-y-4">
+                <h3 className="text-sm font-medium text-muted-foreground">Route Preview</h3>
+                <div className="h-40 rounded-md border border-dashed border-border/50 grid place-items-center text-sm text-muted-foreground">
+                  Route will be displayed here
                 </div>
-              </CardContent>
-            </Card>
+              </section>
 
-            <Card className="border-border/50 shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold text-foreground">Route Preview</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="rounded-lg border border-dashed border-border p-6 text-center">
-                  <MapPin className="mx-auto h-8 w-8 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">Route will be displayed here</p>
-                  <p className="text-xs text-muted-foreground mt-1">Interactive map showing pickup and destination</p>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-border/50 shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-lg font-semibold text-foreground">Vehicle Preferences</CardTitle>
-              </CardHeader>
-              <CardContent>
+              {/* Vehicle Preferences (visual) */}
+              <section className="space-y-4">
+                <h3 className="text-sm font-medium text-muted-foreground">Vehicle Preferences</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Transmission</label>
-                    <Select
-                      value={formData.transmission}
-                      onValueChange={(value) => setFormData((prev) => ({ ...prev, transmission: value }))}
-                    >
-                      <SelectTrigger className="border-border/50 focus:border-[#1558E9] focus:ring-2 focus:ring-[#1558E9] focus:ring-offset-2">
-                        <SelectValue />
-                      </SelectTrigger>
+                  <div className="space-y-2">
+                    <Label>Transmission</Label>
+                    <Select value={prefTransmission} onValueChange={setPrefTransmission}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="Automatic">Automatic</SelectItem>
                         <SelectItem value="Manual">Manual</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Fuel</label>
-                    <Select
-                      value={formData.fuelType}
-                      onValueChange={(value) => setFormData((prev) => ({ ...prev, fuelType: value }))}
-                    >
-                      <SelectTrigger className="border-border/50 focus:border-[#1558E9] focus:ring-2 focus:ring-[#1558E9] focus:ring-offset-2">
-                        <SelectValue />
-                      </SelectTrigger>
+                  <div className="space-y-2">
+                    <Label>Fuel</Label>
+                    <Select value={prefFuel} onValueChange={setPrefFuel}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="Any">Any</SelectItem>
-                        <SelectItem value="Petrol">Petrol</SelectItem>
                         <SelectItem value="Diesel">Diesel</SelectItem>
-                        <SelectItem value="Hybrid">Hybrid</SelectItem>
+                        <SelectItem value="Petrol">Petrol</SelectItem>
                         <SelectItem value="Electric">Electric</SelectItem>
+                        <SelectItem value="Any">Any</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Class</label>
-                    <Select
-                      value={formData.vehicleClass}
-                      onValueChange={(value) => setFormData((prev) => ({ ...prev, vehicleClass: value }))}
-                    >
-                      <SelectTrigger className="border-border/50 focus:border-[#1558E9] focus:ring-2 focus:ring-[#1558E9] focus:ring-offset-2">
-                        <SelectValue />
-                      </SelectTrigger>
+                  <div className="space-y-2">
+                    <Label>Class</Label>
+                    <Select value={prefClass} onValueChange={setPrefClass}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="Sedan">Sedan</SelectItem>
                         <SelectItem value="Compact">Compact</SelectItem>
-                        <SelectItem value="Standard">Standard</SelectItem>
-                        <SelectItem value="SUV">SUV</SelectItem>
-                        <SelectItem value="Van">Van</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                 </div>
+              </section>
 
-                <div className="mt-6">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Status</span>
-                    <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border-yellow-200">Pending approval</Badge>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+              {(formError || errors.create) && <p className="text-sm text-red-600">{formError || errors.create}</p>}
 
-          {/* Summary */}
-          <Card className="border-border/50 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold text-foreground">Summary</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-4">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Estimated Duration</span>
-                  <span className="font-medium text-foreground">2 days 9 hours</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Pickup/Return</span>
-                  <span className="font-medium text-foreground">Lisbon HQ → Porto</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Approver</span>
-                  <span className="font-medium text-foreground">Assigned automatically</span>
-                </div>
+              <div className="pt-2 flex gap-2">
+                <Button type="submit" disabled={!valid || loading.create || submitting} className="bg-[#1558E9] hover:bg-[#1558E9]/90">
+                  {loading.create || submitting ? "Sending…" : "Submit Request"}
+                </Button>
+                <Button type="button" variant="ghost" onClick={() => navigate(-1)}>Cancel</Button>
               </div>
-
-              <Button onClick={handleSubmit} className="w-full bg-[#1558E9] hover:bg-[#1558E9]/90 py-3 mt-6 focus:ring-2 focus:ring-[#1558E9] focus:ring-offset-2">
-                <Send className="h-4 w-4 mr-2" />
-                Submit Request
-              </Button>
             </CardContent>
           </Card>
         </div>
-      </div>
-    </RoleGuard>
+
+        <aside className="space-y-6">
+          <Card className="border-border/50 shadow-sm">
+            <CardHeader><CardTitle>Summary</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Estimated Duration</span>
+                <span className="text-foreground">{diffHuman(startISO, endISO)}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Pickup/Return</span>
+                <span className="text-right text-foreground">{pickupReturn}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Approver</span>
+                <span className="text-foreground">Assigned automatically</span>
+              </div>
+              <Button
+                type="submit"
+                className="w-full bg-[#1558E9] hover:bg-[#1558E9]/90"
+                disabled={!valid || loading.create || submitting}
+              >
+                {loading.create || submitting ? "Sending…" : "Submit Request"}
+              </Button>
+            </CardContent>
+          </Card>
+        </aside>
+      </form>
+    </div>
   );
 }

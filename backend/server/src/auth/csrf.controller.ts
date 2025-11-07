@@ -41,7 +41,7 @@ export class CsrfController {
       secure,
       domain,
       path: '/',
-      maxAge: refreshTtlSec * 1000, // ms (número)
+      maxAge: refreshTtlSec * 1000, // ms 
     });
   }
 }

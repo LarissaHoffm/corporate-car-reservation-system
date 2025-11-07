@@ -1,4 +1,3 @@
-// frontend/src/lib/auth/useAuth.tsx
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { AuthAPI, SessionUser } from "@/lib/http/api";
 import { setAccessToken, clearAccessToken, schedulePreemptiveRefresh } from "@/lib/auth/token";
@@ -21,28 +20,31 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const [user, setUser] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // bootstrap: tenta obter sessão atual
   useEffect(() => {
     (async () => {
       setLoading(true);
       try {
-        await AuthAPI.csrf(); // garante cookie CSRF
-        const me = await AuthAPI.me();
+        await AuthAPI.csrf(); // garante csrftoken
+        const { data: r } = await AuthAPI.refresh(); // silent re-auth
+        if (r?.accessToken) setAccessToken(r.accessToken);
+
+        const me = await AuthAPI.me(); // agora temos Bearer válido
         setUser(me.data);
 
         // agenda refresh proativo após bootstrap
         schedulePreemptiveRefresh(async () => {
           const { data } = await AuthAPI.refresh();
-          setAccessToken(data.accessToken);
+          if (data?.accessToken) setAccessToken(data.accessToken);
         });
       } catch {
-        setUser(null);
+        setUser(null); // sem sessão válida
       } finally {
         setLoading(false);
       }
     })();
   }, []);
 
+  /** Login normal */
   const login = async (email: string, password: string, rememberMe = false) => {
     setLoading(true);
     try {
@@ -50,10 +52,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       if (res.data?.accessToken) {
         setAccessToken(res.data.accessToken);
 
-        // agenda refresh proativo IMEDIATO após o login
         schedulePreemptiveRefresh(async () => {
           const { data } = await AuthAPI.refresh();
-          setAccessToken(data.accessToken);
+          if (data?.accessToken) setAccessToken(data.accessToken);
         });
       }
 
@@ -69,6 +70,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     }
   };
 
+ 
   const logout = async () => {
     setLoading(true);
     try {

@@ -2,17 +2,12 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import { ConfigService } from '@nestjs/config';
 import Redis, { RedisOptions } from 'ioredis';
 
-/**
- * Conecta sempre ao serviço Docker "redis" (nunca 127.0.0.1).
- * Expõe wrappers compatíveis com o AuthService: set/get/del (TTL em segundos).
- */
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RedisService.name);
   private client!: Redis;
 
   constructor(private readonly cfg: ConfigService) {
-    // Normaliza host para nunca usar localhost/127.0.0.1 em container
     const rawHost = (this.cfg.get<string>('REDIS_HOST') || '').trim();
     let host = rawHost || 'redis';
     if (host === '127.0.0.1' || host === 'localhost') host = 'redis';
@@ -21,7 +16,6 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     const password = this.cfg.get<string>('REDIS_PASSWORD') || undefined;
     const db = Number(this.cfg.get<string>('REDIS_DB') || 0);
 
-    // Ignora REDIS_URL se contiver localhost/127.0.0.1
     const rawUrl = (this.cfg.get<string>('REDIS_URL') || '').trim();
     const useUrl = rawUrl && !/127\.0\.0\.1|localhost/i.test(rawUrl);
 
@@ -44,7 +38,6 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     try { await this.client.connect(); }
     catch (err: any) {
       this.logger.error(`Failed to connect to Redis: ${err?.message || err}`);
-      // não derruba a API — funcionalidades dependentes degradam sem cache
     }
   }
 

@@ -2,7 +2,7 @@ import type { MeResponse } from "@/lib/http/api";
 import { AuthAPI } from "@/lib/http/api";
 import {
   setAccessToken,
-  clearToken,
+  clearAccessToken as clearToken,
   schedulePreemptiveRefresh,
 } from "@/lib/auth/token";
 
@@ -27,20 +27,20 @@ export function onAuthChange(cb: (u: MeResponse | null) => void) {
   return () => subs.delete(cb);
 }
 
-
 export async function login(
   email: string,
   password: string,
   rememberMe = false
 ): Promise<MeResponse> {
-  const { data } = await AuthAPI.login({ email, password, rememberMe });
-  setAccessToken(data.accessToken);
+  const { data } = await AuthAPI.login(email, password, rememberMe);
+  if (data?.accessToken) setAccessToken(data.accessToken);
+
   const me = await AuthAPI.me();
   setCurrentUser(me.data);
 
   schedulePreemptiveRefresh(async () => {
     const { data: r } = await AuthAPI.refresh();
-    setAccessToken(r.accessToken);
+    if (r?.accessToken) setAccessToken(r.accessToken);
   });
 
   return me.data;
@@ -48,6 +48,8 @@ export async function login(
 
 export async function logout(): Promise<void> {
   try {
+    // força um csrftoken atual para garantir header/cookie em /auth/logout
+    await AuthAPI.csrf();
     await AuthAPI.logout();
   } finally {
     clearToken();
@@ -55,51 +57,47 @@ export async function logout(): Promise<void> {
   }
 }
 
+// Força refresh do access + rehidrata o usuário 
 export async function refresh(): Promise<MeResponse> {
   const { data } = await AuthAPI.refresh();
-  setAccessToken(data.accessToken);
+  if (data?.accessToken) setAccessToken(data.accessToken);
+
   const me = await AuthAPI.me();
   setCurrentUser(me.data);
   return me.data;
 }
 
 export async function me(): Promise<MeResponse> {
-  const me = await AuthAPI.me();
-  setCurrentUser(me.data);
-  return me.data;
+  const m = await AuthAPI.me();
+  setCurrentUser(m.data);
+  return m.data;
 }
 
-// ... seu código existente (decodeJwtExp, listeners, etc.)
-
-export function schedulePreemptiveRefresh(fetchNewToken: () => Promise<void>) {
-  if (_refreshTimer) clearTimeout(_refreshTimer);
-  _refreshTimer = null;
-
-  if (!_accessToken) return;
-  const expSec = decodeJwtExp(_accessToken);
-  if (!expSec) return;
-
-  // agenda ~60s antes de expirar (ajuste fino se quiser 90s, 120s…)
-  const now = Date.now();
-  const fireAt = expSec * 1000 - 60_000;
-  const delay = Math.max(5_000, fireAt - now);
-
-  _refreshTimer = setTimeout(async () => {
-    try {
-      await fetchNewToken();
-    } finally {
-      // re-agenda (idempotente)
-      schedulePreemptiveRefresh(fetchNewToken);
-    }
-  }, delay);
+export function isAuthenticated(): boolean {
+  return !!_user?.id;
 }
 
-// Chame isto após LOGIN bem-sucedido:
-export async function onLoginSuccess(accessToken: string, AuthAPI: any) {
-  setAccessToken(accessToken);
-  schedulePreemptiveRefresh(async () => {
+export function mustChangePassword(): boolean {
+  return !!_user?.mustChangePassword;
+}
+
+export async function initAuth(): Promise<void> {
+  try {
+    await AuthAPI.csrf(); // garante cookie CSRF antes do refresh
     const { data } = await AuthAPI.refresh();
-    setAccessToken(data.accessToken);
-  });
-}
+    if (data?.accessToken) setAccessToken(data.accessToken);
 
+    const me = await AuthAPI.me();
+    setCurrentUser(me.data);
+
+    // agenda auto-refresh contínuo
+    schedulePreemptiveRefresh(async () => {
+      const { data: r } = await AuthAPI.refresh();
+      if (r?.accessToken) setAccessToken(r.accessToken);
+    });
+  } catch {
+    // silencioso: sem sessão válida, segue deslogado
+    clearToken();
+    setCurrentUser(null);
+  }
+}

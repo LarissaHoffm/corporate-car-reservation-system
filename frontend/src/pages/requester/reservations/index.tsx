@@ -1,362 +1,212 @@
 import * as React from "react";
-import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Eye, Printer, XCircle, Plus } from "lucide-react";
-
-import { RoleGuard } from "@/components/role-guard";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { statusChipClasses } from "@/components/ui/status";
-import { useToast } from "@/hooks/use-toast";
+import { ArrowRight, Eye, Loader2, RefreshCcw, XCircle, CheckCircle2 } from "lucide-react";
+import useReservations from "@/hooks/use-reservations";
 
-type ReservStatus =
-  | "Solicitado"
-  | "Enviado p/ aprovação"
-  | "Aprovado"
-  | "Em Progresso"
-  | "Concluída"
-  | "Rejeitado"
-  | "Cancelada";
+type QuickRange = "TODAY" | "7D" | "30D" | "ALL";
 
-type Reservation = {
-  id: string;
-  userName?: string;
-  userEmail?: string;
-  branch?: string;
-  carModel: string;
-  plate: string;
-  origin?: string;
-  startISO: string;
-  endISO: string;
-  status: ReservStatus;
-};
-
-const LS_KEY = "reservcar:req:reservations";
-
-const SEED: Reservation[] = [
-  {
-    id: "R2023001",
-    userName: "Diana Prince",
-    userEmail: "diana.prince@reservcar.com",
-    branch: "JLLE",
-    carModel: "Ford Focus",
-    plate: "FOC-9090",
-    origin: "JLLE",
-    startISO: "2025-10-27T13:30:00",
-    endISO: "2025-10-27T18:00:00",
-    status: "Rejeitado",
-  },
-  {
-    id: "48293",
-    userName: "Alex Morgan",
-    userEmail: "alex.morgan@reservcar.com",
-    branch: "CWB",
-    carModel: "Toyota Corolla",
-    plate: "7FJ-392",
-    origin: "CWB",
-    startISO: "2025-08-04T09:00:00",
-    endISO: "2025-08-07T18:00:00",
-    status: "Em Progresso",
-  },
-  {
-    id: "48294",
-    userName: "Alex Morgan",
-    userEmail: "alex.morgan@reservcar.com",
-    branch: "CWB",
-    carModel: "Honda Civic",
-    plate: "8GK-493",
-    origin: "CWB",
-    startISO: "2025-08-07T13:30:00",
-    endISO: "2025-08-09T18:00:00",
-    status: "Aprovado",
-  },
-];
-
-function load(): Reservation[] {
-  try {
-    const s = localStorage.getItem(LS_KEY);
-    if (!s) {
-      localStorage.setItem(LS_KEY, JSON.stringify(SEED));
-      return SEED;
-    }
-    return JSON.parse(s) as Reservation[];
-  } catch {
-    return SEED;
-  }
-}
-function save(list: Reservation[]) {
-  localStorage.setItem(LS_KEY, JSON.stringify(list));
+function toDateInputValue(d: Date) {
+  const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return z.toISOString().slice(0, 10);
 }
 
-function fmt(dt: string) {
-  const d = new Date(dt);
-  return d.toLocaleString();
-}
-function pickupMinus30(startISO: string) {
-  const d = new Date(startISO);
-  d.setMinutes(d.getMinutes() - 30);
-  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
-export default function RequesterReservationsList() {
-  const { toast } = useToast();
+export default function RequesterReservationsListPage() {
   const navigate = useNavigate();
+  const {
+    myItems,
+    loading,
+    errors,
+    refreshMy,
+    cancelReservation,
+    completeReservation,
+  } = useReservations();
 
-  const [reservations, setReservations] = useState<Reservation[]>(load());
-  const [carFilter, setCarFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] = useState<"all" | ReservStatus>("all");
+  const [q, setQ] = useState("");
+  const [range, setRange] = useState<QuickRange>("7D");
+  const [status, setStatus] = useState<"ALL" | "PENDING" | "APPROVED" | "CANCELED" | "COMPLETED">("ALL");
 
-  const [openDossier, setOpenDossier] = useState(false);
-  const [selected, setSelected] = useState<Reservation | null>(null);
+  useEffect(() => { refreshMy(); }, [refreshMy]);
 
-  const carOptions = useMemo(
-    () => ["all", ...Array.from(new Set(reservations.map((r) => r.carModel)))],
-    [reservations],
-  );
+  const filtered = useMemo(() => {
+    const now = new Date();
+    const startLimit =
+      range === "TODAY" ? new Date(now.getFullYear(), now.getMonth(), now.getDate()) :
+      range === "7D" ? new Date(now.getTime() - 7 * 24 * 3600 * 1000) :
+      range === "30D" ? new Date(now.getTime() - 30 * 24 * 3600 * 1000) : null;
 
-  const filtered = useMemo(
-    () =>
-      reservations.filter((r) => {
-        const byCar = carFilter === "all" || r.carModel === carFilter;
-        const byStatus = statusFilter === "all" || r.status === statusFilter;
-        return byCar && byStatus;
-      }),
-    [reservations, carFilter, statusFilter],
-  );
+    return (myItems ?? [])
+      .filter((r) => {
+        if (status !== "ALL" && r.status !== status) return false;
+        if (q) {
+          const t = q.toLowerCase();
+          if (!(r.origin?.toLowerCase().includes(t) || r.destination?.toLowerCase().includes(t))) return false;
+        }
+        if (startLimit) {
+          const st = new Date(r.startAt);
+          if (st < startLimit) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime());
+  }, [myItems, q, status, range]);
 
-  function openView(r: Reservation) {
-    setSelected(r);
-    setOpenDossier(true);
+  async function onCancel(id: string) {
+    await cancelReservation(id);
+    await refreshMy();
   }
 
-  function handleCancel(r: Reservation) {
-    if (!confirm(`Cancelar a reserva #${r.id}?`)) return;
-    const upd = reservations.map((x) => (x.id === r.id ? { ...x, status: "Cancelada" as ReservStatus } : x));
-    setReservations(upd);
-    save(upd);
-    toast({ title: "Reservation cancelled", description: `A reserva #${r.id} foi cancelada.` });
+  async function onComplete(id: string) {
+    await completeReservation(id);
+    await refreshMy();
   }
 
   return (
-    <RoleGuard allowedRoles={["REQUESTER"]} requireAuth={false}>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold text-foreground">My Reservations</h1>
-
-          <div className="flex items-center gap-3">
-            <Select value={carFilter} onValueChange={setCarFilter}>
-              <SelectTrigger className="w-[200px] border-border/50">
-                <SelectValue placeholder="Car" />
-              </SelectTrigger>
-              <SelectContent>
-                {carOptions.map((c) => (
-                  <SelectItem key={c} value={c}>
-                    {c === "all" ? "All cars" : c}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={statusFilter} onValueChange={(v: any) => setStatusFilter(v)}>
-              <SelectTrigger className="w-[180px] border-border/50">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All status</SelectItem>
-                <SelectItem value="Solicitado">Solicitado</SelectItem>
-                <SelectItem value="Enviado p/ aprovação">Enviado p/ aprovação</SelectItem>
-                <SelectItem value="Aprovado">Aprovado</SelectItem>
-                <SelectItem value="Em Progresso">Em Progresso</SelectItem>
-                <SelectItem value="Concluída">Concluída</SelectItem>
-                <SelectItem value="Rejeitado">Rejeitado</SelectItem>
-                <SelectItem value="Cancelada">Cancelada</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Button
-              className="bg-[#1558E9] hover:bg-[#1558E9]/90"
-              onClick={() => navigate("/requester/reservations/new")}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              New Reservation
-            </Button>
-          </div>
+    <div className="mx-auto p-6 max-w-[1400px] space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold">My Reservations</h1>
+          <p className="text-sm text-muted-foreground">View and manage your recent requests.</p>
         </div>
+        <div className="flex gap-2">
+          <Button onClick={refreshMy} variant="outline">
+            {loading.my ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCcw className="h-4 w-4 mr-2" />}
+            Refresh
+          </Button>
+          <Button onClick={() => navigate("/requester/reservations/new")} className="bg-[#1558E9] hover:bg-[#1558E9]/90">
+            New Reservation
+          </Button>
+        </div>
+      </div>
 
-        <Card className="border-border/50 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-lg text-foreground">Reservations</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
+      <Card className="border-border/50 shadow-sm">
+        <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="space-y-2 md:col-span-2">
+            <Label>Search</Label>
+            <Input placeholder="Origin or destination…" value={q} onChange={(e) => setQ(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label>Period</Label>
+            <Select value={range} onValueChange={(v: QuickRange) => setRange(v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="TODAY">Today</SelectItem>
+                <SelectItem value="7D">Last 7 days</SelectItem>
+                <SelectItem value="30D">Last 30 days</SelectItem>
+                <SelectItem value="ALL">All</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>Status</Label>
+            <Select value={status} onValueChange={(v: any) => setStatus(v)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All</SelectItem>
+                <SelectItem value="PENDING">Pending</SelectItem>
+                <SelectItem value="APPROVED">Approved</SelectItem>
+                <SelectItem value="CANCELED">Canceled</SelectItem>
+                <SelectItem value="COMPLETED">Completed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/50 shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Results ({filtered.length})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading.my ? (
+            <div className="py-10 text-sm text-muted-foreground">Loading…</div>
+          ) : filtered.length === 0 ? (
+            <div className="py-10 text-sm text-muted-foreground">No reservations found.</div>
+          ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="border-b border-border/50 bg-muted/30">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      ID
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      Car
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      From
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      To
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      Status
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                      Actions
-                    </th>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border/50 text-muted-foreground">
+                    <th className="text-left py-3 px-4">Origin</th>
+                    <th className="text-left py-3 px-4">Destination</th>
+                    <th className="text-left py-3 px-4">Period</th>
+                    <th className="text-left py-3 px-4">Status</th>
+                    <th className="text-right py-3 px-4">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border/50">
+                <tbody>
                   {filtered.map((r) => (
-                    <tr key={r.id} className="hover:bg-card/50">
-                      <td className="px-4 py-3 text-sm font-medium text-foreground">{r.id}</td>
-                      <td className="px-4 py-3 text-sm text-foreground">
-                        {r.carModel} — {r.plate}
+                    <tr key={r.id} className="border-b border-border/50 hover:bg-background">
+                      <td className="py-3 px-4">{r.origin}</td>
+                      <td className="py-3 px-4">{r.destination}</td>
+                      <td className="py-3 px-4">
+                        {new Date(r.startAt).toLocaleString()} <ArrowRight className="inline h-3 w-3 mx-1" />
+                        {new Date(r.endAt).toLocaleString()}
                       </td>
-                      <td className="px-4 py-3 text-sm text-foreground">{fmt(r.startISO)}</td>
-                      <td className="px-4 py-3 text-sm text-foreground">{fmt(r.endISO)}</td>
-                      <td className="px-4 py-3">
-                        <Badge className={statusChipClasses(r.status as any)}>{r.status}</Badge>
+                      <td className="py-3 px-4">
+                        <Badge className={statusChipClasses(
+                          r.status === "PENDING" ? "Warning" :
+                          r.status === "APPROVED" ? "Active" :
+                          r.status === "COMPLETED" ? "Success" : "Inactive"
+                        )}>
+                          {r.status}
+                        </Badge>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="bg-transparent border-border/50"
-                            onClick={() => {
-                              setSelected(r);
-                              setOpenDossier(true);
-                            }}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            View
-                          </Button>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center justify-end gap-2">
+                          <Link to={`/requester/reservations/details?id=${r.id}`}>
+                            <Button size="sm" variant="outline">
+                              <Eye className="h-4 w-4 mr-2" /> Details
+                            </Button>
+                          </Link>
 
-                          {r.status !== "Cancelada" && r.status !== "Concluída" && (
+                          {r.status === "APPROVED" && (
                             <Button
                               size="sm"
-                              variant="outline"
-                              className="bg-transparent border-rose-200 text-rose-600 hover:bg-rose-50"
-                              onClick={() => handleCancel(r)}
+                              className="bg-emerald-600 hover:bg-emerald-700"
+                              onClick={() => onComplete(r.id)}
+                              disabled={loading.complete}
                             >
-                              <XCircle className="h-4 w-4 mr-2" />
+                              {loading.complete ? (
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="h-4 w-4 mr-2" />
+                              )}
+                              Conclude
+                            </Button>
+                          )}
+
+                          {(r.status === "PENDING" || r.status === "APPROVED") && (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => onCancel(r.id)}
+                              disabled={loading.cancel}
+                            >
+                              {loading.cancel ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <XCircle className="h-4 w-4 mr-2" />}
                               Cancel
                             </Button>
                           )}
-
-                          {(r.status === "Aprovado" || r.status === "Em Progresso") && (
-                            <Button
-                              size="sm"
-                              className="bg-[#1558E9] hover:bg-[#1558E9]/90"
-                              onClick={() => navigate(`/requester/reservations/${r.id}/upload`)}
-                            >
-                              Finalize
-                            </Button>
-                          )}
-
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => navigate(`/requester/reservations/${r.id}`)}
-                          >
-                            Details
-                          </Button>
                         </div>
                       </td>
                     </tr>
                   ))}
-                  {filtered.length === 0 && (
-                    <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-sm text-muted-foreground">
-                        No reservations found for the selected filters.
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
+              {errors.list && <p className="text-xs text-red-600 mt-3">{errors.list}</p>}
             </div>
-          </CardContent>
-        </Card>
+          )}
+        </CardContent>
+      </Card>
 
-        <Dialog open={openDossier} onOpenChange={setOpenDossier}>
-          <DialogContent className="max-w-3xl">
-            <DialogHeader>
-              <DialogTitle className="text-foreground">
-                Reservation dossier — <span className="font-mono">{selected?.id}</span>
-              </DialogTitle>
-            </DialogHeader>
-
-            {selected && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6">
-                <div>
-                  <div className="text-sm text-muted-foreground">User</div>
-                  <div className="mt-1 font-medium text-foreground">{selected.userName ?? "—"}</div>
-                  <div className="text-sm text-muted-foreground">{selected.userEmail ?? "—"}</div>
-                </div>
-
-                <div>
-                  <div className="text-sm text-muted-foreground">Status</div>
-                  <div className="mt-1">
-                    <Badge className={statusChipClasses(selected.status as any)}>{selected.status}</Badge>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-sm text-muted-foreground">Filial</div>
-                  <div className="mt-1 text-foreground">{selected.branch ?? "—"}</div>
-                </div>
-
-                <div>
-                  <div className="text-sm text-muted-foreground">Vehicle</div>
-                  <div className="mt-1 text-foreground">
-                    {selected.carModel} — {selected.plate}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-sm text-muted-foreground">Saída</div>
-                  <div className="mt-1 text-foreground">{fmt(selected.startISO)}</div>
-                </div>
-
-                <div>
-                  <div className="text-sm text-muted-foreground">Pickup time</div>
-                  <div className="mt-1 text-foreground">{pickupMinus30(selected.startISO)}</div>
-                </div>
-
-                <div>
-                  <div className="text-sm text-muted-foreground">Volta</div>
-                  <div className="mt-1 text-foreground">{fmt(selected.endISO)}</div>
-                </div>
-
-                <div>
-                  <div className="text-sm text-muted-foreground">Origem</div>
-                  <div className="mt-1 text-foreground">{selected.origin ?? "—"}</div>
-                </div>
-
-                <div className="md:col-span-2 flex justify-end gap-2 pt-2">
-                  <Button variant="outline" onClick={() => setOpenDossier(false)}>
-                    Close
-                  </Button>
-                  <Button onClick={() => window.print()} className="bg-[#1558E9] hover:bg-[#1558E9]/90">
-                    <Printer className="h-4 w-4 mr-2" />
-                    Print dossier
-                  </Button>
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
-      </div>
-    </RoleGuard>
+      <p className="text-xs text-muted-foreground">Today: {toDateInputValue(new Date())}</p>
+    </div>
   );
 }

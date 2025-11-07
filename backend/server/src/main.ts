@@ -8,27 +8,58 @@ import { ValidationPipe } from '@nestjs/common';
 import * as express from 'express';
 import { join } from 'path';
 import { mkdirSync } from 'fs';
+import { NestExpressApplication } from '@nestjs/platform-express';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const cfg = app.get(ConfigService);
 
-  app.use(helmet());
+  app.set('trust proxy', 1);
+
+  // Helmet com CORP desativado 
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: false,
+    }),
+  );
+
+  // Cookies
   app.use(cookieParser());
 
+  // Static de uploads
   const uploadsDir = join(process.cwd(), process.env.UPLOADS_DIR || 'uploads');
   mkdirSync(uploadsDir, { recursive: true });
   app.use('/uploads', express.static(uploadsDir));
 
+  // CORS com credenciais 
+  const originSet = new Set<string>(['http://localhost', 'http://localhost:5173']);
+  const envSingle = cfg.get<string>('FRONTEND_URL');
+  const envList = cfg.get<string>('FRONTEND_URLS'); 
+  if (envSingle) originSet.add(envSingle);
+  if (envList) envList.split(',').map(s => s.trim()).filter(Boolean).forEach(o => originSet.add(o));
+
   app.enableCors({
-    origin: cfg.get('FRONTEND_URL') ?? 'http://localhost',
+    origin: (origin, cb) => {
+      if (!origin || originSet.has(origin)) return cb(null, true);
+      return cb(new Error(`CORS blocked for origin: ${origin}`), false);
+    },
     credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-csrf-token'],
   });
 
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  // Validação global
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      forbidNonWhitelisted: false,
+    }),
+  );
 
-  // Swagger base apontando para o proxy do Caddy (/api)
+  // Swagger apontando ao proxy (/api)
   const SWAGGER_SERVER_BASE = process.env.SWAGGER_SERVER_BASE ?? '/api';
+  const refreshCookieName = process.env.REFRESH_COOKIE_NAME ?? 'rc_refresh_token';
 
   const swaggerCfg = new DocumentBuilder()
     .setTitle('ReservCar API')
@@ -36,9 +67,9 @@ async function bootstrap() {
     .setVersion('1.0.0')
     .addBearerAuth(
       { type: 'http', scheme: 'bearer', bearerFormat: 'JWT', in: 'header', name: 'Authorization' },
-      'access-token', // nome do esquema no Swagger
+      'access-token',
     )
-    .addCookieAuth('refreshToken', { type: 'apiKey', in: 'cookie' })
+    .addCookieAuth(refreshCookieName, { type: 'apiKey', in: 'cookie' })
     .addServer(SWAGGER_SERVER_BASE)
     .build();
 
