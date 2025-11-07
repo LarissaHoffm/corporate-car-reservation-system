@@ -8,8 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 
-import { api } from "@/lib/http/api";
-import { setOwnPassword } from "@/lib/http/users";
+import { AuthAPI } from "@/lib/http/api";
 
 /** regras de senha: 8+, 1 maiúscula, 1 minúscula, 1 dígito, 1 símbolo */
 const strongRegex = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
@@ -33,22 +32,9 @@ export default function ChangePasswordPage() {
     [newPassword, confirmPassword]
   );
 
-  /** Habilita o botão somente quando tudo estiver ok */
   const canSubmit = useMemo(() => {
     return !loading && currentPassword.trim().length > 0 && isStrong && matches;
   }, [loading, currentPassword, isStrong, matches]);
-
-  async function resolveUserId(): Promise<string> {
-    // Tenta ler o id do usuário autenticado – sem mudar sua estrutura de rotas
-    try {
-      const { data } = await api.get<{ id: string }>("/auth/me", { withCredentials: true });
-      return data.id;
-    } catch {
-      // fallback compatível (há alias /auth/get no seu backend)
-      const { data } = await api.get<{ id: string }>("/auth/get", { withCredentials: true });
-      return data.id;
-    }
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -57,26 +43,17 @@ export default function ChangePasswordPage() {
     try {
       setLoading(true);
 
-      const userId = await resolveUserId();
-
-      await setOwnPassword(userId, {
-        currentPassword: currentPassword.trim(),
-        newPassword: newPassword.trim(),
-      });
+      await AuthAPI.changePassword(currentPassword.trim(), newPassword.trim());
 
       toast({
         title: "Senha atualizada!",
         description: "Faça login novamente com sua nova senha.",
       });
 
-      // limpa qualquer estado local de sessão do front
       try {
-        await api.post("/auth/logout", null, { withCredentials: true });
-      } catch {
-        /* ignore */
-      }
+        await AuthAPI.logout();
+      } catch { /* ignore */ }
 
-      // volta para o login
       window.location.href = "/login";
     } catch (err: any) {
       const msg =
@@ -149,7 +126,7 @@ export default function ChangePasswordPage() {
                 </button>
               </div>
 
-              {/* checklist – só visual, mantém seu design */}
+              {/* checklist – só visual */}
               <ul className="text-sm space-y-1 mt-2">
                 <li className={newPassword.length >= 8 ? "text-green-600" : "text-muted-foreground"}>
                   • Mínimo de 8 caracteres

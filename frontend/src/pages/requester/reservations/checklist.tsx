@@ -1,162 +1,131 @@
+// frontend/src/pages/requester/reservations/checklist.tsx
 import * as React from "react";
-import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { Upload, FileText, CheckCircle2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
-import { RoleGuard } from "@/components/role-guard";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Loader2 } from "lucide-react";
 
-type ReservStatus =
-  | "Solicitado"
-  | "Enviado p/ aprovação"
-  | "Aprovado"
-  | "Em Progresso"
-  | "Concluída"
-  | "Rejeitado"
-  | "Cancelada";
+import useReservations from "@/hooks/use-reservations";
+import api from "@/lib/http/api";
 
-type Reservation = { id: string; status: ReservStatus };
-
-const LS_KEY = "reservcar:req:reservations";
-
-function loadAll(): Reservation[] {
-  try {
-    const s = localStorage.getItem(LS_KEY);
-    return s ? (JSON.parse(s) as Reservation[]) : [];
-  } catch {
-    return [];
-  }
-}
-function saveAll(v: Reservation[]) {
-  localStorage.setItem(LS_KEY, JSON.stringify(v));
+function useQuery() {
+  const { search } = useLocation();
+  return React.useMemo(() => new URLSearchParams(search), [search]);
 }
 
-const ITEMS = [
-  { id: "tires", label: "Tires" },
-  { id: "fuel", label: "Full Tank" },
-  { id: "damages", label: "Damages" },
-  { id: "cleaning", label: "Cleaning (inside/outside)" },
-  { id: "m1", label: "Final Mileage" },
-  { id: "m2", label: "Final Mileage" },
-  { id: "m3", label: "Final Mileage" },
+const defaultItems = [
+  { key: "fuel", label: "Fuel level verified" },
+  { key: "photos", label: "Photos taken (exterior / interior)" },
+  { key: "docs", label: "Documents uploaded/verified" },
+  { key: "clean", label: "Car cleanliness checked" },
 ];
 
 export default function RequesterReservationChecklist() {
-  const { id = "" } = useParams();
+  const q = useQuery();
+  const id = q.get("id") || "";
   const navigate = useNavigate();
+  const { getReservation } = useReservations();
 
-  const [checks, setChecks] = useState<Record<string, boolean>>({});
-  const [obs, setObs] = useState("");
-  const [files, setFiles] = useState<string[]>([]);
-  const [showSuccess, setShowSuccess] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+  const [items, setItems] = useState<Record<string, boolean>>({});
 
-  const handleUpload = () => setFiles((p) => [...p, `photo-${Date.now()}.jpg`]);
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        await getReservation(id);
+        if (mounted) {
+          const start: Record<string, boolean> = {};
+          defaultItems.forEach((i) => (start[i.key] = false));
+          setItems(start);
+          setLoading(false);
+        }
+      } catch (e: any) {
+        if (mounted) {
+          setErr(e?.response?.data?.message || e?.message || "Unable to load reservation.");
+          setLoading(false);
+        }
+      }
+    })();
+    return () => { mounted = false; };
+  }, [id, getReservation]);
 
-  function submit() {
-    const list = loadAll();
-    const idx = list.findIndex((r) => r.id === id);
-    if (idx >= 0) {
-      list[idx] = { ...list[idx], status: "Concluída" };
-      saveAll(list);
+  async function finalize() {
+    // Tenta completar; se rota não existir ainda, volta para a lista
+    try {
+      await api.patch(`/reservations/${id}/complete`);
+    } catch {
+      /* ignore silently */
     }
-    setShowSuccess(true);
+    navigate("/requester/reservations");
   }
 
-  return (
-    <RoleGuard allowedRoles={["REQUESTER"]} requireAuth={false}>
-      <div className="space-y-6">
-        <h1 className="text-2xl font-bold text-foreground">Return Checklist</h1>
+  const allChecked = defaultItems.every((i) => !!items[i.key]);
 
-        <Card className="border-border/50 shadow-sm">
-          <CardContent className="p-6 space-y-6">
-            <div>
-              <h3 className="text-base font-semibold text-foreground mb-4">Mandatory Checklist</h3>
-              <div className="space-y-3">
-                {ITEMS.map((it) => (
-                  <div
-                    key={it.id}
-                    className="flex items-center gap-3 rounded-lg border border-border/60 p-3 hover:bg-card/50"
-                  >
+  return (
+    <div className="mx-auto p-6 max-w-[900px] space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold">Conclude Reservation</h1>
+          <p className="text-sm text-muted-foreground">Step 3 of 3 — Final checklist.</p>
+        </div>
+        <Link to={`/requester/reservations/upload?id=${id}`}>
+          <Button variant="ghost">Back to Upload</Button>
+        </Link>
+      </div>
+
+      {/* Stepper visual */}
+      <div className="grid grid-cols-3 gap-2 text-xs">
+        <div className="rounded-full px-3 py-2 bg-muted/60 text-foreground text-center">1. Details</div>
+        <div className="rounded-full px-3 py-2 bg-muted/60 text-foreground text-center">2. Upload</div>
+        <div className="rounded-full px-3 py-2 bg-[#1558E9] text-white text-center">3. Checklist</div>
+      </div>
+
+      <Card className="border-border/50 shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Return Checklist</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {loading ? (
+            <div className="py-12 text-sm text-muted-foreground flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+            </div>
+          ) : err ? (
+            <p className="text-sm text-red-600">{err}</p>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 gap-3">
+                {defaultItems.map((i) => (
+                  <label key={i.key} className="flex items-center gap-3 text-sm">
                     <Checkbox
-                      id={it.id}
-                      checked={Boolean(checks[it.id])}
-                      onCheckedChange={(v) => setChecks((p) => ({ ...p, [it.id]: Boolean(v) }))}
-                      className="data-[state=checked]:border-[#1558E9] data-[state=checked]:bg-[#1558E9]"
+                      checked={!!items[i.key]}
+                      onCheckedChange={(v) => setItems((s) => ({ ...s, [i.key]: !!v }))}
                     />
-                    <label htmlFor={it.id} className="text-sm font-medium text-foreground cursor-pointer">
-                      {it.label}
-                    </label>
-                  </div>
+                    {i.label}
+                  </label>
                 ))}
               </div>
-            </div>
 
-            <div>
-              <h3 className="text-base font-semibold text-foreground mb-2">Observations</h3>
-              <Textarea
-                value={obs}
-                onChange={(e) => setObs(e.target.value)}
-                placeholder="Describe any issues or notes…"
-                className="min-h-[120px]"
-              />
-            </div>
-
-            <div>
-              <h3 className="text-base font-semibold text-foreground mb-3">Photos</h3>
-              <div className="rounded-lg border-2 border-dashed border-border/70 p-6 text-center">
-                <Upload className="mx-auto mb-2 h-7 w-7 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground mb-3">Drag & drop here or click to upload</p>
-                <Button variant="outline" onClick={() => handleUpload()} className="border-border bg-transparent">
-                  Choose file
+              <div className="flex items-center justify-between pt-2">
+                <Link to={`/requester/reservations/upload?id=${id}`}>
+                  <Button variant="outline">Back</Button>
+                </Link>
+                <Button
+                  className="bg-[#1558E9] hover:bg-[#1558E9]/90"
+                  onClick={finalize}
+                  disabled={!allChecked}
+                >
+                  Finalize Reservation
                 </Button>
               </div>
-
-              {files.length > 0 && (
-                <div className="mt-3 space-y-2">
-                  {files.map((f, i) => (
-                    <div key={`${f}-${i}`} className="flex items-center gap-3 rounded-lg border border-border p-3">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm text-foreground">{f}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <Button className="w-full bg-[#1558E9] hover:bg-[#1558E9]/90" onClick={submit}>
-              Submit checklist
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Dialog open={showSuccess} onOpenChange={setShowSuccess}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2 text-foreground">
-                <CheckCircle2 className="h-5 w-5 text-green-600" />
-                Reservation finalized
-              </DialogTitle>
-            </DialogHeader>
-            <div className="text-sm text-muted-foreground">
-              Your checklist was submitted and the reservation status is now <b>Concluída</b>.
-            </div>
-            <div className="pt-2 flex justify-end">
-              <Button
-                onClick={() => {
-                  setShowSuccess(false);
-                  navigate("/requester/reservations");
-                }}
-              >
-                OK
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      </div>
-    </RoleGuard>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }

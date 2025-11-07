@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,7 +16,6 @@ import { getUser, updateUser, listUserReservations } from "@/lib/http/users";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
 
-// se no backend o nome do campo for diferente (avatarUrl, photo...), ajuste aqui
 type UserDetails = {
   id: string;
   name: string;
@@ -66,6 +65,7 @@ export default function AdminUserDetailsPage() {
   const [reservations, setReservations] = useState<any[]>([]);
   const [loadingRes, setLoadingRes] = useState(true);
 
+  // Carregar usuário
   useEffect(() => {
     (async () => {
       try {
@@ -85,6 +85,7 @@ export default function AdminUserDetailsPage() {
     })();
   }, [id, toast]);
 
+  // Carregar histórico de reservas do usuário
   useEffect(() => {
     (async () => {
       setLoadingRes(true);
@@ -98,11 +99,6 @@ export default function AdminUserDetailsPage() {
       }
     })();
   }, [id]);
-
-  const statusLabel = useMemo(
-    () => (user?.status === "ACTIVE" ? "Active" : "Inactive"),
-    [user?.status]
-  );
 
   async function handleSave() {
     if (!user) return;
@@ -198,7 +194,7 @@ export default function AdminUserDetailsPage() {
         <CardContent>
           {/* Layout em duas colunas: esquerda (grid 2×N) e direita (aside fixo com foto + status) */}
           <div className="md:flex md:items-start md:gap-8">
-            {/* ESQUERDA: grid de campos */}
+            {/* ESQUERDA */}
             <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Linha 1 */}
               <div className="space-y-1">

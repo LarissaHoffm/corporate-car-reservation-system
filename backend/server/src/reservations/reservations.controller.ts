@@ -1,15 +1,5 @@
 import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  ParseUUIDPipe,
-  Patch,
-  Post,
-  Query,
-  Req,
-  UseGuards,
+  Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req, UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ReservationsService } from './reservations.service';
@@ -27,19 +17,14 @@ import { Audit } from '../infra/audit/audit.decorator';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('reservations')
 export class ReservationsController {
-  constructor(private readonly reservations: ReservationsService) { }
+  constructor(private readonly reservations: ReservationsService) {}
 
   @Post()
   @Roles('REQUESTER', 'APPROVER', 'ADMIN')
   @Audit('RESERVATION_CREATE', 'Reservation')
   create(@Req() req: any, @Body() dto: CreateReservationDto) {
     return this.reservations.create(
-      {
-        userId: req.user.id,
-        tenantId: req.user.tenantId,
-        branchId: req.user.branchId,
-        role: req.user.role,
-      },
+      { userId: req.user.id, tenantId: req.user.tenantId, branchId: req.user.branchId, role: req.user.role },
       dto,
     );
   }
@@ -62,14 +47,16 @@ export class ReservationsController {
     );
   }
 
+  @Get(':id')
+  @Roles('REQUESTER', 'APPROVER', 'ADMIN')
+  get(@Param('id', new ParseUUIDPipe()) id: string, @Req() req: any) {
+    return this.reservations.getById({ tenantId: req.user.tenantId }, id);
+  }
+
   @Patch(':id/approve')
   @Roles('APPROVER', 'ADMIN')
   @Audit('RESERVATION_APPROVE', 'Reservation')
-  approve(
-    @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() dto: ApproveReservationDto,
-    @Req() req: any,
-  ) {
+  approve(@Param('id', new ParseUUIDPipe()) id: string, @Body() dto: ApproveReservationDto, @Req() req: any) {
     return this.reservations.approve(
       { userId: req.user.id, tenantId: req.user.tenantId, role: req.user.role },
       id,
@@ -80,15 +67,20 @@ export class ReservationsController {
   @Patch(':id/cancel')
   @Roles('REQUESTER', 'APPROVER', 'ADMIN')
   @Audit('RESERVATION_CANCEL', 'Reservation')
-  cancel(
-    @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() dto: CancelReservationDto,
-    @Req() req: any,
-  ) {
+  cancel(@Param('id', new ParseUUIDPipe()) id: string, @Req() req: any) {
     return this.reservations.cancel(
       { userId: req.user.id, tenantId: req.user.tenantId, role: req.user.role },
       id,
-      dto,
+    );
+  }
+
+  @Patch(':id/complete')
+  @Roles('REQUESTER', 'APPROVER', 'ADMIN')
+  @Audit('RESERVATION_COMPLETE', 'Reservation')
+  complete(@Param('id', new ParseUUIDPipe()) id: string, @Req() req: any) {
+    return this.reservations.complete(
+      { userId: req.user.id, tenantId: req.user.tenantId, role: req.user.role },
+      id,
     );
   }
 
@@ -96,18 +88,6 @@ export class ReservationsController {
   @Roles('ADMIN')
   @Audit('RESERVATION_DELETE', 'Reservation')
   remove(@Param('id', new ParseUUIDPipe()) id: string, @Req() req: any) {
-    return this.reservations.remove(
-      { userId: req.user.id, tenantId: req.user.tenantId, role: req.user.role },
-      id,
-    );
-  }
-
-  @Get(':id')
-  @Roles('REQUESTER', 'APPROVER', 'ADMIN')
-  get(@Param('id', new ParseUUIDPipe()) id: string, @Req() req: any) {
-    return this.reservations.get(
-      { tenantId: req.user.tenantId, role: req.user.role, userId: req.user.id },
-      id,
-    );
+    return this.reservations.remove({ tenantId: req.user.tenantId }, id);
   }
 }

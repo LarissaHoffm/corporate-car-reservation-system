@@ -13,24 +13,30 @@ import { Role, UserStatus } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { randomInt } from 'crypto';
 
-const isStrongPassword = (pwd: string) => {
-  return (
-    typeof pwd === 'string' &&
-    pwd.length >= 8 &&
-    /[A-Z]/.test(pwd) &&
-    /[a-z]/.test(pwd) &&
-    /\d/.test(pwd) &&
-    /[^A-Za-z0-9]/.test(pwd)
-  );
-};
-
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
-  // Senha forte (12–16) com maiúscula, minúscula, dígito e símbolo
+  /** Regras fortes: mín. 8, 1 maiúscula, 1 minúscula, 1 dígito, 1 símbolo */
+  private assertStrongPassword(pwd: string) {
+    const ok =
+      typeof pwd === 'string' &&
+      pwd.length >= 8 &&
+      /[A-Z]/.test(pwd) &&
+      /[a-z]/.test(pwd) &&
+      /\d/.test(pwd) &&
+      /[^A-Za-z0-9]/.test(pwd);
+
+    if (!ok) {
+      throw new BadRequestException(
+        'Senha fraca. Requisitos: mín. 8, 1 maiúscula, 1 minúscula, 1 dígito e 1 símbolo.',
+      );
+    }
+  }
+
   private generateStrongPassword(): string {
-    const minLen = 12, maxLen = 16;
+    const minLen = 12,
+      maxLen = 16;
     const len = minLen + randomInt(maxLen - minLen + 1);
     const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
     const lower = 'abcdefghijkmnopqrstuvwxyz';
@@ -65,7 +71,6 @@ export class UsersService {
     });
     if (exists) throw new ConflictException('E-mail já cadastrado para este tenant.');
 
-    // validação opcional de branch
     let branchIdToPersist: string | null = null;
     if (dto.branchId) {
       const branch = await this.prisma.branch.findFirst({
@@ -81,13 +86,17 @@ export class UsersService {
     // senha
     let mustChangePassword = false;
     let rawPassword = dto.password?.trim();
+
     if (!rawPassword) {
+      // sem senha informada → gera temporária forte e força troca
       rawPassword = this.generateStrongPassword();
       mustChangePassword = true;
+    } else {
+      // senha informada → valida política
+      this.assertStrongPassword(rawPassword);
     }
     const passwordHash = await argon2.hash(rawPassword);
 
-    // normaliza telefone (somente dígitos) ou null
     const rawPhone = (dto as any).phone as string | undefined;
     const normalizedPhone =
       rawPhone && rawPhone.trim() !== '' ? rawPhone.replace(/\D/g, '') : null;
@@ -103,6 +112,7 @@ export class UsersService {
         status: UserStatus.ACTIVE,
         passwordHash,
         mustChangePassword,
+        passwordChangedAt: mustChangePassword ? null : new Date(),
         phone: normalizedPhone,
       },
       select: {
@@ -136,11 +146,7 @@ export class UsersService {
     if (!dto.newPassword) {
       throw new BadRequestException('Campo "newPassword" é obrigatório.');
     }
-    if (!isStrongPassword(dto.newPassword)) {
-      throw new BadRequestException(
-        'Senha fraca. Requisitos: mín. 8, 1 maiúscula, 1 minúscula, 1 dígito e 1 símbolo.',
-      );
-    }
+    this.assertStrongPassword(dto.newPassword);
 
     const tenantId = ctx?.tenantId ?? null;
     const actorId = ctx?.actorId ?? null;
@@ -159,20 +165,22 @@ export class UsersService {
       throw new ForbiddenException('Sem permissão para alterar a senha deste usuário.');
     }
 
-    
     if (!isAdmin) {
       if (!target.mustChangePassword) {
         if (!dto.currentPassword) throw new BadRequestException('Informe a senha atual.');
         const ok = await argon2.verify(target.passwordHash, dto.currentPassword);
         if (!ok) throw new BadRequestException('Senha atual inválida.');
       }
-
     }
 
     const newHash = await argon2.hash(dto.newPassword);
     const updated = await this.prisma.user.update({
       where: { id },
-      data: { passwordHash: newHash, mustChangePassword: false, passwordChangedAt: new Date() },
+      data: {
+        passwordHash: newHash,
+        mustChangePassword: false,
+        passwordChangedAt: new Date(),
+      },
       select: { id: true },
     });
 
@@ -183,7 +191,6 @@ export class UsersService {
       passwordChangedAt: new Date().toISOString(),
     };
   }
-
 
   async resetPassword(
     id: string,
@@ -243,7 +250,6 @@ export class UsersService {
       }
     }
 
-    // normaliza telefone no update
     if ((dto as any).phone !== undefined) {
       const rp = String((dto as any).phone ?? '').trim();
       data.phone = rp === '' ? null : rp.replace(/\D/g, '');
@@ -255,8 +261,11 @@ export class UsersService {
       data.email = String((dto as any).email).trim().toLowerCase();
     if (dto.department !== undefined) data.department = dto.department ?? null;
 
+    // ADMIN definindo nova senha direto no update
     if ((dto as any).password) {
-      const passwordHash = await argon2.hash(String((dto as any).password).trim());
+      const raw = String((dto as any).password).trim();
+      this.assertStrongPassword(raw);
+      const passwordHash = await argon2.hash(raw);
       data.passwordHash = passwordHash;
       data.mustChangePassword = false;
       data.passwordChangedAt = new Date();
@@ -299,7 +308,7 @@ export class UsersService {
       },
       orderBy: { createdAt: 'desc' },
     });
-  }
+    }
 
   async findOne(id: string, ctx?: { tenantId?: string }) {
     const u = await this.prisma.user.findFirst({
@@ -343,10 +352,6 @@ export class UsersService {
     });
   }
 
-  /**
-   * Histórico de reservas do usuário.
-   * Seleciona apenas campos presentes no schema.
-   */
   async findReservationsByUser(userId: string, ctx?: { tenantId?: string }) {
     const user = await this.prisma.user.findFirst({
       where: { id: userId, ...(ctx?.tenantId ? { tenantId: ctx.tenantId } : {}) },
@@ -360,7 +365,6 @@ export class UsersService {
         id: true,
         status: true,
         createdAt: true,
-
       },
       orderBy: [{ createdAt: 'desc' }],
     });

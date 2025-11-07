@@ -171,10 +171,10 @@ model Station {
 model Reservation {
   id         String  @id @default(uuid())
   tenantId   String
-  branchId   String
+  branchId   String?
   userId     String
   approverId String?
-  carId      String
+  carId      String?
 
   origin      String
   destination String
@@ -183,10 +183,10 @@ model Reservation {
   status      ReservationStatus @default(PENDING)
 
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch   Branch @relation(fields: [branchId], references: [id])
+  branch   Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
   user     User   @relation("UserReservations", fields: [userId], references: [id])
   approver User?  @relation("UserApprovals", fields: [approverId], references: [id])
-  car      Car    @relation(fields: [carId], references: [id])
+  car      Car?   @relation(fields: [carId], references: [id], onDelete: SetNull)
 
   checklists ChecklistSubmission[]
 

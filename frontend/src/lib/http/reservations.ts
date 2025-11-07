@@ -1,125 +1,86 @@
-// src/lib/http/reservations.ts
-import { api } from "./api";
+import api from "@/lib/http/api";
 
-/** Status possíveis conforme fluxo RF09–RF11 */
-export type ReservationStatus = "PENDING" | "APPROVED" | "CANCELLED" | "COMPLETED";
+/** Tipos mínimos usados no front */
+export type ReservationStatus = "PENDING" | "APPROVED" | "CANCELED" | "COMPLETED";
 
-/** Objeto principal retornado pela API */
-export type Reservation = {
+export interface Reservation {
   id: string;
-  tenantId: string;
-  userId: string;
-  carId?: string | null;
-  branchId?: string | null;
-
   origin: string;
   destination: string;
-
-  startAt: string; // ISO
-  endAt: string;   // ISO
-
+  startAt: string;
+  endAt: string;
   status: ReservationStatus;
+  user?: { id: string; name: string; email: string };
+  branch?: { id: string; name: string };
+  car?: { id: string; plate: string; model: string };
+  branchId?: string | null;
+  carId?: string | null;
+}
 
-  createdAt: string; // ISO
-  updatedAt: string; // ISO
-
-  // campos adicionais que o backend possa expor
-  notes?: string | null;
-};
-
-/** Payload para criar/atualizar (mínimo para RF09) */
-export type ReservationInput = {
+export interface ReservationInput {
   origin: string;
   destination: string;
   startAt: string; // ISO
   endAt: string;   // ISO
-  carId?: string;
   branchId?: string;
-  notes?: string;
-};
-
-/** Filtros de listagem */
-export type QueryReservations = {
-  q?: string;
-  status?: ReservationStatus | "ALL";
-  from?: string; // ISO date
-  to?: string;   // ISO date
-  userId?: string;
   carId?: string;
-  branchId?: string;
-  page?: number;
-  pageSize?: number;
+  // purpose?: string;
+  // notes?: string;
+  // passengers?: number;
+}
+
+export interface ReservationApproveInput {
+  carId: string;
+}
+
+/** Alguns endpoints do back podem retornar array OU { items, total, ... }.
+ *  Esta função normaliza para sempre entregar um array de Reservation.
+ */
+function normalizeList(payload: any): Reservation[] {
+  if (Array.isArray(payload)) return payload as Reservation[];
+  if (payload && Array.isArray(payload.items)) return payload.items as Reservation[];
+  return [];
+}
+
+export const ReservationsAPI = {
+  /** Minhas reservas (REQUESTER) */
+  async listMine(params?: any): Promise<Reservation[]> {
+    const { data } = await api.get("/reservations/me", { params });
+    return normalizeList(data);
+  },
+
+  /** Lista geral (ADMIN/APPROVER) ou para futuros relatórios */
+  async list(params?: any): Promise<Reservation[]> {
+    const { data } = await api.get("/reservations", { params });
+    return normalizeList(data);
+  },
+
+  async get(id: string): Promise<Reservation> {
+    const { data } = await api.get(`/reservations/${id}`);
+    return data as Reservation;
+  },
+
+  async create(body: ReservationInput): Promise<Reservation> {
+    const { data } = await api.post("/reservations", body);
+    return data as Reservation;
+  },
+
+  async approve(id: string, body: ReservationApproveInput): Promise<Reservation> {
+    const { data } = await api.patch(`/reservations/${id}/approve`, body);
+    return data as Reservation;
+  },
+
+  async cancel(id: string): Promise<Reservation> {
+    const { data } = await api.patch(`/reservations/${id}/cancel`, {});
+    return data as Reservation;
+  },
+
+  async complete(id: string): Promise<Reservation> {
+    const { data } = await api.patch(`/reservations/${id}/complete`, {});
+    return data as Reservation;
+  },
+
+  async remove(id: string): Promise<void> {
+    await api.delete(`/reservations/${id}`);
+  },
 };
-
-export type Paginated<T> = {
-  page: number;
-  pageSize: number;
-  total: number;
-  items: T[];
-  // alguns serviços nossos retornam também `data`; tratamos ambos
-  data?: T[];
-};
-
-const base = "/reservations";
-
-/* ----------------------------- Listagens ----------------------------- */
-
-/** Todas as reservas (ADMIN/APPROVER) */
-export async function list(params: QueryReservations = {}) {
-  const { data } = await api.get<Paginated<Reservation>>(base, { params });
-  // normaliza items/data
-  if (Array.isArray((data as any).data) && !data.items) {
-    (data as any).items = (data as any).data;
-  }
-  return data;
-}
-
-/** Minhas reservas (REQUESTER) */
-export async function listMine(params: Omit<QueryReservations, "userId"> = {}) {
-  const { data } = await api.get<Paginated<Reservation>>(`${base}/me`, { params });
-  if (Array.isArray((data as any).data) && !data.items) {
-    (data as any).items = (data as any).data;
-  }
-  return data;
-}
-
-/* ------------------------------ CRUD/Ações ------------------------------ */
-
-export async function getById(id: string) {
-  const { data } = await api.get<Reservation>(`${base}/${id}`);
-  return data;
-}
-
-export async function create(body: ReservationInput) {
-  const { data } = await api.post<Reservation>(base, body);
-  return data;
-}
-
-export async function approve(id: string) {
-  const { data } = await api.patch<Reservation>(`${base}/${id}/approve`, {});
-  return data;
-}
-
-export async function cancel(id: string) {
-  const { data } = await api.patch<Reservation>(`${base}/${id}/cancel`, {});
-  return data;
-}
-
-export async function remove(id: string) {
-  const { data } = await api.delete<{ ok: true }>(`${base}/${id}`);
-  return data;
-}
-
-/* ------------------------------ Export default ------------------------------ */
-
-const ReservationsAPI = {
-  list,
-  listMine,
-  getById,
-  create,
-  approve,
-  cancel,
-  remove,
-};
-
-export default ReservationsAPI;

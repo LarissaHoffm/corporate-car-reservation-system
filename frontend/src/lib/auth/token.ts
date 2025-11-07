@@ -1,5 +1,3 @@
-// frontend/src/lib/auth/token.ts
-
 let _accessToken: string | null = null;
 let _expiresAtMs: number | null = null;
 let _refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -34,11 +32,7 @@ export function setAccessToken(token: string | null) {
   listeners.forEach((cb) => cb());
 }
 
-/**
- * Agenda uma renovação proativa do access token
- * @param refreshFn função que chama /auth/refresh e atualiza o access token
- * @param skewSeconds antecedência em segundos (padrão 60s antes de expirar)
- */
+
 export function schedulePreemptiveRefresh(
   refreshFn: () => Promise<void>,
   skewSeconds: number = 60
@@ -73,7 +67,6 @@ export function clearAccessToken() {
   setAccessToken(null);
 }
 
-/** 🔧 Alias de compatibilidade para código legado que importa `clearToken` */
 export function clearToken() {
   clearAccessToken();
 }

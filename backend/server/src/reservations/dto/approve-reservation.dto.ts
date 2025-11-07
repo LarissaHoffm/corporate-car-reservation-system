@@ -1,6 +1,9 @@
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsOptional, IsString, MaxLength, IsUUID } from 'class-validator';
 
 export class ApproveReservationDto {
+  @IsUUID()
+  carId!: string;
+
   @IsOptional()
   @IsString()
   @MaxLength(200)

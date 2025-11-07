@@ -1,210 +1,226 @@
-// src/hooks/use-reservations.ts
-import { useEffect, useMemo, useRef, useState } from "react";
-import ReservationsAPI, {
-  type Reservation,
-  type ReservationInput,
-  type QueryReservations,
-} from "@/lib/http/reservations";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { ReservationsAPI, type Reservation, type ReservationInput, type ReservationApproveInput } from "@/lib/http/reservations";
+import { CarsAPI, type Car } from "@/lib/http/cars";
 
-type PageInfo = { page: number; pageSize: number; total: number };
+type OpResult = { ok: true } | { ok: false; error?: string };
 
-// Query padrão (sem filtrar por status)
-const DEFAULT_QUERY: QueryReservations = { page: 1, pageSize: 20, status: "ALL" };
+type LoadingState = {
+  my: boolean;
+  pending: boolean;
+  list: boolean;
+  get: boolean;
+  create: boolean;
+  approve: boolean;
+  cancel: boolean;
+  remove: boolean;
+  complete: boolean;
+};
+
+type ErrorState = {
+  list?: string;
+  get?: string;
+  create?: string;
+  approve?: string;
+  cancel?: string;
+  remove?: string;
+  complete?: string;
+};
 
 export default function useReservations() {
-  // ------ listas (shared = todas / requester = minhas) ------
-  const [items, setItems] = useState<Reservation[]>([]);
-  const [itemsInfo, setItemsInfo] = useState<PageInfo>({ page: 1, pageSize: 20, total: 0 });
-
   const [myItems, setMyItems] = useState<Reservation[]>([]);
-  const [myInfo, setMyInfo] = useState<PageInfo>({ page: 1, pageSize: 20, total: 0 });
+  const [pendingItems, setPendingItems] = useState<Reservation[]>([]);
+  const [items, setItems] = useState<Reservation[]>([]);
+  const cacheRef = useRef<Map<string, Reservation>>(new Map());
 
-  // ------ filtros ------
-  const [query, setQuery] = useState<QueryReservations>(DEFAULT_QUERY);
-  const [mineQuery, setMineQuery] = useState<QueryReservations>(DEFAULT_QUERY);
+  const [loading, setLoading] = useState<LoadingState>({
+    my: false, pending: false, list: false, get: false,
+    create: false, approve: false, cancel: false, remove: false, complete: false,
+  });
 
-  // ------ estados gerais ------
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<ErrorState>({});
 
-  // ids com ação em andamento (para desabilitar botões por linha)
-  const actingIdsRef = useRef<Set<string>>(new Set());
-  const [, force] = useState(0);
-  const isActing = (id?: string | null) => !!(id && actingIdsRef.current.has(id));
-  const setActing = (id: string, v: boolean) => {
-    const s = actingIdsRef.current;
-    v ? s.add(id) : s.delete(id);
-    force((x) => x + 1); // re-render leve
-  };
+  const setLoadingKey = useCallback((key: keyof LoadingState, value: boolean) => {
+    setLoading((s) => ({ ...s, [key]: value }));
+  }, []);
 
-  // Normaliza query (não manda status=ALL para API)
-  const norm = (q: QueryReservations) => {
-    const p: any = { ...q };
-    if (p.status === "ALL") delete p.status;
-    return p as QueryReservations;
-  };
+  const setErrorKey = useCallback((key: keyof ErrorState, value?: string) => {
+    setErrors((s) => ({ ...s, [key]: value }));
+  }, []);
 
-  // ------ carregamentos ------
-  async function loadAll() {
-    setLoading(true);
-    setError(null);
+  const msgFromErr = (err: any) =>
+    err?.response?.data?.message || err?.message || "Não foi possível completar a operação.";
+
+  const refreshMy = useCallback(async () => {
+    setErrorKey("list", undefined);
+    setLoadingKey("my", true);
     try {
-      const data = await ReservationsAPI.list(norm(query));
-      setItems(data.items ?? []);
-      setItemsInfo({ page: data.page, pageSize: data.pageSize, total: data.total });
-    } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || "Failed to load reservations");
+      const data = await ReservationsAPI.listMine();
+      setMyItems(Array.isArray(data) ? data : []);
+      data?.forEach?.((r) => cacheRef.current.set(r.id, r));
+    } catch (err: any) {
+      setErrorKey("list", msgFromErr(err));
+      setMyItems([]);
     } finally {
-      setLoading(false);
+      setLoadingKey("my", false);
     }
-  }
+  }, [setErrorKey, setLoadingKey]);
 
-  async function loadMine() {
-    setLoading(true);
-    setError(null);
+  const refreshPending = useCallback(async () => {
+    setErrorKey("list", undefined);
+    setLoadingKey("pending", true);
     try {
-      const data = await ReservationsAPI.listMine(norm(mineQuery));
-      setMyItems(data.items ?? []);
-      setMyInfo({ page: data.page, pageSize: data.pageSize, total: data.total });
-    } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || "Failed to load my reservations");
+      const data = await ReservationsAPI.list({ status: "PENDING" });
+      setPendingItems(Array.isArray(data) ? data : []);
+      data?.forEach?.((r) => cacheRef.current.set(r.id, r));
+    } catch (err: any) {
+      setErrorKey("list", msgFromErr(err));
+      setPendingItems([]);
     } finally {
-      setLoading(false);
+      setLoadingKey("pending", false);
     }
-  }
+  }, [setErrorKey, setLoadingKey]);
 
-  // auto-carregar quando filtros mudam (cada página usa só o que precisa)
-  useEffect(() => { loadAll(); /* eslint-disable-next-line */ }, [JSON.stringify(query)]);
-  useEffect(() => { loadMine(); /* eslint-disable-next-line */ }, [JSON.stringify(mineQuery)]);
+  const refresh = useCallback(async () => {
+    setErrorKey("list", undefined);
+    setLoadingKey("list", true);
+    try {
+      const data = await ReservationsAPI.list();
+      setItems(Array.isArray(data) ? data : []);
+      data?.forEach?.((r) => cacheRef.current.set(r.id, r));
+    } catch (err: any) {
+      setErrorKey("list", msgFromErr(err));
+      setItems([]);
+    } finally {
+      setLoadingKey("list", false);
+    }
+  }, [setErrorKey, setLoadingKey]);
 
-  // refresh manual (↻)
-  async function refresh() {
-    await Promise.allSettled([loadAll(), loadMine()]);
-  }
-
-  // busca texto (atualiza ambos, páginas usam o relevante)
-  function onSearch(text: string) {
-    setQuery((q) => ({ ...q, q: text, page: 1 }));
-    setMineQuery((q) => ({ ...q, q: text, page: 1 }));
-  }
-
-  // ------ ações ------
-  async function createReservation(body: ReservationInput) {
-    setError(null);
+  const createReservation = useCallback(async (body: ReservationInput): Promise<OpResult> => {
+    setErrorKey("create", undefined);
+    setLoadingKey("create", true);
     try {
       const created = await ReservationsAPI.create(body);
-      // após criar, atualiza "Minhas reservas"
-      await loadMine();
-      return created;
-    } catch (e: any) {
-      const msg =
-        e?.response?.data?.message ||
-        e?.response?.data?.error ||
-        e?.message ||
-        "Failed to create reservation";
-      setError(msg);
-      throw e;
-    }
-  }
-
-  async function approveReservation(id: string) {
-    setActing(id, true);
-    setError(null);
-    try {
-      const res = await ReservationsAPI.approve(id);
-      await refresh();
-      return res;
-    } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || "Failed to approve");
-      throw e;
+      cacheRef.current.set(created.id, created);
+      setMyItems((arr) => [created, ...arr]);
+      return { ok: true };
+    } catch (err: any) {
+      const msg = msgFromErr(err);
+      setErrorKey("create", msg);
+      return { ok: false, error: msg };
     } finally {
-      setActing(id, false);
+      setLoadingKey("create", false);
     }
-  }
+  }, [setErrorKey, setLoadingKey]);
 
-  async function cancelReservation(id: string) {
-    setActing(id, true);
-    setError(null);
+  const approveReservation = useCallback(async (id: string, body: ReservationApproveInput): Promise<OpResult> => {
+    setErrorKey("approve", undefined);
+    setLoadingKey("approve", true);
     try {
-      const res = await ReservationsAPI.cancel(id);
-      await refresh();
-      return res;
-    } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || "Failed to cancel");
-      throw e;
+      const updated = await ReservationsAPI.approve(id, body);
+      cacheRef.current.set(updated.id, updated);
+      setPendingItems((arr) => arr.filter((r) => r.id !== id));
+      setItems((arr) => arr.map((r) => (r.id === id ? updated : r)));
+      setMyItems((arr) => arr.map((r) => (r.id === id ? updated : r)));
+      return { ok: true };
+    } catch (err: any) {
+      const msg = msgFromErr(err);
+      setErrorKey("approve", msg);
+      return { ok: false, error: msg };
     } finally {
-      setActing(id, false);
+      setLoadingKey("approve", false);
     }
-  }
+  }, [setErrorKey, setLoadingKey]);
 
-  async function removeReservation(id: string) {
-    setActing(id, true);
-    setError(null);
+  const cancelReservation = useCallback(async (id: string): Promise<OpResult> => {
+    setErrorKey("cancel", undefined);
+    setLoadingKey("cancel", true);
     try {
-      const res = await ReservationsAPI.remove(id);
-      await refresh();
-      return res;
-    } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || "Failed to delete");
-      throw e;
+      const updated = await ReservationsAPI.cancel(id);
+      cacheRef.current.set(updated.id, updated);
+      setMyItems((arr) => arr.map((r) => (r.id === id ? updated : r)));
+      setItems((arr) => arr.map((r) => (r.id === id ? updated : r)));
+      setPendingItems((arr) => arr.filter((r) => r.id !== id));
+      return { ok: true };
+    } catch (err: any) {
+      const msg = msgFromErr(err);
+      setErrorKey("cancel", msg);
+      return { ok: false, error: msg };
     } finally {
-      setActing(id, false);
+      setLoadingKey("cancel", false);
     }
-  }
+  }, [setErrorKey, setLoadingKey]);
 
-  async function getReservation(id: string) {
-    setError(null);
+  const completeReservation = useCallback(async (id: string): Promise<OpResult> => {
+    setErrorKey("complete", undefined);
+    setLoadingKey("complete", true);
     try {
-      return await ReservationsAPI.getById(id);
-    } catch (e: any) {
-      setError(e?.response?.data?.message || e?.message || "Failed to load reservation");
-      throw e;
+      const updated = await ReservationsAPI.complete(id);
+      cacheRef.current.set(updated.id, updated);
+      setMyItems((arr) => arr.map((r) => (r.id === id ? updated : r)));
+      setItems((arr) => arr.map((r) => (r.id === id ? updated : r)));
+      setPendingItems((arr) => arr.filter((r) => r.id !== id));
+      return { ok: true };
+    } catch (err: any) {
+      const msg = msgFromErr(err);
+      setErrorKey("complete", msg);
+      return { ok: false, error: msg };
+    } finally {
+      setLoadingKey("complete", false);
     }
-  }
+  }, [setErrorKey, setLoadingKey]);
 
-  // atalhos de período rápido (Hoje/7d/30d etc.) — o componente pode usar se quiser
-  function setQuickRange(days: number, mine = false) {
-    const from = new Date();
-    from.setDate(from.getDate() - Math.max(0, days));
-    const to = new Date();
-    const iso = (d: Date) => d.toISOString();
-    if (mine) {
-      setMineQuery((q) => ({ ...q, from: iso(from), to: iso(to), page: 1 }));
-    } else {
-      setQuery((q) => ({ ...q, from: iso(from), to: iso(to), page: 1 }));
+  const removeReservation = useCallback(async (id: string): Promise<OpResult> => {
+    setErrorKey("remove", undefined);
+    setLoadingKey("remove", true);
+    try {
+      await ReservationsAPI.remove(id);
+      cacheRef.current.delete(id);
+      setMyItems((arr) => arr.filter((r) => r.id !== id));
+      setItems((arr) => arr.filter((r) => r.id !== id));
+      setPendingItems((arr) => arr.filter((r) => r.id !== id));
+      return { ok: true };
+    } catch (err: any) {
+      const msg = msgFromErr(err);
+      setErrorKey("remove", msg);
+      return { ok: false, error: msg };
+    } finally {
+      setLoadingKey("remove", false);
     }
-  }
+  }, [setErrorKey, setLoadingKey]);
 
-  return {
-    // listas
-    items,
-    itemsInfo,
-    myItems,
-    myInfo,
+  const getReservation = useCallback(async (id: string) => {
+    setErrorKey("get", undefined);
+    setLoadingKey("get", true);
+    try {
+      const data = await ReservationsAPI.get(id);
+      cacheRef.current.set(data.id, data);
+      return data;
+    } catch (err: any) {
+      const msg = msgFromErr(err);
+      setErrorKey("get", msg);
+      throw err;
+    } finally {
+      setLoadingKey("get", false);
+    }
+  }, [setErrorKey, setLoadingKey]);
 
-    // estados
-    loading,
-    error,
+  const listAvailableCars = useCallback(async (opts?: { branchId?: string }) => {
+    const { branchId } = opts ?? {};
+    const rows = await CarsAPI.list({ status: "AVAILABLE" as any, ...(branchId ? { branchId } : {}) });
+    return rows.map((c) => ({ id: c.id, plate: c.plate, model: c.model })) as Pick<Car, "id" | "plate" | "model">[];
+  }, []);
 
-    // filtros
-    query,
-    setQuery,
-    mineQuery,
-    setMineQuery,
-    onSearch,
-    setQuickRange,
+  const value = useMemo(() => ({
+    myItems, pendingItems, items, loading, errors,
+    refreshMy, refreshPending, refresh,
+    createReservation, approveReservation, cancelReservation, completeReservation, removeReservation,
+    getReservation, listAvailableCars,
+  }), [
+    myItems, pendingItems, items, loading, errors,
+    refreshMy, refreshPending, refresh,
+    createReservation, approveReservation, cancelReservation, completeReservation, removeReservation,
+    getReservation, listAvailableCars,
+  ]);
 
-    // refresh
-    refresh,
-
-    // ações
-    createReservation,
-    approveReservation,
-    cancelReservation,
-    removeReservation,
-    getReservation,
-
-    // UI helpers
-    isActing,
-  };
+  return value;
 }

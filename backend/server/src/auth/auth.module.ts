@@ -6,7 +6,7 @@ import { APP_GUARD } from '@nestjs/core';
 
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
-import { CsrfController } from './csrf.controller'; 
+import { CsrfController } from './csrf.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { PrismaService } from '../infra/prisma.service';
 import { RedisService } from '../infra/redis.service';
@@ -19,8 +19,8 @@ import { UsersModule } from '../users/users.module';
     JwtModule.register({}),
     ThrottlerModule.forRoot([
       {
-        ttl: 10,     // janela de 10s
-        limit: 5,    // até 5 req/10s por IP (ajuste se necessário)
+        ttl: 10,
+        limit: 5,
       },
     ]),
   ],
@@ -31,10 +31,7 @@ import { UsersModule } from '../users/users.module';
     RedisService,
     { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
-  controllers: [
-    AuthController,
-    CsrfController,
-  ],
+  controllers: [AuthController, CsrfController],
   exports: [],
 })
 export class AuthModule {}
