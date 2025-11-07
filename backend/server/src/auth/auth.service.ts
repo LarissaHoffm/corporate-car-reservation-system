@@ -8,6 +8,9 @@ import { PrismaService } from '../infra/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import type { Response, Request } from 'express';
 import * as argon2 from 'argon2';
+import { randomUUID } from 'crypto';
+
+import { PrismaService } from '../infra/prisma.service';
 import { RedisService } from '../infra/redis.service';
 import { LoginDto } from './dto/login.dto';
 import { Role, UserStatus } from '@prisma/client';
@@ -75,9 +78,9 @@ export class AuthService {
   private legacyCsrfCookie = 'csrftoken';
 
   constructor(
-    private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly redis: RedisService,
+    private readonly prisma: PrismaService,
   ) {}
 
   private normalizeSameSite(): 'lax' | 'strict' | 'none' {
