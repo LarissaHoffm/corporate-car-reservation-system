@@ -1,17 +1,23 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsInt, IsOptional, IsString, IsUUID, Matches, Min } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsEnum, IsInt, IsOptional, IsString, Matches, Min, MinLength } from 'class-validator';
 import { CarStatus } from '@prisma/client';
-import { PLATE_REGEX } from './create-car.dto';
+import { BR_PLATE_REGEX, BRANCH_ID_REGEX } from './create-car.dto';
 
 export class UpdateCarDto {
-  @ApiPropertyOptional({ example: 'ABC1D23' })
+  @ApiPropertyOptional({ example: 'ABC1D23', description: 'Aceita ABC-1234 ou ABC1D23' })
   @IsOptional()
-  @Matches(PLATE_REGEX, { message: 'plate must be like ABC1D23' })
+  @IsString()
+  @Matches(BR_PLATE_REGEX, { message: 'plate inválida. Use ABC-1234 ou ABC1D23' })
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.replace(/[\s-]+/g, '').toUpperCase() : value,
+  )
   plate?: string;
 
   @ApiPropertyOptional({ example: 'Onix 1.0' })
   @IsOptional()
   @IsString()
+  @MinLength(2, { message: 'model deve ter ao menos 2 caracteres' })
   model?: string;
 
   @ApiPropertyOptional({ example: 'Prata' })
@@ -22,20 +28,32 @@ export class UpdateCarDto {
   @ApiPropertyOptional({ example: 12000 })
   @IsOptional()
   @IsInt()
-  @Min(0)
+  @Min(0, { message: 'mileage não pode ser negativo' })
   mileage?: number;
 
-  @ApiPropertyOptional({ enum: ['AVAILABLE','IN_USE','MAINTENANCE','INACTIVE','ACTIVE'] })
+  @ApiPropertyOptional({ enum: ['AVAILABLE', 'IN_USE', 'MAINTENANCE', 'INACTIVE', 'ACTIVE'] })
   @IsOptional()
-  @IsEnum(CarStatus)
+  @IsEnum(CarStatus, { message: 'status inválido' })
   status?: CarStatus;
 
-  @ApiPropertyOptional({ format: 'uuid', description: 'Filial (UUID). Envie null para limpar.' })
+  @ApiPropertyOptional({
+    example: 'FOR ou 3fa85f64-5717-4562-b3fc-2c963f66afa6',
+    description: 'branchId como código (3 letras) OU UUID v4. Envie null para limpar.',
+  })
   @IsOptional()
-  @IsUUID('4', { message: 'branchId must be a UUID' })
+  @Matches(BRANCH_ID_REGEX, {
+    message: 'branchId deve ser código de 3 letras (ex.: FOR) ou UUID v4 válido',
+  })
+  @Transform(({ value }) => {
+    if (typeof value !== 'string') return value;
+    return /^[a-zA-Z]{3}$/.test(value) ? value.toUpperCase() : value;
+  })
   branchId?: string;
 
-  @ApiPropertyOptional({ example: 'Fortaleza', description: 'Nome da filial (alternativo ao branchId)' })
+  @ApiPropertyOptional({
+    example: 'Fortaleza',
+    description: 'Nome da filial (alternativo ao branchId); resolução será feita no service.',
+  })
   @IsOptional()
   @IsString()
   branchName?: string;

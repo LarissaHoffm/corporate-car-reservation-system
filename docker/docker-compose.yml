@@ -38,9 +38,10 @@ services:
       REDIS_DB: "0"
       REDIS_URL: ""     # evita 127.0.0.1 herdado
     volumes:
-      - ../backend/server:/app
+      - ../backend/server:/app           # código fonte
       - api_node_modules:/app/node_modules
       - uploads:/app/uploads
+    working_dir: /app
     depends_on:
       db:
         condition: service_healthy
@@ -51,7 +52,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-    command: npm run start:dev
+    command: sh -lc "./docker-entrypoint.sh"
     expose:
       - "3000"
     restart: unless-stopped

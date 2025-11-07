@@ -5,7 +5,6 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ReservationsService } from './reservations.service';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { ApproveReservationDto } from './dto/approve-reservation.dto';
-import { CancelReservationDto } from './dto/cancel-reservation.dto';
 import { QueryReservationsDto } from './dto/query-reservations.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
