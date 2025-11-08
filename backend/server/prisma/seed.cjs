@@ -1,4 +1,4 @@
-const { PrismaClient, Role, CarStatus, ChecklistItemType, UserStatus } = require('@prisma/client');
+const { PrismaClient, Role, CarStatus, ChecklistItemType, UserStatus, ReservationStatus } = require('@prisma/client');
 const argon2 = require('argon2');
 
 const prisma = new PrismaClient();
@@ -85,6 +85,42 @@ async function ensureChecklistTemplate({ tenantId, name }) {
   return { created: true, tpl };
 }
 
+/** Seed create-only para Reservation, usando `purpose` como chave idempotente. */
+async function ensureReservation({
+  tenantId, branchId, userId, carId = null,
+  origin, destination, startAt, endAt,
+  status = ReservationStatus.PENDING, purpose,
+}) {
+  const existing = await prisma.reservation.findFirst({
+    where: { tenantId, userId, origin, destination, purpose },
+  });
+  if (existing) return { created: false, reservation: existing };
+
+  const reservation = await prisma.reservation.create({
+    data: {
+      tenantId,
+      userId,
+      branchId: branchId ?? null,
+      carId: carId ?? null,
+      origin,
+      destination,
+      startAt,
+      endAt,
+      status,
+      purpose,
+      canceledAt: status === ReservationStatus.CANCELED ? new Date() : null,
+    },
+  });
+  return { created: true, reservation };
+}
+
+function setTime(baseDate, h, m) {
+  const d = new Date(baseDate);
+  d.setSeconds(0, 0);
+  d.setHours(h, m, 0, 0);
+  return d;
+}
+
 async function main() {
   const log = [];
 
@@ -100,6 +136,10 @@ async function main() {
     });
     log.push({ kind: 'user', email: user.email, action: created ? 'CREATE' : 'KEEP' });
   }
+
+  const admin     = await prisma.user.findUnique({ where: { email: 'admin@reservcar.com' } });
+  const approver  = await prisma.user.findUnique({ where: { email: 'approver@reservcar.com' } });
+  const requester = await prisma.user.findUnique({ where: { email: 'requester@reservcar.com' } });
 
   {
     const { created, car } = await ensureCar({
@@ -130,6 +170,68 @@ async function main() {
       name: 'Retorno Padrão',
     });
     log.push({ kind: 'checklistTemplate', name: tpl.name, action: created ? 'CREATE' : 'KEEP' });
+  }
+
+  // ==== RESERVAS (smoke) ====
+  const now = new Date();
+
+  const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
+  const startP1 = setTime(tomorrow, 9, 0);
+  const endP1   = setTime(tomorrow, 11, 0);
+
+  const startP2 = setTime(tomorrow, 14, 0);
+  const endP2   = setTime(tomorrow, 16, 0);
+
+  const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+  const startC1 = setTime(yesterday, 10, 0);
+  const endC1   = setTime(yesterday, 11, 0);
+
+  // Pendente 1 (sem carro)
+  {
+    const { created, reservation } = await ensureReservation({
+      tenantId: tenant.id,
+      branchId: branch.id,
+      userId: requester.id,
+      origin: 'Matriz',
+      destination: 'Cliente A',
+      startAt: startP1,
+      endAt: endP1,
+      status: ReservationStatus.PENDING,
+      purpose: 'SMOKE_SEED_PENDING_1',
+    });
+    log.push({ kind: 'reservation', id: reservation.id, status: reservation.status, action: created ? 'CREATE' : 'KEEP' });
+  }
+
+  // Pendente 2 (sem carro)
+  {
+    const { created, reservation } = await ensureReservation({
+      tenantId: tenant.id,
+      branchId: branch.id,
+      userId: requester.id,
+      origin: 'Matriz',
+      destination: 'Cliente B',
+      startAt: startP2,
+      endAt: endP2,
+      status: ReservationStatus.PENDING,
+      purpose: 'SMOKE_SEED_PENDING_2',
+    });
+    log.push({ kind: 'reservation', id: reservation.id, status: reservation.status, action: created ? 'CREATE' : 'KEEP' });
+  }
+
+  // Cancelada (histórico)
+  {
+    const { created, reservation } = await ensureReservation({
+      tenantId: tenant.id,
+      branchId: branch.id,
+      userId: requester.id,
+      origin: 'Matriz',
+      destination: 'Fornecedor B',
+      startAt: startC1,
+      endAt: endC1,
+      status: ReservationStatus.CANCELED,
+      purpose: 'SMOKE_SEED_CANCELED_1',
+    });
+    log.push({ kind: 'reservation', id: reservation.id, status: reservation.status, action: created ? 'CREATE' : 'KEEP' });
   }
 
   // Saída 

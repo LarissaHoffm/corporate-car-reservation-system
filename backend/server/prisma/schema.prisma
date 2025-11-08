@@ -182,20 +182,30 @@ model Reservation {
   endAt       DateTime
   status      ReservationStatus @default(PENDING)
 
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  /// Novo campo: finalidade/justificativa da reserva
+  purpose     String?
+
+  /// Novos carimbos: aprovação e cancelamento
+  approvedAt  DateTime?
+  canceledAt  DateTime?
+
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   branch   Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  user     User   @relation("UserReservations", fields: [userId], references: [id])
-  approver User?  @relation("UserApprovals", fields: [approverId], references: [id])
-  car      Car?   @relation(fields: [carId], references: [id], onDelete: SetNull)
+  user     User    @relation("UserReservations", fields: [userId], references: [id])
+  approver User?   @relation("UserApprovals", fields: [approverId], references: [id])
+  car      Car?    @relation(fields: [carId], references: [id], onDelete: SetNull)
 
   checklists ChecklistSubmission[]
 
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   Document  Document[]
 
   @@index([tenantId, branchId, carId])
   @@index([status])
+  // Índices para consultas por dono e por janela de tempo (escopo do tenant)
+  @@index([tenantId, userId])
+  @@index([tenantId, startAt, endAt])
 }
 
 model Document {
