@@ -22,8 +22,7 @@ type ActorBase = {
 export class ReservationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  // Confere conflito de horário para o mesmo carro (PENDING/APPROVED).
-
+  /** Aux de conflito de horário para o mesmo carro (PENDING/APPROVED). */
   private async assertNoOverlap(
     tx: Prisma.TransactionClient,
     params: {
@@ -53,8 +52,32 @@ export class ReservationsService {
     }
   }
 
-  // Criação de reserva — agora aceita sem carro/filial.
-   
+  /** Aux para logging mínimo (RNF08). */
+  private async log(
+    tx: Prisma.TransactionClient,
+    args: {
+      tenantId: string;
+      userId?: string | null;
+      action: string;
+      entity: string;
+      entityId: string;
+      metadata?: Record<string, unknown>;
+    },
+  ) {
+    const { tenantId, userId, action, entity, entityId, metadata } = args;
+    await tx.auditLog.create({
+      data: {
+        tenantId,
+        userId: userId ?? null,
+        action,
+        entity,
+        entityId,
+        metadata: metadata ? (metadata as any) : undefined,
+      },
+    });
+  }
+
+  /** Criação de reserva — aceita sem carro/filial, status = PENDING. */
   async create(actor: ActorBase, dto: CreateReservationDto) {
     const start = new Date(dto.startAt);
     const end = new Date(dto.endAt);
@@ -69,7 +92,7 @@ export class ReservationsService {
     const branchToUse: string | null = dto.branchId ?? actor.branchId ?? null;
 
     return this.prisma.$transaction(async (tx) => {
-      // valida carro 
+      // valida carro (se informado)
       if (dto.carId) {
         const car = await tx.car.findUnique({
           where: { id: dto.carId },
@@ -90,7 +113,6 @@ export class ReservationsService {
         });
       }
 
-      // payload com relations opcionais (branch/car) e obrigatórias (tenant/user)
       const data: Prisma.ReservationCreateInput = {
         tenant: { connect: { id: actor.tenantId } },
         user: { connect: { id: actor.userId } },
@@ -101,29 +123,50 @@ export class ReservationsService {
         startAt: start,
         endAt: end,
         status: ReservationStatus.PENDING,
+        ...(dto.purpose ? { purpose: dto.purpose } : {}),
       };
 
-      return tx.reservation.create({
+      const created = await tx.reservation.create({
         data,
         select: {
           id: true,
+          tenantId: true,
           origin: true,
           destination: true,
           startAt: true,
           endAt: true,
           status: true,
+          purpose: true,
           carId: true,
           branchId: true,
           userId: true,
           createdAt: true,
           user: { select: { id: true, name: true, email: true } },
-          branch: { select: { id: true, name: true} },
+          branch: { select: { id: true, name: true } },
           car: { select: { id: true, plate: true, model: true } },
         },
       });
+
+      await this.log(tx, {
+        tenantId: actor.tenantId,
+        userId: actor.userId,
+        action: 'reservation.created',
+        entity: 'Reservation',
+        entityId: created.id,
+        metadata: {
+          origin: dto.origin,
+          destination: dto.destination,
+          startAt: start.toISOString(),
+          endAt: end.toISOString(),
+          branchId: branchToUse,
+          carId: dto.carId ?? null,
+          purpose: dto.purpose ?? null,
+        },
+      });
+
+      return created;
     });
   }
-
 
   async list(
     actor: Pick<ActorBase, 'tenantId' | 'role' | 'userId'>,
@@ -154,6 +197,7 @@ export class ReservationsService {
             OR: [
               { origin: { contains: textQ, mode: 'insensitive' } },
               { destination: { contains: textQ, mode: 'insensitive' } },
+              { purpose: { contains: textQ, mode: 'insensitive' } },
             ],
           }
         : {}),
@@ -177,6 +221,9 @@ export class ReservationsService {
           startAt: true,
           endAt: true,
           status: true,
+          purpose: true,
+          approvedAt: true,
+          canceledAt: true,
           user: { select: { id: true, name: true, email: true } },
           branch: { select: { id: true, name: true } },
           car: { select: { id: true, plate: true, model: true } },
@@ -198,6 +245,9 @@ export class ReservationsService {
         startAt: true,
         endAt: true,
         status: true,
+        purpose: true,
+        approvedAt: true,
+        canceledAt: true,
         user: { select: { id: true, name: true, email: true } },
         branch: { select: { id: true, name: true } },
         car: { select: { id: true, plate: true, model: true } },
@@ -209,7 +259,7 @@ export class ReservationsService {
     return r;
   }
 
-
+  /** A aprovação completa fica para o dia 10/11; mantendo aqui para compatibilidade. */
   async approve(
     actor: Pick<ActorBase, 'userId' | 'tenantId' | 'role'>,
     id: string,
@@ -237,7 +287,6 @@ export class ReservationsService {
         );
       }
 
-      // valida carro escolhido pelo approver (obrigatório na aprovação)
       const car = await tx.car.findUnique({
         where: { id: dto.carId },
         select: { id: true, tenantId: true, status: true },
@@ -261,20 +310,33 @@ export class ReservationsService {
         where: { id: r.id },
         data: {
           status: ReservationStatus.APPROVED,
+          approver: { connect: { id: actor.userId } },
+          approvedAt: new Date(),
           car: { connect: { id: dto.carId } },
         },
         select: {
           id: true,
           status: true,
           carId: true,
+          approvedAt: true,
           updatedAt: true,
         },
+      });
+
+      await this.log(tx, {
+        tenantId: actor.tenantId,
+        userId: actor.userId,
+        action: 'reservation.approved',
+        entity: 'Reservation',
+        entityId: updated.id,
+        metadata: { carId: dto.carId },
       });
 
       return updated;
     });
   }
 
+  /** Cancelamento (Dia 08/11): apenas o solicitante e apenas se PENDING. */
   async cancel(actor: ActorBase, id: string) {
     return this.prisma.$transaction(async (tx) => {
       const r = await tx.reservation.findUnique({
@@ -290,21 +352,35 @@ export class ReservationsService {
         throw new NotFoundException('Reserva não encontrada.');
       }
 
-      if (actor.role === 'REQUESTER' && r.userId !== actor.userId) {
+      // Escopo de hoje: só o dono pode cancelar e somente se PENDING.
+      if (actor.role !== 'REQUESTER') {
+        throw new ForbiddenException('Somente o solicitante pode cancelar nesta fase.');
+      }
+      if (r.userId !== actor.userId) {
         throw new ForbiddenException('Sem permissão para cancelar esta reserva.');
       }
-
-      if (r.status === ReservationStatus.COMPLETED) {
-        throw new BadRequestException('Não é possível cancelar uma reserva concluída.');
+      if (r.status !== ReservationStatus.PENDING) {
+        throw new BadRequestException('Só é possível cancelar reservas PENDING.');
       }
 
-      return tx.reservation.update({
+      const updated = await tx.reservation.update({
         where: { id: r.id },
         data: {
           status: ReservationStatus.CANCELED,
+          canceledAt: new Date(),
         },
-        select: { id: true, status: true, updatedAt: true },
+        select: { id: true, status: true, canceledAt: true, updatedAt: true },
       });
+
+      await this.log(tx, {
+        tenantId: actor.tenantId,
+        userId: actor.userId,
+        action: 'reservation.canceled',
+        entity: 'Reservation',
+        entityId: updated.id,
+      });
+
+      return updated;
     });
   }
 
@@ -333,7 +409,7 @@ export class ReservationsService {
           message:
             'Envie os documentos obrigatórios e conclua o checklist antes de finalizar a reserva.',
           missing: ['documents', 'checklist'],
-          nextAction: 'upload', 
+          nextAction: 'upload',
         } as any);
       }
 
@@ -353,10 +429,17 @@ export class ReservationsService {
         },
       });
 
+      await this.log(tx, {
+        tenantId: actor.tenantId,
+        userId: actor.userId,
+        action: 'reservation.completed',
+        entity: 'Reservation',
+        entityId: updated.id,
+      });
+
       return updated;
     });
   }
-
 
   async remove(actor: Pick<ActorBase, 'tenantId'>, id: string) {
     const r = await this.prisma.reservation.findUnique({
