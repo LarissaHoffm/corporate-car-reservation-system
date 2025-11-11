@@ -9,12 +9,9 @@ import { JwtService } from '@nestjs/jwt';
 import type { Response, Request } from 'express';
 import * as argon2 from 'argon2';
 import { randomUUID } from 'crypto';
-
-import { PrismaService } from '../infra/prisma.service';
 import { RedisService } from '../infra/redis.service';
 import { LoginDto } from './dto/login.dto';
 import { Role, UserStatus } from '@prisma/client';
-import { randomUUID } from 'crypto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 
 // Converte "15m" | "7d" | "3600" para segundos 
