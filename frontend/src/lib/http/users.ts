@@ -57,9 +57,7 @@ export async function getUser(id: string) {
 /** Atualizar usuário (admin) */
 export async function updateUser(
   id: string,
-  payload: Partial<
-    Omit<User, "id" | "createdAt" | "updatedAt" | "branch">
-  >
+  payload: Partial<Omit<User, "id" | "createdAt" | "updatedAt" | "branch">>,
 ) {
   const { data } = await api.patch<User>(`/users/${id}`, payload);
   return data;
@@ -74,12 +72,12 @@ export async function listUserReservations(userId: string) {
 /** Alterar a PRÓPRIA senha (SELF) – envia cookies (refresh) */
 export async function setOwnPassword(
   userId: string,
-  body: { currentPassword?: string; newPassword: string }
+  body: { currentPassword?: string; newPassword: string },
 ) {
   const { data } = await api.patch<{ ok: boolean }>(
     `/users/${userId}/password`,
     body,
-    { withCredentials: true } // garante envio dos cookies
+    { withCredentials: true }, // garante envio dos cookies
   );
   return data;
 }

@@ -33,12 +33,18 @@ export default function RequesterReservationUpload() {
         if (mounted) setLoading(false);
       } catch (e: any) {
         if (mounted) {
-          setErr(e?.response?.data?.message || e?.message || "Unable to load reservation.");
+          setErr(
+            e?.response?.data?.message ||
+              e?.message ||
+              "Unable to load reservation.",
+          );
           setLoading(false);
         }
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [id, getReservation]);
 
   return (
@@ -46,7 +52,9 @@ export default function RequesterReservationUpload() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">Conclude Reservation</h1>
-          <p className="text-sm text-muted-foreground">Step 2 of 3 — Upload your documents.</p>
+          <p className="text-sm text-muted-foreground">
+            Step 2 of 3 — Upload your documents.
+          </p>
         </div>
         <Link to={`/requester/reservations/details?id=${id}`}>
           <Button variant="ghost">Back to Details</Button>
@@ -55,9 +63,15 @@ export default function RequesterReservationUpload() {
 
       {/* Stepper visual simples */}
       <div className="grid grid-cols-3 gap-2 text-xs">
-        <div className="rounded-full px-3 py-2 bg-muted/60 text-foreground text-center">1. Details</div>
-        <div className="rounded-full px-3 py-2 bg-[#1558E9] text-white text-center">2. Upload</div>
-        <div className="rounded-full px-3 py-2 bg-muted/60 text-foreground text-center">3. Checklist</div>
+        <div className="rounded-full px-3 py-2 bg-muted/60 text-foreground text-center">
+          1. Details
+        </div>
+        <div className="rounded-full px-3 py-2 bg-[#1558E9] text-white text-center">
+          2. Upload
+        </div>
+        <div className="rounded-full px-3 py-2 bg-muted/60 text-foreground text-center">
+          3. Checklist
+        </div>
       </div>
 
       <Card className="border-border/50 shadow-sm">
@@ -93,7 +107,9 @@ export default function RequesterReservationUpload() {
                 </Link>
                 <Button
                   className="bg-[#1558E9] hover:bg-[#1558E9]/90"
-                  onClick={() => navigate(`/requester/reservations/checklist?id=${id}`)}
+                  onClick={() =>
+                    navigate(`/requester/reservations/checklist?id=${id}`)
+                  }
                 >
                   Continue to Checklist
                 </Button>

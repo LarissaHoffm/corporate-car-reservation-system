@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis, { RedisOptions } from 'ioredis';
 
@@ -30,27 +35,41 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       : new Redis({ host, port, password, db, ...base });
 
     const target = useUrl ? rawUrl : `${host}:${port}/${db}`;
-    this.client.on('connect', () => this.logger.log(`Connected to Redis at ${target}`));
-    this.client.on('error', (err) => this.logger.error(`Redis error: ${err?.message || err}`));
+    this.client.on('connect', () =>
+      this.logger.log(`Connected to Redis at ${target}`),
+    );
+    this.client.on('error', (err) =>
+      this.logger.error(`Redis error: ${err?.message || err}`),
+    );
   }
 
   async onModuleInit() {
-    try { await this.client.connect(); }
-    catch (err: any) {
+    try {
+      await this.client.connect();
+    } catch (err: any) {
       this.logger.error(`Failed to connect to Redis: ${err?.message || err}`);
     }
   }
 
   async onModuleDestroy() {
-    try { await this.client.quit(); } catch {}
+    try {
+      await this.client.quit();
+    } catch {}
   }
 
-  getClient(): Redis { return this.client; }
+  getClient(): Redis {
+    return this.client;
+  }
 
   // TTL em segundos
-  async set(key: string, value: string | number, ttlSeconds?: number): Promise<'OK' | null> {
+  async set(
+    key: string,
+    value: string | number,
+    ttlSeconds?: number,
+  ): Promise<'OK' | null> {
     const val = String(value);
-    if (ttlSeconds && ttlSeconds > 0) return this.client.set(key, val, 'EX', ttlSeconds);
+    if (ttlSeconds && ttlSeconds > 0)
+      return this.client.set(key, val, 'EX', ttlSeconds);
     return this.client.set(key, val);
   }
 

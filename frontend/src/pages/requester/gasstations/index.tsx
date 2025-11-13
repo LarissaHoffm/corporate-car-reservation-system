@@ -5,7 +5,13 @@ import { Search } from "lucide-react";
 import { RoleGuard } from "@/components/role-guard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { statusChipClasses } from "@/components/ui/status";
@@ -33,40 +39,108 @@ type Station = {
 };
 
 const mockReservations: Reservation[] = [
-  { id: "DSSS",   car: "Fleet Sedan",      plate: "ABC-1A23", date1: "Aug 03, 2025", date2: "Aug 05, 2025", status: "Active"    },
-  { id: "R48293", car: "Toyota Corolla",   plate: "7FJ-392",  date1: "Aug 04, 2025", date2: "Aug 07, 2025", status: "Confirmed" },
-  { id: "R48294", car: "Honda Civic",      plate: "8GK-493",  date1: "Aug 10, 2025", date2: "Aug 12, 2025", status: "Pending"   },
+  {
+    id: "DSSS",
+    car: "Fleet Sedan",
+    plate: "ABC-1A23",
+    date1: "Aug 03, 2025",
+    date2: "Aug 05, 2025",
+    status: "Active",
+  },
+  {
+    id: "R48293",
+    car: "Toyota Corolla",
+    plate: "7FJ-392",
+    date1: "Aug 04, 2025",
+    date2: "Aug 07, 2025",
+    status: "Confirmed",
+  },
+  {
+    id: "R48294",
+    car: "Honda Civic",
+    plate: "8GK-493",
+    date1: "Aug 10, 2025",
+    date2: "Aug 12, 2025",
+    status: "Pending",
+  },
 ];
 
 const mockStations: Station[] = [
-  { id: "1", name: "EcoFuel",    code: "A1",       location: "A1 Service Area, Exit 12",     brand: "shell",       fuels: ["Petrol", "Diesel"], status: "Active"   },
-  { id: "2", name: "PrimeGas",   code: "N16",      location: "N16 Northbound, Km 54",        brand: "bp",          fuels: ["Petrol"],           status: "Active"   },
-  { id: "3", name: "QuickFill",  code: "R2",       location: "R2 Ring Road, Gate 5",         brand: "independent", fuels: ["Diesel"],           status: "Inactive" },
-  { id: "4", name: "CityFuel",   code: "Downtown", location: "24 King St, City Center",       brand: "bp",          fuels: ["Petrol", "EV"],     status: "Active"   },
-  { id: "5", name: "HighwayMax", code: "A3",       location: "A3 Westbound, Mile 102",        brand: "shell",       fuels: ["Petrol", "Diesel"], status: "Inactive" },
+  {
+    id: "1",
+    name: "EcoFuel",
+    code: "A1",
+    location: "A1 Service Area, Exit 12",
+    brand: "shell",
+    fuels: ["Petrol", "Diesel"],
+    status: "Active",
+  },
+  {
+    id: "2",
+    name: "PrimeGas",
+    code: "N16",
+    location: "N16 Northbound, Km 54",
+    brand: "bp",
+    fuels: ["Petrol"],
+    status: "Active",
+  },
+  {
+    id: "3",
+    name: "QuickFill",
+    code: "R2",
+    location: "R2 Ring Road, Gate 5",
+    brand: "independent",
+    fuels: ["Diesel"],
+    status: "Inactive",
+  },
+  {
+    id: "4",
+    name: "CityFuel",
+    code: "Downtown",
+    location: "24 King St, City Center",
+    brand: "bp",
+    fuels: ["Petrol", "EV"],
+    status: "Active",
+  },
+  {
+    id: "5",
+    name: "HighwayMax",
+    code: "A3",
+    location: "A3 Westbound, Mile 102",
+    brand: "shell",
+    fuels: ["Petrol", "Diesel"],
+    status: "Inactive",
+  },
 ];
 
-function chipForReservation(s: Reservation["status"]): "Pendente" | "Aprovado" | "Rejeitado" {
+function chipForReservation(
+  s: Reservation["status"],
+): "Pendente" | "Aprovado" | "Rejeitado" {
   // Active/Confirmed => Aprovado (verde), Pending => Pendente (âmbar)
   if (s === "Pending") return "Pendente";
   return "Aprovado";
 }
 
-function chipForStation(s: Station["status"]): "Pendente" | "Aprovado" | "Rejeitado" {
+function chipForStation(
+  s: Station["status"],
+): "Pendente" | "Aprovado" | "Rejeitado" {
   // Active => Aprovado (verde), Inactive => Rejeitado (vermelho)
   return s === "Active" ? "Aprovado" : "Rejeitado";
 }
 
 export default function GasStationsPage() {
   // seleção de reserva
-  const [selectedReservationId, setSelectedReservationId] = useState<string>(mockReservations[0].id);
+  const [selectedReservationId, setSelectedReservationId] = useState<string>(
+    mockReservations[0].id,
+  );
   const selectedReservation =
-    mockReservations.find((r) => r.id === selectedReservationId) ?? mockReservations[0];
+    mockReservations.find((r) => r.id === selectedReservationId) ??
+    mockReservations[0];
 
   // filtros das estações
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedBrand, setSelectedBrand] = useState<"all" | Brand>("all");
-  const [selectedFuel, setSelectedFuel]   = useState<"all" | Fuel>("all");
+  const [selectedFuel, setSelectedFuel] = useState<"all" | Fuel>("all");
 
   // opções dinâmicas (a partir do mock)
   const brandOptions = useMemo<("all" | Brand)[]>(() => {
@@ -91,7 +165,7 @@ export default function GasStationsPage() {
         s.code.toLowerCase().includes(q) ||
         s.location.toLowerCase().includes(q);
       const byBrand = selectedBrand === "all" || s.brand === selectedBrand;
-      const byFuel  = selectedFuel === "all" || s.fuels.includes(selectedFuel);
+      const byFuel = selectedFuel === "all" || s.fuels.includes(selectedFuel);
       return byQuery && byBrand && byFuel;
     });
   }, [searchTerm, selectedBrand, selectedFuel]);
@@ -101,7 +175,9 @@ export default function GasStationsPage() {
       <div className="space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Gas Stations on Route</h1>
+          <h1 className="text-2xl font-bold text-foreground">
+            Gas Stations on Route
+          </h1>
         </div>
 
         {/* Reservation Info */}
@@ -109,8 +185,13 @@ export default function GasStationsPage() {
           <CardContent className="p-4">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div className="flex items-center gap-4">
-                <span className="text-sm font-medium text-muted-foreground">Select Reservation:</span>
-                <Select value={selectedReservationId} onValueChange={setSelectedReservationId}>
+                <span className="text-sm font-medium text-muted-foreground">
+                  Select Reservation:
+                </span>
+                <Select
+                  value={selectedReservationId}
+                  onValueChange={setSelectedReservationId}
+                >
                   <SelectTrigger className="w-56 border-border/50">
                     <SelectValue />
                   </SelectTrigger>
@@ -142,16 +223,31 @@ export default function GasStationsPage() {
                 </thead>
                 <tbody>
                   <tr className="text-sm">
-                    <td className="py-2 text-foreground">{selectedReservation.car}</td>
-                    <td className="py-2 text-foreground">{selectedReservation.plate}</td>
-                    <td className="py-2 text-foreground">{selectedReservation.date1}</td>
-                    <td className="py-2 text-foreground">{selectedReservation.date2}</td>
+                    <td className="py-2 text-foreground">
+                      {selectedReservation.car}
+                    </td>
+                    <td className="py-2 text-foreground">
+                      {selectedReservation.plate}
+                    </td>
+                    <td className="py-2 text-foreground">
+                      {selectedReservation.date1}
+                    </td>
+                    <td className="py-2 text-foreground">
+                      {selectedReservation.date2}
+                    </td>
                     <td className="py-2">
                       <div className="flex gap-2 items-center">
-                        <Badge className={statusChipClasses(chipForReservation(selectedReservation.status))}>
+                        <Badge
+                          className={statusChipClasses(
+                            chipForReservation(selectedReservation.status),
+                          )}
+                        >
                           {selectedReservation.status}
                         </Badge>
-                        <Badge variant="outline" className="text-muted-foreground border-border hover:bg-card">
+                        <Badge
+                          variant="outline"
+                          className="text-muted-foreground border-border hover:bg-card"
+                        >
                           Cancel
                         </Badge>
                       </div>
@@ -194,7 +290,9 @@ export default function GasStationsPage() {
           {/* Stations List + filtros funcionais */}
           <div className="space-y-4">
             <div>
-              <h2 className="text-lg font-semibold text-foreground mb-4">Stations on Route</h2>
+              <h2 className="text-lg font-semibold text-foreground mb-4">
+                Stations on Route
+              </h2>
 
               {/* Search + filtros fluidos */}
               <div className="space-y-3 mb-4">
@@ -211,7 +309,10 @@ export default function GasStationsPage() {
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <span>Branch:</span>
-                    <Select value={selectedBrand} onValueChange={(v: any) => setSelectedBrand(v)}>
+                    <Select
+                      value={selectedBrand}
+                      onValueChange={(v: any) => setSelectedBrand(v)}
+                    >
                       <SelectTrigger className="w-28 h-8 text-xs border-border/50">
                         <SelectValue />
                       </SelectTrigger>
@@ -227,7 +328,10 @@ export default function GasStationsPage() {
 
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <span>Fuel:</span>
-                    <Select value={selectedFuel} onValueChange={(v: any) => setSelectedFuel(v)}>
+                    <Select
+                      value={selectedFuel}
+                      onValueChange={(v: any) => setSelectedFuel(v)}
+                    >
                       <SelectTrigger className="w-28 h-8 text-xs border-border/50">
                         <SelectValue />
                       </SelectTrigger>
@@ -241,7 +345,9 @@ export default function GasStationsPage() {
                     </Select>
                   </div>
 
-                  {(selectedBrand !== "all" || selectedFuel !== "all" || searchTerm) && (
+                  {(selectedBrand !== "all" ||
+                    selectedFuel !== "all" ||
+                    searchTerm) && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -270,19 +376,32 @@ export default function GasStationsPage() {
                             {station.name} — {station.code}
                           </h3>
                           {/* badges informativos (brand/fuels) */}
-                          <Badge variant="outline" className="text-xs border-border/60">
+                          <Badge
+                            variant="outline"
+                            className="text-xs border-border/60"
+                          >
                             {station.brand.toUpperCase()}
                           </Badge>
                           {station.fuels.map((f) => (
-                            <Badge key={f} variant="outline" className="text-xs border-border/60">
+                            <Badge
+                              key={f}
+                              variant="outline"
+                              className="text-xs border-border/60"
+                            >
                               {f}
                             </Badge>
                           ))}
                         </div>
-                        <p className="text-sm text-muted-foreground">{station.location}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {station.location}
+                        </p>
                       </div>
 
-                      <Badge className={statusChipClasses(chipForStation(station.status))}>
+                      <Badge
+                        className={statusChipClasses(
+                          chipForStation(station.status),
+                        )}
+                      >
                         {station.status}
                       </Badge>
                     </div>
@@ -291,7 +410,9 @@ export default function GasStationsPage() {
               ))}
 
               {filteredStations.length === 0 && (
-                <p className="text-sm text-muted-foreground">No stations match the current filters.</p>
+                <p className="text-sm text-muted-foreground">
+                  No stations match the current filters.
+                </p>
               )}
             </div>
           </div>

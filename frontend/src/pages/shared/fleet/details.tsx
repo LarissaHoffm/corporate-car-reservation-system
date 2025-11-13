@@ -9,22 +9,65 @@ import { ArrowLeft } from "lucide-react";
 import { RoleGuard } from "@/components/role-guard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { statusChipClasses } from "@/components/ui/status";
 
 import { Car, CarStatus, useCar, useCarMutations } from "@/hooks/use-cars";
 import { useBranchesMap } from "@/hooks/use-branches-map";
 import { toast } from "@/hooks/use-toast";
 
-const COLORS = ["PRETO", "CINZA", "PRATA", "BRANCO", "VERMELHO", "OUTRO"] as const;
-const UUID_V4 = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
+const COLORS = [
+  "PRETO",
+  "CINZA",
+  "PRATA",
+  "BRANCO",
+  "VERMELHO",
+  "OUTRO",
+] as const;
+const UUID_V4 =
+  /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
 
 export default function CarDetailsPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const { data: car, refresh, setData } = useCar(id);
   const { update } = useCarMutations();
-  const { idToName, nameToId, names } = useBranchesMap();
+
+  // useBranchesMap atualmente expõe { map, ... }. Derivamos utilitários locais.
+  const { map } = useBranchesMap();
+  const idToName = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(map).map(([bid, b]: [string, any]) => [
+          bid,
+          (b?.name as string) ?? "",
+        ]),
+      ) as Record<string, string>,
+    [map],
+  );
+  const names = useMemo(
+    () =>
+      Object.values(map)
+        .map((b: any) => b?.name)
+        .filter(Boolean) as string[],
+    [map],
+  );
+  const nameToId = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.values(map).map((b: any) => [
+          (b?.name as string) ?? "",
+          (b?.id as string) ?? "",
+        ]),
+      ) as Record<string, string>,
+    [map],
+  );
 
   const [isEditing, setEditing] = useState(false);
   const [form, setForm] = useState({
@@ -55,7 +98,8 @@ export default function CarDetailsPage() {
     try {
       const branchName = form.branchName || undefined;
       const candidateId = branchName ? nameToId[branchName] : undefined;
-      const branchId = candidateId && UUID_V4.test(candidateId) ? candidateId : undefined;
+      const branchId =
+        candidateId && UUID_V4.test(candidateId) ? candidateId : undefined;
 
       const updated = await update(car.id, {
         plate: form.plate.toUpperCase(),
@@ -69,11 +113,16 @@ export default function CarDetailsPage() {
 
       setData(updated as Car);
       setEditing(false);
-      toast.success("Car updated!");
+      // substitui toast.success(...)
+      toast({ title: "Car updated!" });
       await refresh();
     } catch (e: any) {
       const msg = e?.response?.data?.message ?? "Error updating car";
-      toast.error(Array.isArray(msg) ? msg.join("\n") : msg);
+      // substitui toast.error(...)
+      toast({
+        title: Array.isArray(msg) ? msg.join("\n") : msg,
+        variant: "destructive",
+      });
     }
   }
 
@@ -81,7 +130,12 @@ export default function CarDetailsPage() {
     return (
       <RoleGuard allowedRoles={["ADMIN", "APPROVER"]} requireAuth={false}>
         <div className="space-y-6">
-          <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="hover:bg-card/50">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate(-1)}
+            className="hover:bg-card/50"
+          >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back
           </Button>
@@ -101,20 +155,47 @@ export default function CarDetailsPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="hover:bg-card/50">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate(-1)}
+              className="hover:bg-card/50"
+            >
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
-              <h1 className="text-2xl font-bold text-foreground">Car Information</h1>
+              <h1 className="text-2xl font-bold text-foreground">
+                Car Information
+              </h1>
             </div>
           </div>
           <div className="flex items-center gap-2">
             {!isEditing ? (
-              <Button variant="outline" onClick={() => setEditing(true)} className="border-border/50">Edit</Button>
+              <Button
+                variant="outline"
+                onClick={() => setEditing(true)}
+                className="border-border/50"
+              >
+                Edit
+              </Button>
             ) : (
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => { setEditing(false); refresh(); }} className="border-border/50">Cancel</Button>
-                <Button className="bg-[#1558E9] hover:bg-[#1558E9]/90" onClick={onSave}>Save</Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setEditing(false);
+                    refresh();
+                  }}
+                  className="border-border/50"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="bg-[#1558E9] hover:bg-[#1558E9]/90"
+                  onClick={onSave}
+                >
+                  Save
+                </Button>
               </div>
             )}
           </div>
@@ -128,14 +209,31 @@ export default function CarDetailsPage() {
                 <div>
                   <Label>Model</Label>
                   {isEditing ? (
-                    <Input value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} />
-                  ) : (<p className="text-foreground font-medium">{car.model}</p>)}
+                    <Input
+                      value={form.model}
+                      onChange={(e) =>
+                        setForm({ ...form, model: e.target.value })
+                      }
+                    />
+                  ) : (
+                    <p className="text-foreground font-medium">{car.model}</p>
+                  )}
                 </div>
                 <div>
                   <Label>Plate</Label>
                   {isEditing ? (
-                    <Input value={form.plate} onChange={(e) => setForm({ ...form, plate: e.target.value.toUpperCase().slice(0,7) })} />
-                  ) : (<p className="text-foreground">{car.plate}</p>)}
+                    <Input
+                      value={form.plate}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          plate: e.target.value.toUpperCase().slice(0, 7),
+                        })
+                      }
+                    />
+                  ) : (
+                    <p className="text-foreground">{car.plate}</p>
+                  )}
                 </div>
               </div>
 
@@ -143,13 +241,24 @@ export default function CarDetailsPage() {
                 <div>
                   <Label>Color</Label>
                   {isEditing ? (
-                    <Select value={form.color || undefined} onValueChange={(v) => setForm({ ...form, color: v })}>
-                      <SelectTrigger><SelectValue placeholder="Select color" /></SelectTrigger>
+                    <Select
+                      value={form.color || undefined}
+                      onValueChange={(v) => setForm({ ...form, color: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select color" />
+                      </SelectTrigger>
                       <SelectContent>
-                        {COLORS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                        {COLORS.map((c) => (
+                          <SelectItem key={c} value={c}>
+                            {c}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
-                  ) : (<p className="text-foreground">{car.color ?? "-"}</p>)}
+                  ) : (
+                    <p className="text-foreground">{car.color ?? "-"}</p>
+                  )}
                 </div>
                 <div>
                   <Label>Mileage (km)</Label>
@@ -158,12 +267,19 @@ export default function CarDetailsPage() {
                       value={String(form.mileage)}
                       onChange={(e) => {
                         const raw = e.target.value.replace(/\D+/g, "");
-                        setForm({ ...form, mileage: raw ? parseInt(raw, 10) : 0 });
+                        setForm({
+                          ...form,
+                          mileage: raw ? parseInt(raw, 10) : 0,
+                        });
                       }}
                       inputMode="numeric"
                       pattern="[0-9]*"
                     />
-                  ) : (<p className="text-foreground">{car.mileage.toLocaleString()}</p>)}
+                  ) : (
+                    <p className="text-foreground">
+                      {car.mileage.toLocaleString()}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -171,8 +287,15 @@ export default function CarDetailsPage() {
                 <div>
                   <Label>Status</Label>
                   {isEditing ? (
-                    <Select value={form.status} onValueChange={(v: CarStatus) => setForm({ ...form, status: v })}>
-                      <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+                    <Select
+                      value={form.status}
+                      onValueChange={(v: CarStatus) =>
+                        setForm({ ...form, status: v })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="AVAILABLE">AVAILABLE</SelectItem>
                         <SelectItem value="IN_USE">IN_USE</SelectItem>
@@ -182,11 +305,17 @@ export default function CarDetailsPage() {
                       </SelectContent>
                     </Select>
                   ) : (
-                    <Badge className={statusChipClasses(
-                      car.status === "AVAILABLE" ? "Available" :
-                      car.status === "IN_USE" ? "Reserved" :
-                      car.status === "MAINTENANCE" ? "Maintenance" : "Unavailable"
-                    )}>
+                    <Badge
+                      className={statusChipClasses(
+                        car.status === "AVAILABLE"
+                          ? "Available"
+                          : car.status === "IN_USE"
+                            ? "Reserved"
+                            : car.status === "MAINTENANCE"
+                              ? "Maintenance"
+                              : "Unavailable",
+                      )}
+                    >
                       {car.status}
                     </Badge>
                   )}
@@ -195,14 +324,25 @@ export default function CarDetailsPage() {
                 <div>
                   <Label>Branch (by name)</Label>
                   {isEditing ? (
-                    <Select value={form.branchName || undefined} onValueChange={(v) => setForm({ ...form, branchName: v })}>
-                      <SelectTrigger><SelectValue placeholder="Select branch" /></SelectTrigger>
+                    <Select
+                      value={form.branchName || undefined}
+                      onValueChange={(v) => setForm({ ...form, branchName: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select branch" />
+                      </SelectTrigger>
                       <SelectContent>
-                        {(names ?? []).map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+                        {names.map((n) => (
+                          <SelectItem key={n} value={n}>
+                            {n}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   ) : (
-                    <p className="text-foreground">{idToName[car.branchId ?? ""] ?? "-"}</p>
+                    <p className="text-foreground">
+                      {idToName[car.branchId ?? ""] ?? "-"}
+                    </p>
                   )}
                 </div>
               </div>
@@ -214,7 +354,9 @@ export default function CarDetailsPage() {
         <Card className="border-border/50 shadow-sm">
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold text-[#1558E9]">Reservation History</h2>
+              <h2 className="text-lg font-semibold text-[#1558E9]">
+                Reservation History
+              </h2>
             </div>
             {reservationHistory.length === 0 ? (
               <p className="text-muted-foreground">No reservations.</p>

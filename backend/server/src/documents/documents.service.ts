@@ -83,7 +83,7 @@ export class DocumentsService {
         reservationId: r.id,
         userId: actor.userId,
         type: dto.type ?? 'OTHER',
-        url: saved.url, 
+        url: saved.url,
         metadata: {
           filename: file.originalname,
           mimetype: file.mimetype,
@@ -171,7 +171,7 @@ export class DocumentsService {
         tenantId: true,
         userId: true,
         url: true,
-        metadata: true, 
+        metadata: true,
       },
     });
     if (!d || d.tenantId !== actor.tenantId) {
@@ -207,7 +207,7 @@ export class DocumentsService {
     return this.prisma.document.update({
       where: { id },
       data: {
-        status: dto.result, 
+        status: dto.result,
         validatedById: actor.userId,
         validatedAt: new Date(),
       } as any,

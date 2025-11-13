@@ -4,5 +4,5 @@ import { DocumentType } from '@prisma/client';
 export class UploadDocumentDto {
   @IsOptional()
   @IsEnum(DocumentType)
-  type?: DocumentType; 
+  type?: DocumentType;
 }

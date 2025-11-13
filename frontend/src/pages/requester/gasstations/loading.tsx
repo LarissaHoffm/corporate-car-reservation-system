@@ -1,3 +1,3 @@
 export default function GasStationsLoading() {
-  return null; 
+  return null;
 }

@@ -1,7 +1,11 @@
 import api from "@/lib/http/api";
 
 /** Tipos mínimos usados no front */
-export type ReservationStatus = "PENDING" | "APPROVED" | "CANCELED" | "COMPLETED";
+export type ReservationStatus =
+  | "PENDING"
+  | "APPROVED"
+  | "CANCELED"
+  | "COMPLETED";
 
 export interface Reservation {
   id: string;
@@ -21,7 +25,7 @@ export interface ReservationInput {
   origin: string;
   destination: string;
   startAt: string; // ISO
-  endAt: string;   // ISO
+  endAt: string; // ISO
   branchId?: string;
   carId?: string;
   // purpose?: string;
@@ -38,7 +42,8 @@ export interface ReservationApproveInput {
  */
 function normalizeList(payload: any): Reservation[] {
   if (Array.isArray(payload)) return payload as Reservation[];
-  if (payload && Array.isArray(payload.items)) return payload.items as Reservation[];
+  if (payload && Array.isArray(payload.items))
+    return payload.items as Reservation[];
   return [];
 }
 
@@ -65,7 +70,10 @@ export const ReservationsAPI = {
     return data as Reservation;
   },
 
-  async approve(id: string, body: ReservationApproveInput): Promise<Reservation> {
+  async approve(
+    id: string,
+    body: ReservationApproveInput,
+  ): Promise<Reservation> {
     const { data } = await api.patch(`/reservations/${id}/approve`, body);
     return data as Reservation;
   },

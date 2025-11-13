@@ -30,7 +30,7 @@ export function onAuthChange(cb: (u: MeResponse | null) => void) {
 export async function login(
   email: string,
   password: string,
-  rememberMe = false
+  rememberMe = false,
 ): Promise<MeResponse> {
   const { data } = await AuthAPI.login(email, password, rememberMe);
   if (data?.accessToken) setAccessToken(data.accessToken);
@@ -57,7 +57,7 @@ export async function logout(): Promise<void> {
   }
 }
 
-// Força refresh do access + rehidrata o usuário 
+// Força refresh do access + rehidrata o usuário
 export async function refresh(): Promise<MeResponse> {
   const { data } = await AuthAPI.refresh();
   if (data?.accessToken) setAccessToken(data.accessToken);

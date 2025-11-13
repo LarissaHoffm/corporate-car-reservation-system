@@ -45,7 +45,8 @@ export default function LoginPage() {
       try {
         const me = await api.get("/auth/me"); // ajuste a rota se a sua for diferente
         const must =
-          (me?.data?.mustChangePassword ?? me?.data?.user?.mustChangePassword) === true;
+          (me?.data?.mustChangePassword ??
+            me?.data?.user?.mustChangePassword) === true;
         if (must) {
           navigate("/change-password", { replace: true });
           return;
@@ -55,7 +56,8 @@ export default function LoginPage() {
       }
     } catch (err: any) {
       const status = err?.response?.status;
-      if (status === 429) setErrorMsg("Too many attempts. Please try again in a moment.");
+      if (status === 429)
+        setErrorMsg("Too many attempts. Please try again in a moment.");
       else if (status === 403) setErrorMsg("Access denied.");
       else setErrorMsg("Invalid credentials. Check your e-mail and password.");
     } finally {
@@ -68,7 +70,9 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="flex items-center justify-center gap-2 mb-8">
           <Car className="h-8 w-8 text-[#1558E9]" />
-          <h1 className="text-2xl font-bold text-[#1558E9]">Reservas Corporativas</h1>
+          <h1 className="text-2xl font-bold text-[#1558E9]">
+            Reservas Corporativas
+          </h1>
         </div>
 
         <Card className="w-full bg-card shadow-lg border-border/50">
@@ -79,21 +83,32 @@ export default function LoginPage() {
           <CardContent className="px-8 pb-8">
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <label htmlFor="username" className="block text-sm font-medium text-muted-foreground mb-2">
+                <label
+                  htmlFor="username"
+                  className="block text-sm font-medium text-muted-foreground mb-2"
+                >
                   User
                 </label>
                 <Input
                   id="username"
                   type="email"
                   value={formData.username}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, username: e.target.value }))}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      username: e.target.value,
+                    }))
+                  }
                   className="w-full h-12 border-border/50 focus:border-[#1558E9] focus:ring-2 focus:ring-[#1558E9] focus:ring-offset-2"
                   required
                 />
               </div>
 
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-muted-foreground mb-2">
+                <label
+                  htmlFor="password"
+                  className="block text-sm font-medium text-muted-foreground mb-2"
+                >
                   Password
                 </label>
                 <div className="relative">
@@ -101,7 +116,12 @@ export default function LoginPage() {
                     id="password"
                     type={showPassword ? "text" : "password"}
                     value={formData.password}
-                    onChange={(e) => setFormData((prev) => ({ ...prev, password: e.target.value }))}
+                    onChange={(e) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        password: e.target.value,
+                      }))
+                    }
                     className="w-full h-12 border-border/50 focus:border-[#1558E9] focus:ring-2 focus:ring-[#1558E9] focus:ring-offset-2 pr-12"
                     required
                   />
@@ -110,14 +130,16 @@ export default function LoginPage() {
                     onClick={() => setShowPassword((v) => !v)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground focus:ring-2 focus:ring-[#1558E9] focus:ring-offset-2 rounded"
                   >
-                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    {showPassword ? (
+                      <EyeOff className="h-5 w-5" />
+                    ) : (
+                      <Eye className="h-5 w-5" />
+                    )}
                   </button>
                 </div>
               </div>
 
-              {errorMsg && (
-                <p className="text-sm text-red-600">{errorMsg}</p>
-              )}
+              {errorMsg && <p className="text-sm text-red-600">{errorMsg}</p>}
 
               <Button
                 type="submit"
@@ -139,7 +161,9 @@ export default function LoginPage() {
 
             <div className="mt-8 pt-6 border-t border-border/50">
               <div className="text-center space-y-3">
-                <p className="text-sm font-medium text-muted-foreground">Need Help?</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Need Help?
+                </p>
                 <Link
                   to="/support"
                   className="text-sm text-muted-foreground hover:text-[#1558E9] block focus:ring-2 focus:ring-[#1558E9] focus:ring-offset-2 rounded"

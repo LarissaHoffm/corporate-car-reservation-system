@@ -48,7 +48,9 @@ export class ReservationsService {
     });
 
     if (overlap > 0) {
-      throw new ConflictException('Conflito de horário para o carro informado.');
+      throw new ConflictException(
+        'Conflito de horário para o carro informado.',
+      );
     }
   }
 
@@ -86,7 +88,9 @@ export class ReservationsService {
       throw new BadRequestException('Datas inválidas.');
     }
     if (end <= start) {
-      throw new BadRequestException('Período inválido (fim deve ser depois do início).');
+      throw new BadRequestException(
+        'Período inválido (fim deve ser depois do início).',
+      );
     }
 
     const branchToUse: string | null = dto.branchId ?? actor.branchId ?? null;
@@ -354,13 +358,19 @@ export class ReservationsService {
 
       // Escopo de hoje: só o dono pode cancelar e somente se PENDING.
       if (actor.role !== 'REQUESTER') {
-        throw new ForbiddenException('Somente o solicitante pode cancelar nesta fase.');
+        throw new ForbiddenException(
+          'Somente o solicitante pode cancelar nesta fase.',
+        );
       }
       if (r.userId !== actor.userId) {
-        throw new ForbiddenException('Sem permissão para cancelar esta reserva.');
+        throw new ForbiddenException(
+          'Sem permissão para cancelar esta reserva.',
+        );
       }
       if (r.status !== ReservationStatus.PENDING) {
-        throw new BadRequestException('Só é possível cancelar reservas PENDING.');
+        throw new BadRequestException(
+          'Só é possível cancelar reservas PENDING.',
+        );
       }
 
       const updated = await tx.reservation.update({
@@ -396,11 +406,15 @@ export class ReservationsService {
       }
 
       if (actor.role === 'REQUESTER' && r.userId !== actor.userId) {
-        throw new ForbiddenException('Sem permissão para concluir esta reserva.');
+        throw new ForbiddenException(
+          'Sem permissão para concluir esta reserva.',
+        );
       }
 
       if (r.status !== ReservationStatus.APPROVED) {
-        throw new BadRequestException('Só é possível concluir reservas APROVADAS.');
+        throw new BadRequestException(
+          'Só é possível concluir reservas APROVADAS.',
+        );
       }
 
       if (actor.role === 'REQUESTER') {

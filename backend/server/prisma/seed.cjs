@@ -1,4 +1,11 @@
-const { PrismaClient, Role, CarStatus, ChecklistItemType, UserStatus, ReservationStatus } = require('@prisma/client');
+const {
+  PrismaClient,
+  Role,
+  CarStatus,
+  ChecklistItemType,
+  UserStatus,
+  ReservationStatus,
+} = require('@prisma/client');
 const argon2 = require('argon2');
 
 const prisma = new PrismaClient();
@@ -40,7 +47,15 @@ async function ensureUser({ email, name, role, tenantId, branchId, password }) {
   return { created: true, user };
 }
 
-async function ensureCar({ tenantId, branchId, plate, model, color, mileage, status }) {
+async function ensureCar({
+  tenantId,
+  branchId,
+  plate,
+  model,
+  color,
+  mileage,
+  status,
+}) {
   const existing = await prisma.car.findFirst({ where: { tenantId, plate } });
   if (existing) {
     return { created: false, car: existing };
@@ -52,7 +67,9 @@ async function ensureCar({ tenantId, branchId, plate, model, color, mileage, sta
 }
 
 async function ensureStation({ tenantId, branchId, name, address }) {
-  const existing = await prisma.station.findFirst({ where: { tenantId, name } });
+  const existing = await prisma.station.findFirst({
+    where: { tenantId, name },
+  });
   if (existing) {
     return { created: false, station: existing };
   }
@@ -74,10 +91,30 @@ async function ensureChecklistTemplate({ tenantId, name }) {
       name,
       items: {
         create: [
-          { label: 'Nível de combustível (%)', type: ChecklistItemType.NUMBER, required: true, order: 1 },
-          { label: 'Quilometragem (km)',      type: ChecklistItemType.NUMBER, required: true, order: 2 },
-          { label: 'Há avarias aparentes?',   type: ChecklistItemType.BOOLEAN, required: true, order: 3 },
-          { label: 'Observações',             type: ChecklistItemType.TEXT,    required: false, order: 4 },
+          {
+            label: 'Nível de combustível (%)',
+            type: ChecklistItemType.NUMBER,
+            required: true,
+            order: 1,
+          },
+          {
+            label: 'Quilometragem (km)',
+            type: ChecklistItemType.NUMBER,
+            required: true,
+            order: 2,
+          },
+          {
+            label: 'Há avarias aparentes?',
+            type: ChecklistItemType.BOOLEAN,
+            required: true,
+            order: 3,
+          },
+          {
+            label: 'Observações',
+            type: ChecklistItemType.TEXT,
+            required: false,
+            order: 4,
+          },
         ],
       },
     },
@@ -87,9 +124,16 @@ async function ensureChecklistTemplate({ tenantId, name }) {
 
 /** Seed create-only para Reservation, usando `purpose` como chave idempotente. */
 async function ensureReservation({
-  tenantId, branchId, userId, carId = null,
-  origin, destination, startAt, endAt,
-  status = ReservationStatus.PENDING, purpose,
+  tenantId,
+  branchId,
+  userId,
+  carId = null,
+  origin,
+  destination,
+  startAt,
+  endAt,
+  status = ReservationStatus.PENDING,
+  purpose,
 }) {
   const existing = await prisma.reservation.findFirst({
     where: { tenantId, userId, origin, destination, purpose },
@@ -125,21 +169,48 @@ async function main() {
   const log = [];
 
   const tenant = await ensureTenant('ReservCar');
-  const branch  = await ensureBranch(tenant.id, 'Matriz');
+  const branch = await ensureBranch(tenant.id, 'Matriz');
   for (const spec of [
-    { email: 'admin@reservcar.com',    name: 'Admin',     role: Role.ADMIN,     password: 'Admin123!' },
-    { email: 'approver@reservcar.com', name: 'Approver',  role: Role.APPROVER,  password: 'Approver123!' },
-    { email: 'requester@reservcar.com',name: 'Requester', role: Role.REQUESTER, password: 'Requester123!' },
+    {
+      email: 'admin@reservcar.com',
+      name: 'Admin',
+      role: Role.ADMIN,
+      password: 'Admin123!',
+    },
+    {
+      email: 'approver@reservcar.com',
+      name: 'Approver',
+      role: Role.APPROVER,
+      password: 'Approver123!',
+    },
+    {
+      email: 'requester@reservcar.com',
+      name: 'Requester',
+      role: Role.REQUESTER,
+      password: 'Requester123!',
+    },
   ]) {
     const { created, user } = await ensureUser({
-      ...spec, tenantId: tenant.id, branchId: branch.id,
+      ...spec,
+      tenantId: tenant.id,
+      branchId: branch.id,
     });
-    log.push({ kind: 'user', email: user.email, action: created ? 'CREATE' : 'KEEP' });
+    log.push({
+      kind: 'user',
+      email: user.email,
+      action: created ? 'CREATE' : 'KEEP',
+    });
   }
 
-  const admin     = await prisma.user.findUnique({ where: { email: 'admin@reservcar.com' } });
-  const approver  = await prisma.user.findUnique({ where: { email: 'approver@reservcar.com' } });
-  const requester = await prisma.user.findUnique({ where: { email: 'requester@reservcar.com' } });
+  const admin = await prisma.user.findUnique({
+    where: { email: 'admin@reservcar.com' },
+  });
+  const approver = await prisma.user.findUnique({
+    where: { email: 'approver@reservcar.com' },
+  });
+  const requester = await prisma.user.findUnique({
+    where: { email: 'requester@reservcar.com' },
+  });
 
   {
     const { created, car } = await ensureCar({
@@ -151,7 +222,11 @@ async function main() {
       mileage: 12000,
       status: CarStatus.AVAILABLE,
     });
-    log.push({ kind: 'car', plate: car.plate, action: created ? 'CREATE' : 'KEEP' });
+    log.push({
+      kind: 'car',
+      plate: car.plate,
+      action: created ? 'CREATE' : 'KEEP',
+    });
   }
 
   {
@@ -161,7 +236,11 @@ async function main() {
       name: 'Posto Central',
       address: 'Rua Principal, 100 - Centro',
     });
-    log.push({ kind: 'station', name: station.name, action: created ? 'CREATE' : 'KEEP' });
+    log.push({
+      kind: 'station',
+      name: station.name,
+      action: created ? 'CREATE' : 'KEEP',
+    });
   }
 
   {
@@ -169,22 +248,28 @@ async function main() {
       tenantId: tenant.id,
       name: 'Retorno Padrão',
     });
-    log.push({ kind: 'checklistTemplate', name: tpl.name, action: created ? 'CREATE' : 'KEEP' });
+    log.push({
+      kind: 'checklistTemplate',
+      name: tpl.name,
+      action: created ? 'CREATE' : 'KEEP',
+    });
   }
 
   // ==== RESERVAS (smoke) ====
   const now = new Date();
 
-  const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
+  const tomorrow = new Date(now);
+  tomorrow.setDate(now.getDate() + 1);
   const startP1 = setTime(tomorrow, 9, 0);
-  const endP1   = setTime(tomorrow, 11, 0);
+  const endP1 = setTime(tomorrow, 11, 0);
 
   const startP2 = setTime(tomorrow, 14, 0);
-  const endP2   = setTime(tomorrow, 16, 0);
+  const endP2 = setTime(tomorrow, 16, 0);
 
-  const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
   const startC1 = setTime(yesterday, 10, 0);
-  const endC1   = setTime(yesterday, 11, 0);
+  const endC1 = setTime(yesterday, 11, 0);
 
   // Pendente 1 (sem carro)
   {
@@ -199,7 +284,12 @@ async function main() {
       status: ReservationStatus.PENDING,
       purpose: 'SMOKE_SEED_PENDING_1',
     });
-    log.push({ kind: 'reservation', id: reservation.id, status: reservation.status, action: created ? 'CREATE' : 'KEEP' });
+    log.push({
+      kind: 'reservation',
+      id: reservation.id,
+      status: reservation.status,
+      action: created ? 'CREATE' : 'KEEP',
+    });
   }
 
   // Pendente 2 (sem carro)
@@ -215,7 +305,12 @@ async function main() {
       status: ReservationStatus.PENDING,
       purpose: 'SMOKE_SEED_PENDING_2',
     });
-    log.push({ kind: 'reservation', id: reservation.id, status: reservation.status, action: created ? 'CREATE' : 'KEEP' });
+    log.push({
+      kind: 'reservation',
+      id: reservation.id,
+      status: reservation.status,
+      action: created ? 'CREATE' : 'KEEP',
+    });
   }
 
   // Cancelada (histórico)
@@ -231,10 +326,15 @@ async function main() {
       status: ReservationStatus.CANCELED,
       purpose: 'SMOKE_SEED_CANCELED_1',
     });
-    log.push({ kind: 'reservation', id: reservation.id, status: reservation.status, action: created ? 'CREATE' : 'KEEP' });
+    log.push({
+      kind: 'reservation',
+      id: reservation.id,
+      status: reservation.status,
+      action: created ? 'CREATE' : 'KEEP',
+    });
   }
 
-  // Saída 
+  // Saída
   const summary = log.reduce((acc, r) => {
     const key = `${r.kind}:${r.action}`;
     acc[key] = (acc[key] || 0) + 1;

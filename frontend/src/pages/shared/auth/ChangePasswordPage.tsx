@@ -29,7 +29,7 @@ export default function ChangePasswordPage() {
   const isStrong = useMemo(() => strongRegex.test(newPassword), [newPassword]);
   const matches = useMemo(
     () => newPassword.length > 0 && newPassword === confirmPassword,
-    [newPassword, confirmPassword]
+    [newPassword, confirmPassword],
   );
 
   const canSubmit = useMemo(() => {
@@ -52,7 +52,9 @@ export default function ChangePasswordPage() {
 
       try {
         await AuthAPI.logout();
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
 
       window.location.href = "/login";
     } catch (err: any) {
@@ -100,7 +102,11 @@ export default function ChangePasswordPage() {
                   className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground"
                   aria-label={showCur ? "Esconder senha" : "Mostrar senha"}
                 >
-                  {showCur ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showCur ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </button>
               </div>
             </div>
@@ -122,25 +128,59 @@ export default function ChangePasswordPage() {
                   className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground"
                   aria-label={showNew ? "Esconder senha" : "Mostrar senha"}
                 >
-                  {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showNew ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </button>
               </div>
 
               {/* checklist – só visual */}
               <ul className="text-sm space-y-1 mt-2">
-                <li className={newPassword.length >= 8 ? "text-green-600" : "text-muted-foreground"}>
+                <li
+                  className={
+                    newPassword.length >= 8
+                      ? "text-green-600"
+                      : "text-muted-foreground"
+                  }
+                >
                   • Mínimo de 8 caracteres
                 </li>
-                <li className={/[A-Z]/.test(newPassword) ? "text-green-600" : "text-muted-foreground"}>
+                <li
+                  className={
+                    /[A-Z]/.test(newPassword)
+                      ? "text-green-600"
+                      : "text-muted-foreground"
+                  }
+                >
                   • Pelo menos 1 letra maiúscula (A–Z)
                 </li>
-                <li className={/[a-z]/.test(newPassword) ? "text-green-600" : "text-muted-foreground"}>
+                <li
+                  className={
+                    /[a-z]/.test(newPassword)
+                      ? "text-green-600"
+                      : "text-muted-foreground"
+                  }
+                >
                   • Pelo menos 1 letra minúscula (a–z)
                 </li>
-                <li className={/\d/.test(newPassword) ? "text-green-600" : "text-muted-foreground"}>
+                <li
+                  className={
+                    /\d/.test(newPassword)
+                      ? "text-green-600"
+                      : "text-muted-foreground"
+                  }
+                >
                   • Pelo menos 1 dígito (0–9)
                 </li>
-                <li className={/[^A-Za-z0-9]/.test(newPassword) ? "text-green-600" : "text-muted-foreground"}>
+                <li
+                  className={
+                    /[^A-Za-z0-9]/.test(newPassword)
+                      ? "text-green-600"
+                      : "text-muted-foreground"
+                  }
+                >
                   • Pelo menos 1 símbolo (ex.: ! @ # $ %)
                 </li>
               </ul>
@@ -163,7 +203,11 @@ export default function ChangePasswordPage() {
                   className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground"
                   aria-label={showConf ? "Esconder senha" : "Mostrar senha"}
                 >
-                  {showConf ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showConf ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </button>
               </div>
             </div>

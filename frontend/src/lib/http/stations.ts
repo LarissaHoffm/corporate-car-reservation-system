@@ -34,9 +34,9 @@ export interface StationInput {
 }
 
 export interface StationListParams {
-  page?: number;        // default 1
-  pageSize?: number;    // default 10
-  q?: string;           // busca livre (nome/cidade)
+  page?: number; // default 1
+  pageSize?: number; // default 10
+  q?: string; // busca livre (nome/cidade)
   city?: string;
   branchId?: string;
   isActive?: boolean;
@@ -65,14 +65,19 @@ function extractArray(raw: any): Station[] | null {
   return null;
 }
 
-function normalizeList(raw: any, params: StationListParams): StationListResponse {
+function normalizeList(
+  raw: any,
+  params: StationListParams,
+): StationListResponse {
   const arr = extractArray(raw);
   if (arr) {
     const total = Number(
-      (raw && (raw.total ?? raw.count ?? raw.length)) ?? arr.length
+      (raw && (raw.total ?? raw.count ?? raw.length)) ?? arr.length,
     );
     const page = Number((raw && raw.page) ?? params.page ?? 1);
-    const pageSize = Number((raw && raw.pageSize) ?? params.pageSize ?? arr.length);
+    const pageSize = Number(
+      (raw && raw.pageSize) ?? params.pageSize ?? arr.length,
+    );
     return { data: arr, total, page, pageSize };
   }
   // Fallback defensivo

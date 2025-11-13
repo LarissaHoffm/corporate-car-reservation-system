@@ -6,10 +6,21 @@ import { RoleGuard } from "@/components/role-guard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Toggle } from "@/components/ui/toggle";
 import { statusChipClasses } from "@/components/ui/status";
 
@@ -23,7 +34,7 @@ type Template = {
   items: string[];
 };
 
-// Persistência MVP 
+// Persistência MVP
 const LS_KEY = "rc:checklists:v1";
 const readTemplates = (): Template[] => {
   try {
@@ -33,17 +44,65 @@ const readTemplates = (): Template[] => {
     return [];
   }
 };
-const writeTemplates = (data: Template[]) => localStorage.setItem(LS_KEY, JSON.stringify(data));
+const writeTemplates = (data: Template[]) =>
+  localStorage.setItem(LS_KEY, JSON.stringify(data));
 
 const seed: Template[] = [
-  { id: "1", templateName: "Standard Vehicle Check", carModel: "All Models", createdBy: "Alex Morgan", lastUpdated: "2023-10-15", status: "Active", items: ["Tires", "Fuel", "Cleaning", "Mileage"] },
-  { id: "2", templateName: "Luxury Vehicle Check",   carModel: "BMW X5",     createdBy: "Alex Morgan", lastUpdated: "2023-10-14", status: "Active", items: ["Tires", "Fuel", "Cleaning", "Mileage"] },
-  { id: "3", templateName: "Electric Vehicle Check",  carModel: "Tesla Model 3", createdBy: "Alex Morgan", lastUpdated: "2023-10-13", status: "Active", items: ["Tires", "Fuel", "Cleaning", "Mileage"] },
-  { id: "4", templateName: "Sedan Inspection",        carModel: "Honda Civic", createdBy: "Alex Morgan", lastUpdated: "2023-10-12", status: "Active", items: ["Tires", "Fuel", "Cleaning", "Mileage"] },
-  { id: "5", templateName: "SUV Maintenance",         carModel: "Toyota RAV4", createdBy: "Alex Morgan", lastUpdated: "2023-10-11", status: "Active", items: ["Tires", "Fuel", "Cleaning", "Mileage"] },
-  { id: "6", templateName: "Truck Inspection",        carModel: "Ford F-150",  createdBy: "Alex Morgan", lastUpdated: "2023-10-10", status: "Active", items: ["Tires", "Fuel", "Cleaning", "Mileage"] },
+  {
+    id: "1",
+    templateName: "Standard Vehicle Check",
+    carModel: "All Models",
+    createdBy: "Alex Morgan",
+    lastUpdated: "2023-10-15",
+    status: "Active",
+    items: ["Tires", "Fuel", "Cleaning", "Mileage"],
+  },
+  {
+    id: "2",
+    templateName: "Luxury Vehicle Check",
+    carModel: "BMW X5",
+    createdBy: "Alex Morgan",
+    lastUpdated: "2023-10-14",
+    status: "Active",
+    items: ["Tires", "Fuel", "Cleaning", "Mileage"],
+  },
+  {
+    id: "3",
+    templateName: "Electric Vehicle Check",
+    carModel: "Tesla Model 3",
+    createdBy: "Alex Morgan",
+    lastUpdated: "2023-10-13",
+    status: "Active",
+    items: ["Tires", "Fuel", "Cleaning", "Mileage"],
+  },
+  {
+    id: "4",
+    templateName: "Sedan Inspection",
+    carModel: "Honda Civic",
+    createdBy: "Alex Morgan",
+    lastUpdated: "2023-10-12",
+    status: "Active",
+    items: ["Tires", "Fuel", "Cleaning", "Mileage"],
+  },
+  {
+    id: "5",
+    templateName: "SUV Maintenance",
+    carModel: "Toyota RAV4",
+    createdBy: "Alex Morgan",
+    lastUpdated: "2023-10-11",
+    status: "Active",
+    items: ["Tires", "Fuel", "Cleaning", "Mileage"],
+  },
+  {
+    id: "6",
+    templateName: "Truck Inspection",
+    carModel: "Ford F-150",
+    createdBy: "Alex Morgan",
+    lastUpdated: "2023-10-10",
+    status: "Active",
+    items: ["Tires", "Fuel", "Cleaning", "Mileage"],
+  },
 ];
-
 
 export default function AdminChecklistsPage() {
   const [templates, setTemplates] = useState<Template[]>(() => {
@@ -55,8 +114,15 @@ export default function AdminChecklistsPage() {
   useEffect(() => writeTemplates(templates), [templates]);
 
   const carModels = useMemo(
-    () => ["All Models", "BMW X5", "Tesla Model 3", "Honda Civic", "Toyota RAV4", "Ford F-150"],
-    []
+    () => [
+      "All Models",
+      "BMW X5",
+      "Tesla Model 3",
+      "Honda Civic",
+      "Toyota RAV4",
+      "Ford F-150",
+    ],
+    [],
   );
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -85,11 +151,14 @@ export default function AdminChecklistsPage() {
     setTemplateName(t.templateName);
     setCarModel(t.carModel);
     setStatus(t.status);
-    setItems(t.items.length ? t.items : ["Tires", "Fuel", "Cleaning", "Mileage"]);
+    setItems(
+      t.items.length ? t.items : ["Tires", "Fuel", "Cleaning", "Mileage"],
+    );
     setModalOpen(true);
   };
 
-  const removeTemplate = (id: string) => setTemplates((prev) => prev.filter((t) => t.id !== id));
+  const removeTemplate = (id: string) =>
+    setTemplates((prev) => prev.filter((t) => t.id !== id));
 
   const saveTemplate = () => {
     const today = new Date().toISOString().split("T")[0];
@@ -117,17 +186,19 @@ export default function AdminChecklistsPage() {
                 status,
                 items: items.filter((i) => i.trim() !== ""),
               }
-            : t
-        )
+            : t,
+        ),
       );
     }
     setModalOpen(false);
   };
 
-  //add/update/remove/drag 
+  //add/update/remove/drag
   const addItem = () => setItems((p) => [...p, ""]);
-  const updateItem = (i: number, v: string) => setItems((p) => p.map((it, ix) => (ix === i ? v : it)));
-  const removeItem = (i: number) => setItems((p) => p.filter((_, ix) => ix !== i));
+  const updateItem = (i: number, v: string) =>
+    setItems((p) => p.map((it, ix) => (ix === i ? v : it)));
+  const removeItem = (i: number) =>
+    setItems((p) => p.filter((_, ix) => ix !== i));
 
   const onDragStart = (i: number) => setDragIndex(i);
   const onDragOver = (e: React.DragEvent<HTMLDivElement>) => e.preventDefault();
@@ -147,13 +218,18 @@ export default function AdminChecklistsPage() {
       <DialogContent className="max-w-md bg-card border-border/50 shadow-lg">
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold text-foreground">
-            {modalMode === "create" ? "Create Checklist Template" : "Edit Checklist Template"}
+            {modalMode === "create"
+              ? "Create Checklist Template"
+              : "Edit Checklist Template"}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="tpl-name" className="text-sm font-medium text-foreground">
+            <Label
+              htmlFor="tpl-name"
+              className="text-sm font-medium text-foreground"
+            >
               Template Name *
             </Label>
             <Input
@@ -166,7 +242,9 @@ export default function AdminChecklistsPage() {
           </div>
 
           <div className="space-y-2">
-            <Label className="text-sm font-medium text-foreground">Linked Car Model</Label>
+            <Label className="text-sm font-medium text-foreground">
+              Linked Car Model
+            </Label>
             <Select value={carModel} onValueChange={setCarModel}>
               <SelectTrigger className="border-border/50 focus:border-blue-500 focus:ring-blue-500">
                 <SelectValue placeholder="Select a model" />
@@ -183,7 +261,9 @@ export default function AdminChecklistsPage() {
 
           {modalMode === "edit" && (
             <div className="space-y-2">
-              <Label className="text-sm font-medium text-foreground">Status</Label>
+              <Label className="text-sm font-medium text-foreground">
+                Status
+              </Label>
               <div className="flex items-center gap-3">
                 <Toggle
                   pressed={status === "Active"}
@@ -193,14 +273,18 @@ export default function AdminChecklistsPage() {
                   {status}
                 </Toggle>
                 <span className="text-sm text-muted-foreground">
-                  {status === "Active" ? "Template is active" : "Template is inactive"}
+                  {status === "Active"
+                    ? "Template is active"
+                    : "Template is inactive"}
                 </span>
               </div>
             </div>
           )}
 
           <div className="space-y-2">
-            <Label className="text-sm font-medium text-foreground">Checklist Items</Label>
+            <Label className="text-sm font-medium text-foreground">
+              Checklist Items
+            </Label>
             <div className="space-y-2">
               {items.map((it, i) => (
                 <div
@@ -254,7 +338,11 @@ export default function AdminChecklistsPage() {
           >
             Cancel
           </Button>
-          <Button type="button" onClick={saveTemplate} className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Button
+            type="button"
+            onClick={saveTemplate}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
             Save Template
           </Button>
         </div>
@@ -262,16 +350,23 @@ export default function AdminChecklistsPage() {
     </Dialog>
   );
 
-  // Tabela 
+  // Tabela
   return (
     <RoleGuard allowedRoles={["ADMIN"]} requireAuth={false}>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Checklist Templates</h1>
-            <p className="text-muted-foreground">Create and manage reusable vehicle checklist templates.</p>
+            <h1 className="text-2xl font-bold text-foreground">
+              Checklist Templates
+            </h1>
+            <p className="text-muted-foreground">
+              Create and manage reusable vehicle checklist templates.
+            </p>
           </div>
-          <Button onClick={openCreate} className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
+          <Button
+            onClick={openCreate}
+            className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+          >
             <Plus className="h-4 w-4 mr-2" />
             Create Template
           </Button>
@@ -305,13 +400,26 @@ export default function AdminChecklistsPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-200/50">
                   {templates.map((t) => (
-                    <tr key={t.id} className="hover:bg-card/50 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-foreground">{t.templateName}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">{t.carModel}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">{t.createdBy}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">{t.lastUpdated}</td>
+                    <tr
+                      key={t.id}
+                      className="hover:bg-card/50 transition-colors"
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-foreground">
+                        {t.templateName}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
+                        {t.carModel}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
+                        {t.createdBy}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
+                        {t.lastUpdated}
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <Badge className={statusChipClasses(t.status)}>{t.status}</Badge>
+                        <Badge className={statusChipClasses(t.status)}>
+                          {t.status}
+                        </Badge>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">

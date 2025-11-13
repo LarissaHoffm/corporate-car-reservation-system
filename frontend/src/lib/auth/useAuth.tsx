@@ -1,11 +1,25 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { AuthAPI, SessionUser } from "@/lib/http/api";
-import { setAccessToken, clearAccessToken, schedulePreemptiveRefresh } from "@/lib/auth/token";
+import {
+  setAccessToken,
+  clearAccessToken,
+  schedulePreemptiveRefresh,
+} from "@/lib/auth/token";
 
 export type AuthContextValue = {
   user: SessionUser | null;
   loading: boolean;
-  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
+  login: (
+    email: string,
+    password: string,
+    rememberMe?: boolean,
+  ) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -16,7 +30,9 @@ const AuthCtx = createContext<AuthContextValue>({
   logout: async () => {},
 });
 
-export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
+export const AuthProvider: React.FC<React.PropsWithChildren> = ({
+  children,
+}) => {
   const [user, setUser] = useState<SessionUser | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -70,7 +86,6 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     }
   };
 
- 
   const logout = async () => {
     setLoading(true);
     try {
@@ -84,7 +99,10 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     }
   };
 
-  const value = useMemo<AuthContextValue>(() => ({ user, loading, login, logout }), [user, loading]);
+  const value = useMemo<AuthContextValue>(
+    () => ({ user, loading, login, logout }),
+    [user, loading],
+  );
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
 };

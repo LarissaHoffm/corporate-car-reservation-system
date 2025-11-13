@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import 'tw-animate-css';
+@import "tw-animate-css";
 
 @source "./index.html";
 @source "./src/**/*.{ts,tsx,html}"
@@ -43,41 +43,40 @@
 }
 
 .dark {
-  --background: oklch(0.129 0.042 252.894);  
-  --foreground: oklch(0.985 0 0);            
-  
-  --card: oklch(0.188 0.036 256.788);        
+  --background: oklch(0.129 0.042 252.894);
+  --foreground: oklch(0.985 0 0);
+
+  --card: oklch(0.188 0.036 256.788);
   --card-foreground: oklch(0.985 0 0);
-  
+
   --popover: oklch(0.188 0.036 256.788);
   --popover-foreground: oklch(0.985 0 0);
-  
 
-  --primary: oklch(0.723 0.219 256.788);     
+  --primary: oklch(0.723 0.219 256.788);
   --primary-foreground: oklch(0.985 0 0);
-  
-  --secondary: oklch(0.216 0.042 252.894);   
+
+  --secondary: oklch(0.216 0.042 252.894);
   --secondary-foreground: oklch(0.985 0 0);
-  
+
   --muted: oklch(0.216 0.042 252.894);
-  --muted-foreground: oklch(0.705 0.023 256.788); 
-  
+  --muted-foreground: oklch(0.705 0.023 256.788);
+
   --accent: oklch(0.216 0.042 252.894);
   --accent-foreground: oklch(0.985 0 0);
-  
-  --destructive: oklch(0.704 0.191 22.216);  
+
+  --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.985 0 0);
-  
-  --border: oklch(0.258 0.048 252.894);      
+
+  --border: oklch(0.258 0.048 252.894);
   --input: oklch(0.258 0.048 252.894);
-  --ring: oklch(0.442 0.117 256.788);       
-  
-  --chart-1: oklch(0.723 0.219 256.788);    
-  --chart-2: oklch(0.645 0.246 16.439);      
-  --chart-3: oklch(0.718 0.187 164.144);     
-  --chart-4: oklch(0.843 0.199 84.429);      
-  --chart-5: oklch(0.769 0.188 303.9);       
-  
+  --ring: oklch(0.442 0.117 256.788);
+
+  --chart-1: oklch(0.723 0.219 256.788);
+  --chart-2: oklch(0.645 0.246 16.439);
+  --chart-3: oklch(0.718 0.187 164.144);
+  --chart-4: oklch(0.843 0.199 84.429);
+  --chart-5: oklch(0.769 0.188 303.9);
+
   --sidebar: oklch(0.106 0.032 252.894);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.723 0.219 256.788);

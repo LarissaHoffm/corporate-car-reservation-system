@@ -32,10 +32,9 @@ export function setAccessToken(token: string | null) {
   listeners.forEach((cb) => cb());
 }
 
-
 export function schedulePreemptiveRefresh(
   refreshFn: () => Promise<void>,
-  skewSeconds: number = 60
+  skewSeconds: number = 60,
 ) {
   if (!_accessToken || !_expiresAtMs) return;
 

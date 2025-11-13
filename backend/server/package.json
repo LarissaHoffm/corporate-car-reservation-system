@@ -13,10 +13,13 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "npm run prisma:seed",
-    "lint": "eslint .",
     "test": "jest",
     "test:watch": "jest --watch",
-    "prisma:seed": "prisma db seed"
+    "prisma:seed": "prisma db seed",
+    "typecheck": "tsc -p tsconfig.build.json --noEmit",
+    "lint": "eslint .",
+    "format": "prettier . --check",
+    "format:write": "prettier . --write"
   },
   "dependencies": {
     "@azure/storage-blob": "^12.28.0",

@@ -55,12 +55,12 @@ export default function StationFormModal({
     setLatitude(
       initialData?.latitude === null || initialData?.latitude === undefined
         ? ""
-        : String(initialData?.latitude)
+        : String(initialData?.latitude),
     );
     setLongitude(
       initialData?.longitude === null || initialData?.longitude === undefined
         ? ""
-        : String(initialData?.longitude)
+        : String(initialData?.longitude),
     );
     setIsActive(initialData?.isActive ?? true);
   }, [open, initialData]);
@@ -107,9 +107,13 @@ export default function StationFormModal({
       state: stateUF.trim().toUpperCase(),
       address: address.trim() || undefined,
       latitude:
-        latitude.trim() === "" ? null : Number(latitude.trim().replace(",", ".")),
+        latitude.trim() === ""
+          ? null
+          : Number(latitude.trim().replace(",", ".")),
       longitude:
-        longitude.trim() === "" ? null : Number(longitude.trim().replace(",", ".")),
+        longitude.trim() === ""
+          ? null
+          : Number(longitude.trim().replace(",", ".")),
       isActive,
     };
 
@@ -136,7 +140,9 @@ export default function StationFormModal({
               placeholder="Ex.: Posto Centro"
               disabled={loading}
             />
-            {errors.name && <p className="text-sm text-red-500">{errors.name}</p>}
+            {errors.name && (
+              <p className="text-sm text-red-500">{errors.name}</p>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -149,7 +155,9 @@ export default function StationFormModal({
                 placeholder="Ex.: Joinville"
                 disabled={loading}
               />
-              {errors.city && <p className="text-sm text-red-500">{errors.city}</p>}
+              {errors.city && (
+                <p className="text-sm text-red-500">{errors.city}</p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -162,7 +170,9 @@ export default function StationFormModal({
                 maxLength={2}
                 disabled={loading}
               />
-              {errors.state && <p className="text-sm text-red-500">{errors.state}</p>}
+              {errors.state && (
+                <p className="text-sm text-red-500">{errors.state}</p>
+              )}
             </div>
           </div>
 
@@ -216,11 +226,20 @@ export default function StationFormModal({
                 Postos inativos não aparecem para reservas futuras.
               </p>
             </div>
-            <Switch checked={isActive} onCheckedChange={setIsActive} disabled={loading} />
+            <Switch
+              checked={isActive}
+              onCheckedChange={setIsActive}
+              disabled={loading}
+            />
           </div>
 
           <DialogFooter className="gap-2">
-            <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={loading}
+            >
               Cancelar
             </Button>
             <Button type="submit" disabled={loading}>

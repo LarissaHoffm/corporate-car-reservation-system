@@ -1,12 +1,28 @@
 import * as React from "react";
 import { useMemo, useRef, useState } from "react";
-import { BarChart3, Users, Car, Building, Calendar, Download, X, Plus, Search } from "lucide-react";
+import {
+  BarChart3,
+  Users,
+  Car,
+  Building,
+  Calendar,
+  Download,
+  X,
+  Plus,
+  Search,
+} from "lucide-react";
 
 import { RoleGuard } from "@/components/role-guard";
 import { StatsCard } from "@/components/ui/stats-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 
@@ -21,14 +37,70 @@ type Reservation = {
 };
 
 const MOCK_RESERVATIONS: Reservation[] = [
-  { id: "R1", user: "Alex Morgan",  car: "BMW X5",        branch: "JLLE", status: "Approved",  out: "2025-10-02" },
-  { id: "R2", user: "Bruno Souza",  car: "Toyota Camry",  branch: "CWB",  status: "Pending",   out: "2025-10-05" },
-  { id: "R3", user: "Carla Lima",   car: "Honda Civic",   branch: "MGA",  status: "Approved",  out: "2025-09-28" },
-  { id: "R4", user: "Diana Prince", car: "Honda Civic",   branch: "POA",  status: "Completed", out: "2025-09-12" },
-  { id: "R5", user: "Bruce Wayne",  car: "Toyota Camry",  branch: "JLLE", status: "Rejected",  out: "2025-10-08" },
-  { id: "R6", user: "Clark Kent",   car: "Tesla Model 3", branch: "CWB",  status: "Approved",  out: "2025-10-11" },
-  { id: "R7", user: "Alex Morgan",  car: "Tesla Model 3", branch: "JLLE", status: "Pending",   out: "2025-10-20" },
-  { id: "R8", user: "Bruno Souza",  car: "BMW X5",        branch: "MGA",  status: "Completed", out: "2025-08-30" },
+  {
+    id: "R1",
+    user: "Alex Morgan",
+    car: "BMW X5",
+    branch: "JLLE",
+    status: "Approved",
+    out: "2025-10-02",
+  },
+  {
+    id: "R2",
+    user: "Bruno Souza",
+    car: "Toyota Camry",
+    branch: "CWB",
+    status: "Pending",
+    out: "2025-10-05",
+  },
+  {
+    id: "R3",
+    user: "Carla Lima",
+    car: "Honda Civic",
+    branch: "MGA",
+    status: "Approved",
+    out: "2025-09-28",
+  },
+  {
+    id: "R4",
+    user: "Diana Prince",
+    car: "Honda Civic",
+    branch: "POA",
+    status: "Completed",
+    out: "2025-09-12",
+  },
+  {
+    id: "R5",
+    user: "Bruce Wayne",
+    car: "Toyota Camry",
+    branch: "JLLE",
+    status: "Rejected",
+    out: "2025-10-08",
+  },
+  {
+    id: "R6",
+    user: "Clark Kent",
+    car: "Tesla Model 3",
+    branch: "CWB",
+    status: "Approved",
+    out: "2025-10-11",
+  },
+  {
+    id: "R7",
+    user: "Alex Morgan",
+    car: "Tesla Model 3",
+    branch: "JLLE",
+    status: "Pending",
+    out: "2025-10-20",
+  },
+  {
+    id: "R8",
+    user: "Bruno Souza",
+    car: "BMW X5",
+    branch: "MGA",
+    status: "Completed",
+    out: "2025-08-30",
+  },
 ];
 
 function MultiUserFilter({
@@ -51,9 +123,11 @@ function MultiUserFilter({
     () =>
       options
         .filter((n) => !value.includes(n))
-        .filter((n) => (normalized ? n.toLowerCase().includes(normalized) : true))
+        .filter((n) =>
+          normalized ? n.toLowerCase().includes(normalized) : true,
+        )
         .slice(0, 8),
-    [options, value, normalized]
+    [options, value, normalized],
   );
 
   const addToken = (token: string) => {
@@ -64,7 +138,8 @@ function MultiUserFilter({
     setOpen(false);
   };
 
-  const removeToken = (token: string) => onChange(value.filter((v) => v !== token));
+  const removeToken = (token: string) =>
+    onChange(value.filter((v) => v !== token));
 
   return (
     <div className="w-full relative">
@@ -76,9 +151,19 @@ function MultiUserFilter({
         }}
       >
         {value.map((v) => (
-          <Badge key={v} variant="secondary" className="flex items-center gap-1">
+          <Badge
+            key={v}
+            variant="secondary"
+            className="flex items-center gap-1"
+          >
             {v}
-            <button className="hover:text-foreground/80" onClick={(e) => { e.stopPropagation(); removeToken(v); }}>
+            <button
+              className="hover:text-foreground/80"
+              onClick={(e) => {
+                e.stopPropagation();
+                removeToken(v);
+              }}
+            >
               <X className="h-3 w-3" />
             </button>
           </Badge>
@@ -124,7 +209,10 @@ function MultiUserFilter({
             </button>
           ))}
           {query.trim() && !options.includes(query.trim()) && (
-            <button className="w-full text-left px-3 py-2 text-sm hover:bg-muted/50" onClick={() => addToken(query)}>
+            <button
+              className="w-full text-left px-3 py-2 text-sm hover:bg-muted/50"
+              onClick={() => addToken(query)}
+            >
               <div className="flex items-center gap-2">
                 <Plus className="h-3 w-3 text-muted-foreground" />
                 Add “{query.trim()}”
@@ -139,14 +227,18 @@ function MultiUserFilter({
 
 export default function SharedReportsPage() {
   // filtros
-  const [userTokens, setUserTokens] = useState<string[]>([]); 
-  const [carFilter, setCarFilter] = useState<"all" | "BMW X5" | "Toyota Camry" | "Honda Civic" | "Tesla Model 3">("all");
-  const [branchFilter, setBranchFilter] = useState<"all" | "JLLE" | "CWB" | "MGA" | "POA">("all");
+  const [userTokens, setUserTokens] = useState<string[]>([]);
+  const [carFilter, setCarFilter] = useState<
+    "all" | "BMW X5" | "Toyota Camry" | "Honda Civic" | "Tesla Model 3"
+  >("all");
+  const [branchFilter, setBranchFilter] = useState<
+    "all" | "JLLE" | "CWB" | "MGA" | "POA"
+  >("all");
   const [range, setRange] = useState<"30days" | "quarter" | "year">("30days");
 
   const allUsers = useMemo(
     () => Array.from(new Set(MOCK_RESERVATIONS.map((r) => r.user))).sort(),
-    []
+    [],
   );
 
   const filtered = useMemo(() => {
@@ -161,21 +253,26 @@ export default function SharedReportsPage() {
       const dateOut = new Date(r.out);
       const byRange = dateOut >= start && dateOut <= now;
       const byCar = carFilter === "all" ? true : r.car === carFilter;
-      const byBranch = branchFilter === "all" ? true : r.branch === branchFilter;
+      const byBranch =
+        branchFilter === "all" ? true : r.branch === branchFilter;
 
       const byUsers =
         userTokens.length === 0
           ? true
-          : userTokens.some((t) => r.user.toLowerCase().includes(t.toLowerCase()));
+          : userTokens.some((t) =>
+              r.user.toLowerCase().includes(t.toLowerCase()),
+            );
 
       return byRange && byCar && byBranch && byUsers;
     });
   }, [userTokens, carFilter, branchFilter, range]);
 
-  // KPIs 
+  // KPIs
   const kpis = useMemo(() => {
     const total = filtered.length;
-    const active = filtered.filter((r) => r.status === "Approved" || r.status === "Pending").length;
+    const active = filtered.filter(
+      (r) => r.status === "Approved" || r.status === "Pending",
+    ).length;
     const uniqueUsers = new Set(filtered.map((r) => r.user)).size;
     const utilization =
       total === 0 ? "0%" : `${Math.round((active / total) * 100)}%`;
@@ -188,15 +285,33 @@ export default function SharedReportsPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Reports</h1>
-          <p className="text-muted-foreground">Analyze and export reservation data with flexible filters.</p>
+          <p className="text-muted-foreground">
+            Analyze and export reservation data with flexible filters.
+          </p>
         </div>
 
         {/* KPIs conectados ao filtro */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <StatsCard title="Total Reservations" value={String(kpis.total)} icon={BarChart3} />
-          <StatsCard title="Active Reservations" value={String(kpis.active)} icon={Car} />
-          <StatsCard title="Total Users" value={String(kpis.uniqueUsers)} icon={Users} />
-          <StatsCard title="Utilization" value={kpis.utilization} icon={BarChart3} />
+          <StatsCard
+            title="Total Reservations"
+            value={String(kpis.total)}
+            icon={BarChart3}
+          />
+          <StatsCard
+            title="Active Reservations"
+            value={String(kpis.active)}
+            icon={Car}
+          />
+          <StatsCard
+            title="Total Users"
+            value={String(kpis.uniqueUsers)}
+            icon={Users}
+          />
+          <StatsCard
+            title="Utilization"
+            value={kpis.utilization}
+            icon={BarChart3}
+          />
         </div>
 
         {/* Filtros + export */}
@@ -205,7 +320,9 @@ export default function SharedReportsPage() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
               {/* User: multi + livre */}
               <div className="lg:col-span-5">
-                <label className="text-sm text-muted-foreground mb-1 block">Users</label>
+                <label className="text-sm text-muted-foreground mb-1 block">
+                  Users
+                </label>
                 <MultiUserFilter
                   options={allUsers}
                   value={userTokens}
@@ -216,8 +333,13 @@ export default function SharedReportsPage() {
 
               {/* Car */}
               <div className="lg:col-span-2">
-                <label className="text-sm text-muted-foreground mb-1 block">Car</label>
-                <Select value={carFilter} onValueChange={(v: any) => setCarFilter(v)}>
+                <label className="text-sm text-muted-foreground mb-1 block">
+                  Car
+                </label>
+                <Select
+                  value={carFilter}
+                  onValueChange={(v: any) => setCarFilter(v)}
+                >
                   <SelectTrigger className="w-full border-border/50 focus:ring-2 focus:ring-[#1558E9]">
                     <SelectValue placeholder="All Cars" />
                   </SelectTrigger>
@@ -233,8 +355,13 @@ export default function SharedReportsPage() {
 
               {/* Branch */}
               <div className="lg:col-span-2">
-                <label className="text-sm text-muted-foreground mb-1 block">Branch</label>
-                <Select value={branchFilter} onValueChange={(v: any) => setBranchFilter(v)}>
+                <label className="text-sm text-muted-foreground mb-1 block">
+                  Branch
+                </label>
+                <Select
+                  value={branchFilter}
+                  onValueChange={(v: any) => setBranchFilter(v)}
+                >
                   <SelectTrigger className="w-full border-border/50 focus:ring-2 focus:ring-[#1558E9]">
                     <SelectValue placeholder="All Branches" />
                   </SelectTrigger>
@@ -250,7 +377,9 @@ export default function SharedReportsPage() {
 
               {/* Date range */}
               <div className="lg:col-span-3">
-                <label className="text-sm text-muted-foreground mb-1 block">Date Range</label>
+                <label className="text-sm text-muted-foreground mb-1 block">
+                  Date Range
+                </label>
                 <Select value={range} onValueChange={(v: any) => setRange(v)}>
                   <SelectTrigger className="w-full border-border/50 focus:ring-2 focus:ring-[#1558E9]">
                     <SelectValue placeholder="Date Range" />
@@ -296,14 +425,22 @@ export default function SharedReportsPage() {
                 <Users className="h-5 w-5 text-[#1558E9]" />
                 Reports by User
               </CardTitle>
-              <p className="text-sm text-muted-foreground">Analyze reservations and spend by user.</p>
+              <p className="text-sm text-muted-foreground">
+                Analyze reservations and spend by user.
+              </p>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button variant="outline" className="w-full justify-start border-border/50 bg-transparent hover:bg-muted/50">
+              <Button
+                variant="outline"
+                className="w-full justify-start border-border/50 bg-transparent hover:bg-muted/50"
+              >
                 <Download className="h-4 w-4 mr-2 text-[#1558E9]" />
                 Top 10 Users with Most Reservations
               </Button>
-              <Button variant="outline" className="w-full justify-start border-border/50 bg-transparent hover:bg-muted/50">
+              <Button
+                variant="outline"
+                className="w-full justify-start border-border/50 bg-transparent hover:bg-muted/50"
+              >
                 <Download className="h-4 w-4 mr-2 text-[#1558E9]" />
                 Reservations by User (Last Quarter)
               </Button>
@@ -316,14 +453,22 @@ export default function SharedReportsPage() {
                 <Car className="h-5 w-5 text-[#1558E9]" />
                 Reports by Car
               </CardTitle>
-              <p className="text-sm text-muted-foreground">Mileage, reservations, and utilization.</p>
+              <p className="text-sm text-muted-foreground">
+                Mileage, reservations, and utilization.
+              </p>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button variant="outline" className="w-full justify-start border-border/50 bg-transparent hover:bg-muted/50">
+              <Button
+                variant="outline"
+                className="w-full justify-start border-border/50 bg-transparent hover:bg-muted/50"
+              >
                 <Download className="h-4 w-4 mr-2 text-[#1558E9]" />
                 Top 5 Cars with Highest Mileage
               </Button>
-              <Button variant="outline" className="w-full justify-start border-border/50 bg-transparent hover:bg-muted/50">
+              <Button
+                variant="outline"
+                className="w-full justify-start border-border/50 bg-transparent hover:bg-muted/50"
+              >
                 <Download className="h-4 w-4 mr-2 text-[#1558E9]" />
                 Reservations by Car (Last Quarter)
               </Button>
@@ -336,14 +481,22 @@ export default function SharedReportsPage() {
                 <Building className="h-5 w-5 text-[#1558E9]" />
                 Reports by Branch
               </CardTitle>
-              <p className="text-sm text-muted-foreground">Compare performance by branch.</p>
+              <p className="text-sm text-muted-foreground">
+                Compare performance by branch.
+              </p>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button variant="outline" className="w-full justify-start border-border/50 bg-transparent hover:bg-muted/50">
+              <Button
+                variant="outline"
+                className="w-full justify-start border-border/50 bg-transparent hover:bg-muted/50"
+              >
                 <Download className="h-4 w-4 mr-2 text-[#1558E9]" />
                 Reservations by Branch (Monthly)
               </Button>
-              <Button variant="outline" className="w-full justify-start border-border/50 bg-transparent hover:bg-muted/50">
+              <Button
+                variant="outline"
+                className="w-full justify-start border-border/50 bg-transparent hover:bg-muted/50"
+              >
                 <Download className="h-4 w-4 mr-2 text-[#1558E9]" />
                 Reservations by Branch (Quarterly)
               </Button>
@@ -356,14 +509,22 @@ export default function SharedReportsPage() {
                 <Calendar className="h-5 w-5 text-[#1558E9]" />
                 Reports by Period
               </CardTitle>
-              <p className="text-sm text-muted-foreground">Time-based trends and insights.</p>
+              <p className="text-sm text-muted-foreground">
+                Time-based trends and insights.
+              </p>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button variant="outline" className="w-full justify-start border-border/50 bg-transparent hover:bg-muted/50">
+              <Button
+                variant="outline"
+                className="w-full justify-start border-border/50 bg-transparent hover:bg-muted/50"
+              >
                 <Download className="h-4 w-4 mr-2 text-[#1558E9]" />
                 Last 30 Days Reservations
               </Button>
-              <Button variant="outline" className="w-full justify-start border-border/50 bg-transparent hover:bg-muted/50">
+              <Button
+                variant="outline"
+                className="w-full justify-start border-border/50 bg-transparent hover:bg-muted/50"
+              >
                 <Download className="h-4 w-4 mr-2 text-[#1558E9]" />
                 Quarterly Trend Report
               </Button>

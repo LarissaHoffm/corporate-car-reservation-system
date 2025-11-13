@@ -15,7 +15,9 @@ export default function CopyableSecret({ value }: { value: string }) {
 
   return (
     <div className="flex items-center gap-2">
-      <code className="px-2 py-1 rounded bg-slate-800 text-slate-100">{value}</code>
+      <code className="px-2 py-1 rounded bg-slate-800 text-slate-100">
+        {value}
+      </code>
       <button
         onClick={onCopy}
         className="px-3 py-1 rounded bg-slate-700 hover:bg-slate-600 transition"

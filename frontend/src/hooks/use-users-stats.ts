@@ -8,8 +8,8 @@ export function useUsersStats(users: User[]) {
     const m = now.getUTCMonth();
 
     const total = users.length;
-    const active = users.filter(u => u.status === "ACTIVE").length;
-    const activeThisMonth = users.filter(u => {
+    const active = users.filter((u) => u.status === "ACTIVE").length;
+    const activeThisMonth = users.filter((u) => {
       if (u.status !== "ACTIVE" || !u.createdAt) return false;
       const d = new Date(u.createdAt);
       return d.getUTCFullYear() === y && d.getUTCMonth() === m;

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { api } from '@/lib/http/api';
+import { useEffect, useState } from "react";
+import { api } from "@/lib/http/api";
 
 export type Department = { id: string; name: string; code: string };
 
@@ -13,15 +13,20 @@ export function useDepartments() {
     (async () => {
       setLoading(true);
       try {
-        const { data } = await api.get('/departments');
+        const { data } = await api.get("/departments");
         if (alive) setDepartments(data);
       } catch (e: any) {
-        if (alive) setError(e?.response?.data?.message ?? 'Erro ao carregar departamentos');
+        if (alive)
+          setError(
+            e?.response?.data?.message ?? "Erro ao carregar departamentos",
+          );
       } finally {
         if (alive) setLoading(false);
       }
     })();
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, []);
 
   return { departments, loading, error };

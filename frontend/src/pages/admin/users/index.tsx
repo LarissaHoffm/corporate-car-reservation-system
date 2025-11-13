@@ -6,8 +6,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Users, UserPlus, Search, Edit, Trash2 } from "lucide-react";
 import { RoleGuard } from "@/components/role-guard";
@@ -49,9 +60,12 @@ type Department = { id: string; name: string; code?: string | null };
 
 const roleLabelFromCode = (code: UserRole): UserRow["role"] => {
   switch (code) {
-    case "ADMIN": return "Administrator";
-    case "APPROVER": return "Approver";
-    default: return "Requester";
+    case "ADMIN":
+      return "Administrator";
+    case "APPROVER":
+      return "Approver";
+    default:
+      return "Requester";
   }
 };
 
@@ -74,7 +88,11 @@ export default function AdminUsersPage() {
   const { toast } = useToast();
 
   // Filiais dinâmicas (para modal + filtro)
-  const { branches, loading: loadingBranches, error: branchesError } = useBranches();
+  const {
+    branches,
+    loading: loadingBranches,
+    error: branchesError,
+  } = useBranches();
 
   // Departamentos dinâmicos do banco
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -82,8 +100,12 @@ export default function AdminUsersPage() {
   const [deptsError, setDeptsError] = useState<string | null>(null);
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterRole, setFilterRole] = useState<"all" | "admin" | "approver" | "requester">("all");
-  const [filterStatus, setFilterStatus] = useState<"all" | "active" | "inactive">("all");
+  const [filterRole, setFilterRole] = useState<
+    "all" | "admin" | "approver" | "requester"
+  >("all");
+  const [filterStatus, setFilterStatus] = useState<
+    "all" | "active" | "inactive"
+  >("all");
   const [filterBranchId, setFilterBranchId] = useState<"all" | string>("all");
 
   const [showNewUserModal, setShowNewUserModal] = useState(false);
@@ -102,7 +124,10 @@ export default function AdminUsersPage() {
 
   // Delete (dialogo de confirmação)
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [targetUser, setTargetUser] = useState<{ id: string; name: string } | null>(null);
+  const [targetUser, setTargetUser] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Dialog de senha temporária
@@ -119,14 +144,21 @@ export default function AdminUsersPage() {
         setDeptsError(null);
         const res = await api.get<Department[]>("/departments");
         if (!cancelled) setDepartments(res.data ?? []);
-      } catch (err: any) {
-        if (!cancelled) setDeptsError(err?.response?.data?.message || err?.message || "Erro ao carregar departamentos.");
+      } catch (e: any) {
+        if (!cancelled)
+          setDeptsError(
+            e?.response?.data?.message ||
+              e?.message ||
+              "Erro ao carregar departamentos.",
+          );
       } finally {
         if (!cancelled) setLoadingDepts(false);
       }
     }
     loadDepts();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Lista usuários
@@ -145,7 +177,9 @@ export default function AdminUsersPage() {
     }
   };
 
-  useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => {
+    fetchUsers();
+  }, []);
   useEffect(() => {
     const t = setTimeout(fetchUsers, 300);
     return () => clearTimeout(t);
@@ -160,24 +194,50 @@ export default function AdminUsersPage() {
   }, []);
 
   const activeThisMonth = useMemo(() => {
-    return users.filter(u => {
+    return users.filter((u) => {
       if (!u.createdAt) return false;
       const d = new Date(u.createdAt);
       return d >= firstOfMonth;
     }).length;
   }, [users, firstOfMonth]);
 
-  const stats = useMemo(() => [
-    { title: "Total Users", value: String(users.length), icon: Users, isHighlighted: false },
-    { title: "Active This Month", value: String(activeThisMonth), icon: Users, isHighlighted: true },
-    { title: "Approvers", value: String(users.filter(u => u.role === "Approver").length), icon: Users, isHighlighted: false },
-    { title: "Administrator", value: String(users.filter(u => u.role === "Administrator").length), icon: Users, isHighlighted: false },
-  ], [users, activeThisMonth]);
+  const stats = useMemo(
+    () => [
+      {
+        title: "Total Users",
+        value: String(users.length),
+        icon: Users,
+        isHighlighted: false,
+      },
+      {
+        title: "Active This Month",
+        value: String(activeThisMonth),
+        icon: Users,
+        isHighlighted: true,
+      },
+      {
+        title: "Approvers",
+        value: String(users.filter((u) => u.role === "Approver").length),
+        icon: Users,
+        isHighlighted: false,
+      },
+      {
+        title: "Administrator",
+        value: String(users.filter((u) => u.role === "Administrator").length),
+        icon: Users,
+        isHighlighted: false,
+      },
+    ],
+    [users, activeThisMonth],
+  );
 
   async function handleNewUser() {
     try {
       if (!newUserData.name.trim() || !newUserData.email.trim()) {
-        toast({ title: "Nome e e-mail são obrigatórios.", variant: "destructive" });
+        toast({
+          title: "Nome e e-mail são obrigatórios.",
+          variant: "destructive",
+        });
         return;
       }
 
@@ -192,7 +252,14 @@ export default function AdminUsersPage() {
       } as any);
 
       setShowNewUserModal(false);
-      setNewUserData({ name: "", email: "", branchId: "", department: "", role: "", phone: "" });
+      setNewUserData({
+        name: "",
+        email: "",
+        branchId: "",
+        department: "",
+        role: "",
+        phone: "",
+      });
       setPhoneMasked("");
       await fetchUsers();
 
@@ -232,8 +299,11 @@ export default function AdminUsersPage() {
       setTargetUser(null);
       await fetchUsers();
       toast({ title: "Usuário removido" });
-    } catch (err: any) {
-      toast({ title: err?.response?.data?.message ?? "Erro ao remover usuário.", variant: "destructive" });
+    } catch (e: any) {
+      toast({
+        title: e?.response?.data?.message ?? "Erro ao remover usuário.",
+        variant: "destructive",
+      });
     } finally {
       setDeletingId(null);
     }
@@ -244,7 +314,7 @@ export default function AdminUsersPage() {
       !searchTerm
         ? true
         : u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          u.email.toLowerCase().includes(searchTerm.toLowerCase())
+          u.email.toLowerCase().includes(searchTerm.toLowerCase()),
     )
     .filter((u) => {
       if (filterRole === "all") return true;
@@ -256,7 +326,9 @@ export default function AdminUsersPage() {
       if (filterStatus === "all") return true;
       return u.status.toLowerCase() === filterStatus;
     })
-    .filter((u) => (filterBranchId === "all" ? true : u.branchId === filterBranchId));
+    .filter((u) =>
+      filterBranchId === "all" ? true : u.branchId === filterBranchId,
+    );
 
   return (
     <RoleGuard allowedRoles={["ADMIN"]}>
@@ -264,8 +336,12 @@ export default function AdminUsersPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Users Management</h1>
-            <p className="text-muted-foreground">Manage users and their roles.</p>
+            <h1 className="text-2xl font-bold text-foreground">
+              Users Management
+            </h1>
+            <p className="text-muted-foreground">
+              Manage users and their roles.
+            </p>
           </div>
           <Button
             className="bg-[#1558E9] hover:bg-[#1558E9]/90 shadow-sm"
@@ -286,14 +362,20 @@ export default function AdminUsersPage() {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className={`text-sm font-medium ${stat.isHighlighted ? "text-white/80" : "text-muted-foreground"}`}>
+                    <p
+                      className={`text-sm font-medium ${stat.isHighlighted ? "text-white/80" : "text-muted-foreground"}`}
+                    >
                       {stat.title}
                     </p>
-                    <p className={`text-2xl font-bold ${stat.isHighlighted ? "text-white" : "text-foreground"}`}>
+                    <p
+                      className={`text-2xl font-bold ${stat.isHighlighted ? "text-white" : "text-foreground"}`}
+                    >
                       {stat.value}
                     </p>
                   </div>
-                  <stat.icon className={`h-8 w-8 ${stat.isHighlighted ? "text-white/80" : "text-[#1558E9]"}`} />
+                  <stat.icon
+                    className={`h-8 w-8 ${stat.isHighlighted ? "text-white/80" : "text-[#1558E9]"}`}
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -316,7 +398,10 @@ export default function AdminUsersPage() {
                 </div>
               </div>
 
-              <Select value={filterRole} onValueChange={(v: any) => setFilterRole(v)}>
+              <Select
+                value={filterRole}
+                onValueChange={(v: any) => setFilterRole(v)}
+              >
                 <SelectTrigger className="w-[150px] border-border/50 focus:border-[#1558E9] shadow-sm">
                   <SelectValue placeholder="Role" />
                 </SelectTrigger>
@@ -328,7 +413,10 @@ export default function AdminUsersPage() {
                 </SelectContent>
               </Select>
 
-              <Select value={filterStatus} onValueChange={(v: any) => setFilterStatus(v)}>
+              <Select
+                value={filterStatus}
+                onValueChange={(v: any) => setFilterStatus(v)}
+              >
                 <SelectTrigger className="w-[150px] border-border/50 focus:border-[#1558E9] shadow-sm">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
@@ -339,14 +427,19 @@ export default function AdminUsersPage() {
                 </SelectContent>
               </Select>
 
-              <Select value={filterBranchId} onValueChange={(v: any) => setFilterBranchId(v)}>
+              <Select
+                value={filterBranchId}
+                onValueChange={(v: any) => setFilterBranchId(v)}
+              >
                 <SelectTrigger className="w-[180px] border-border/50 focus:border-[#1558E9] shadow-sm">
                   <SelectValue placeholder="Filial" />
                 </SelectTrigger>
                 <SelectContent position="popper" className="z-[1100]">
                   <SelectItem value="all">All Branches</SelectItem>
                   {branches.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                    <SelectItem key={b.id} value={b.id}>
+                      {b.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -357,20 +450,36 @@ export default function AdminUsersPage() {
         {/* Tabela */}
         <Card className="border-border/50 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-foreground">{loading ? "Carregando..." : "Users"}</CardTitle>
+            <CardTitle className="text-foreground">
+              {loading ? "Carregando..." : "Users"}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="max-h-96 overflow-y-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-border/50">
-                    <th className="text-left py-3 px-4 font-medium text-muted-foreground">USER</th>
-                    <th className="text-left py-3 px-4 font-medium text-muted-foreground">E-MAIL</th>
-                    <th className="text-left py-3 px-4 font-medium text-muted-foreground">ROLE</th>
-                    <th className="text-left py-3 px-4 font-medium text-muted-foreground">DEPARTMENT</th>
-                    <th className="text-left py-3 px-4 font-medium text-muted-foreground">FILIAL</th>
-                    <th className="text-left py-3 px-4 font-medium text-muted-foreground">STATUS</th>
-                    <th className="text-left py-3 px-4 font-medium text-muted-foreground">ACTIONS</th>
+                    <th className="text-left py-3 px-4 font-medium text-muted-foreground">
+                      USER
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-muted-foreground">
+                      E-MAIL
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-muted-foreground">
+                      ROLE
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-muted-foreground">
+                      DEPARTMENT
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-muted-foreground">
+                      FILIAL
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-muted-foreground">
+                      STATUS
+                    </th>
+                    <th className="text-left py-3 px-4 font-medium text-muted-foreground">
+                      ACTIONS
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -380,8 +489,12 @@ export default function AdminUsersPage() {
                       className="border-b border-border/50 hover:bg-background cursor-pointer transition-colors"
                       onClick={() => handleUserClick(user.id)}
                     >
-                      <td className="py-3 px-4 text-sm font-medium text-foreground">{user.name}</td>
-                      <td className="py-3 px-4 text-sm text-gray-700">{user.email}</td>
+                      <td className="py-3 px-4 text-sm font-medium text-foreground">
+                        {user.name}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-gray-700">
+                        {user.email}
+                      </td>
                       <td className="py-3 px-4">
                         <Badge
                           variant="outline"
@@ -389,21 +502,28 @@ export default function AdminUsersPage() {
                             user.role === "Administrator"
                               ? "bg-orange-100 text-orange-800 border border-orange-200 dark:bg-orange-400/15 dark:text-orange-500 dark:border-orange-500/20"
                               : user.role === "Approver"
-                              ? "bg-blue-100 text-blue-800 border border-blue-200 dark:bg-blue-400/15 dark:text-blue-500 dark:border-blue-500/20"
-                              : "bg-pink-100 text-pink-800 border border-pink-200 dark:bg-pink-400/15 dark:text-pink-500 dark:border-pink-500/20"
+                                ? "bg-blue-100 text-blue-800 border border-blue-200 dark:bg-blue-400/15 dark:text-blue-500 dark:border-blue-500/20"
+                                : "bg-pink-100 text-pink-800 border border-pink-200 dark:bg-pink-400/15 dark:text-pink-500 dark:border-pink-500/20"
                           }
                         >
                           {user.role}
                         </Badge>
                       </td>
-                      <td className="py-3 px-4 text-sm text-gray-700">{user.department || "-"}</td>
+                      <td className="py-3 px-4 text-sm text-gray-700">
+                        {user.department || "-"}
+                      </td>
                       <td className="py-3 px-4 text-sm text-gray-700">
                         <BranchName id={user.branchId ?? undefined} />
                       </td>
                       <td className="py-3 px-4">
-                        <Badge className={statusChipClasses(user.status)}>{user.status}</Badge>
+                        <Badge className={statusChipClasses(user.status)}>
+                          {user.status}
+                        </Badge>
                       </td>
-                      <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
+                      <td
+                        className="py-3 px-4"
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <div className="flex items-center gap-1">
                           <Button
                             variant="ghost"
@@ -419,9 +539,15 @@ export default function AdminUsersPage() {
                             variant="ghost"
                             size="sm"
                             className="hover:bg-card/50 text-red-600"
-                            onClick={(e) => askDelete(e, { id: user.id, name: user.name })}
+                            onClick={(e) =>
+                              askDelete(e, { id: user.id, name: user.name })
+                            }
                             disabled={deletingId === user.id}
-                            title={deletingId === user.id ? "Removendo..." : "Remover usuário"}
+                            title={
+                              deletingId === user.id
+                                ? "Removendo..."
+                                : "Remover usuário"
+                            }
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -431,7 +557,10 @@ export default function AdminUsersPage() {
                   ))}
                   {!loading && filteredUsers.length === 0 && (
                     <tr>
-                      <td className="py-6 text-center text-muted-foreground" colSpan={7}>
+                      <td
+                        className="py-6 text-center text-muted-foreground"
+                        colSpan={7}
+                      >
                         Nenhum usuário encontrado.
                       </td>
                     </tr>
@@ -452,7 +581,9 @@ export default function AdminUsersPage() {
         >
           <DialogContent className="sm:max-w-md bg-card border-border/50 shadow-lg z-[1000]">
             <DialogHeader className="flex flex-row items-center justify-between">
-              <DialogTitle className="text-lg font-semibold text-foreground">New User</DialogTitle>
+              <DialogTitle className="text-lg font-semibold text-foreground">
+                New User
+              </DialogTitle>
             </DialogHeader>
 
             {branchesError && (
@@ -468,22 +599,36 @@ export default function AdminUsersPage() {
 
             <div className="space-y-4 pt-4">
               <div>
-                <Label htmlFor="name" className="text-sm font-medium text-gray-700">Full Name</Label>
+                <Label
+                  htmlFor="name"
+                  className="text-sm font-medium text-gray-700"
+                >
+                  Full Name
+                </Label>
                 <Input
                   id="name"
                   value={newUserData.name}
-                  onChange={(e) => setNewUserData((p) => ({ ...p, name: e.target.value }))}
+                  onChange={(e) =>
+                    setNewUserData((p) => ({ ...p, name: e.target.value }))
+                  }
                   className="mt-1 border-border/50 focus:border-[#1558E9]"
                 />
               </div>
 
               <div>
-                <Label htmlFor="email" className="text-sm font-medium text-gray-700">E-mail</Label>
+                <Label
+                  htmlFor="email"
+                  className="text-sm font-medium text-gray-700"
+                >
+                  E-mail
+                </Label>
                 <Input
                   id="email"
                   type="email"
                   value={newUserData.email}
-                  onChange={(e) => setNewUserData((p) => ({ ...p, email: e.target.value }))}
+                  onChange={(e) =>
+                    setNewUserData((p) => ({ ...p, email: e.target.value }))
+                  }
                   className="mt-1 border-border/50 focus:border-[#1558E9]"
                 />
               </div>
@@ -491,14 +636,22 @@ export default function AdminUsersPage() {
               <div className="grid grid-cols-2 gap-4">
                 {/* BRANCH (dinâmico) */}
                 <div>
-                  <Label className="text-sm font-medium text-gray-700">Branch</Label>
+                  <Label className="text-sm font-medium text-gray-700">
+                    Branch
+                  </Label>
                   <Select
                     value={newUserData.branchId}
-                    onValueChange={(v) => setNewUserData((p) => ({ ...p, branchId: v }))}
+                    onValueChange={(v) =>
+                      setNewUserData((p) => ({ ...p, branchId: v }))
+                    }
                     disabled={loadingBranches || (branches?.length ?? 0) === 0}
                   >
                     <SelectTrigger className="mt-1 border-border/50 focus:border-[#1558E9]">
-                      <SelectValue placeholder={loadingBranches ? "Loading..." : "Select branch"} />
+                      <SelectValue
+                        placeholder={
+                          loadingBranches ? "Loading..." : "Select branch"
+                        }
+                      />
                     </SelectTrigger>
                     <SelectContent position="popper" className="z-[1100]">
                       {branches.map((b) => (
@@ -512,14 +665,22 @@ export default function AdminUsersPage() {
 
                 {/* DEPARTMENT (dinâmico do banco, usando code) */}
                 <div>
-                  <Label className="text-sm font-medium text-gray-700">Department</Label>
+                  <Label className="text-sm font-medium text-gray-700">
+                    Department
+                  </Label>
                   <Select
                     value={newUserData.department}
-                    onValueChange={(v) => setNewUserData((p) => ({ ...p, department: v }))}
+                    onValueChange={(v) =>
+                      setNewUserData((p) => ({ ...p, department: v }))
+                    }
                     disabled={loadingDepts || (departments?.length ?? 0) === 0}
                   >
                     <SelectTrigger className="mt-1 border-border/50 focus:border-[#1558E9]">
-                      <SelectValue placeholder={loadingDepts ? "Loading..." : "Select department"} />
+                      <SelectValue
+                        placeholder={
+                          loadingDepts ? "Loading..." : "Select department"
+                        }
+                      />
                     </SelectTrigger>
                     <SelectContent position="popper" className="z-[1100]">
                       {departments.map((d) => (
@@ -534,10 +695,14 @@ export default function AdminUsersPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-sm font-medium text-gray-700">Role</Label>
+                  <Label className="text-sm font-medium text-gray-700">
+                    Role
+                  </Label>
                   <Select
                     value={newUserData.role}
-                    onValueChange={(v: UserRole) => setNewUserData((p) => ({ ...p, role: v }))}
+                    onValueChange={(v: UserRole) =>
+                      setNewUserData((p) => ({ ...p, role: v }))
+                    }
                   >
                     <SelectTrigger className="mt-1 border-border/50 focus:border-[#1558E9]">
                       <SelectValue placeholder="Select role" />
@@ -552,19 +717,26 @@ export default function AdminUsersPage() {
 
                 {/* TELEFONE COM MÁSCARA (BR) */}
                 <div>
-                  <Label className="text-sm font-medium text-gray-700">Telephone</Label>
+                  <Label className="text-sm font-medium text-gray-700">
+                    Telephone
+                  </Label>
                   <Input
                     inputMode="numeric"
                     maxLength={16}
                     value={phoneMasked}
                     onChange={(e) => {
-                      const digits = e.target.value.replace(/\D/g, "").slice(0, 11);
+                      const digits = e.target.value
+                        .replace(/\D/g, "")
+                        .slice(0, 11);
                       let masked = "";
                       const d = digits;
                       if (d.length <= 2) masked = `(${d}`;
-                      else if (d.length <= 6) masked = `(${d.slice(0,2)}) ${d.slice(2)}`;
-                      else if (d.length <= 10) masked = `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;
-                      else masked = `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
+                      else if (d.length <= 6)
+                        masked = `(${d.slice(0, 2)}) ${d.slice(2)}`;
+                      else if (d.length <= 10)
+                        masked = `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+                      else
+                        masked = `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
 
                       setPhoneMasked(masked);
                       setNewUserData((p) => ({ ...p, phone: digits }));
@@ -579,10 +751,17 @@ export default function AdminUsersPage() {
               </div>
 
               <div className="flex justify-between pt-4">
-                <Button variant="outline" onClick={() => setShowNewUserModal(false)} className="border-border/50">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowNewUserModal(false)}
+                  className="border-border/50"
+                >
                   Back
                 </Button>
-                <Button onClick={handleNewUser} className="bg-[#1558E9] hover:bg-[#1558E9]/90">
+                <Button
+                  onClick={handleNewUser}
+                  className="bg-[#1558E9] hover:bg-[#1558E9]/90"
+                >
                   Salvar Usuario
                 </Button>
               </div>
@@ -599,10 +778,15 @@ export default function AdminUsersPage() {
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">
                 Tem certeza que deseja remover{" "}
-                <span className="font-medium text-foreground">{targetUser?.name}</span>? Esta ação não pode ser desfeita.
+                <span className="font-medium text-foreground">
+                  {targetUser?.name}
+                </span>
+                ? Esta ação não pode ser desfeita.
               </p>
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setConfirmOpen(false)}>Cancelar</Button>
+                <Button variant="outline" onClick={() => setConfirmOpen(false)}>
+                  Cancelar
+                </Button>
                 <Button
                   variant="destructive"
                   onClick={confirmDelete}

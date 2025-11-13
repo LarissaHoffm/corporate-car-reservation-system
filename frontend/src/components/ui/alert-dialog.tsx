@@ -20,7 +20,7 @@ export const AlertDialogOverlay = React.forwardRef<
         "fixed inset-0 z-50 bg-black/60 backdrop-blur-sm",
         "data-[state=open]:animate-in data-[state=open]:fade-in-0",
         "data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
-        className
+        className,
       )}
       {...props}
     />
@@ -41,7 +41,7 @@ export const AlertDialogContent = React.forwardRef<
           "rounded-xl border border-border bg-card text-foreground shadow-xl outline-none",
           "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
-          className
+          className,
         )}
         {...props}
       >
@@ -59,10 +59,19 @@ export const AlertDialogContent = React.forwardRef<
 });
 
 export const AlertDialogHeader = (p: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("px-6 pt-6 pb-2 text-lg font-semibold", p.className)} {...p} />
+  <div
+    className={cn("px-6 pt-6 pb-2 text-lg font-semibold", p.className)}
+    {...p}
+  />
 );
 export const AlertDialogFooter = (p: React.HTMLAttributes<HTMLDivElement>) => (
-  <div className={cn("flex items-center justify-end gap-2 px-6 pb-6 pt-4", p.className)} {...p} />
+  <div
+    className={cn(
+      "flex items-center justify-end gap-2 px-6 pb-6 pt-4",
+      p.className,
+    )}
+    {...p}
+  />
 );
 export const AlertDialogTitle = AlertDialogPrimitive.Title;
 export const AlertDialogDescription = AlertDialogPrimitive.Description;

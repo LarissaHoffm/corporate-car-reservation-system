@@ -13,19 +13,23 @@ export function useBranches() {
     setLoading(true);
     setError(null);
 
-    api.get<BranchDTO[]>("/branches")
-      .then(res => {
+    api
+      .get<BranchDTO[]>("/branches")
+      .then((res) => {
         if (!alive) return;
         setBranches(res.data ?? []);
       })
       .catch((e) => {
         if (!alive) return;
-        const msg = e?.response?.data?.message || e?.message || "Erro desconhecido";
+        const msg =
+          e?.response?.data?.message || e?.message || "Erro desconhecido";
         setError(String(msg));
       })
       .finally(() => alive && setLoading(false));
 
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, []);
 
   return { branches, loading, error };

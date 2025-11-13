@@ -3,7 +3,7 @@ import { ValidationResult } from '@prisma/client';
 
 export class ValidateDocumentDto {
   @IsEnum(ValidationResult)
-  result!: ValidationResult; 
+  result!: ValidationResult;
 
   @IsOptional()
   @IsString()

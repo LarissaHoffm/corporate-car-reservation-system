@@ -10,7 +10,7 @@ export class CreateStationDto {
 
   @IsOptional()
   @IsNumber()
-  lat?: number; 
+  lat?: number;
 
   @IsOptional()
   @IsNumber()
@@ -18,5 +18,5 @@ export class CreateStationDto {
 
   @IsOptional()
   @IsString()
-  branchId?: string; 
+  branchId?: string;
 }

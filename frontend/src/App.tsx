@@ -5,7 +5,6 @@ import LoginPage from "@/pages/shared/auth/LoginPage";
 import ForgotPasswordPage from "@/pages/shared/auth/ForgotPasswordPage";
 import ChangePasswordPage from "@/pages/shared/auth/ChangePasswordPage";
 
-
 // Requester
 import RequesterLayout from "@/pages/requester/layout";
 import RequesterDashboard from "@/pages/requester/page";
@@ -90,7 +89,10 @@ export default function App() {
             <Route path="new" element={<RequesterReservationNew />} />
             <Route path=":id" element={<RequesterReservationDetails />} />
             <Route path=":id/upload" element={<RequesterReservationUpload />} />
-            <Route path=":id/checklist" element={<RequesterReservationChecklist />} />
+            <Route
+              path=":id/checklist"
+              element={<RequesterReservationChecklist />}
+            />
           </Route>
         </Route>
 

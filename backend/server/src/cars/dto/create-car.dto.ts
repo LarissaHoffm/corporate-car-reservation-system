@@ -1,6 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, Matches, Min, MinLength } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  Matches,
+  Min,
+  MinLength,
+} from 'class-validator';
 import { CarStatus } from '@prisma/client';
 
 export const BR_PLATE_REGEX = /^(?:[A-Z]{3}-?\d{4}|[A-Z]{3}\d[A-Z0-9]\d{2})$/;
@@ -9,11 +17,18 @@ export const BRANCH_ID_REGEX =
   /^(?:[A-Z]{3}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12})$/;
 
 export class CreateCarDto {
-  @ApiProperty({ example: 'ABC1D23', description: 'Aceita ABC-1234 ou ABC1D23' })
+  @ApiProperty({
+    example: 'ABC1D23',
+    description: 'Aceita ABC-1234 ou ABC1D23',
+  })
   @IsString({ message: 'plate deve ser string' })
-  @Matches(BR_PLATE_REGEX, { message: 'plate inválida. Use ABC-1234 ou ABC1D23' })
+  @Matches(BR_PLATE_REGEX, {
+    message: 'plate inválida. Use ABC-1234 ou ABC1D23',
+  })
   @Transform(({ value }) =>
-    typeof value === 'string' ? value.replace(/[\s-]+/g, '').toUpperCase() : value,
+    typeof value === 'string'
+      ? value.replace(/[\s-]+/g, '').toUpperCase()
+      : value,
   )
   plate!: string;
 
@@ -47,7 +62,8 @@ export class CreateCarDto {
   })
   @IsOptional()
   @Matches(BRANCH_ID_REGEX, {
-    message: 'branchId deve ser código de 3 letras (ex.: FOR) ou UUID v4 válido',
+    message:
+      'branchId deve ser código de 3 letras (ex.: FOR) ou UUID v4 válido',
   })
   @Transform(({ value }) => {
     if (typeof value !== 'string') return value;
@@ -57,7 +73,8 @@ export class CreateCarDto {
 
   @ApiPropertyOptional({
     example: 'Fortaleza',
-    description: 'Nome da filial (alternativo ao branchId); resolução será feita no service.',
+    description:
+      'Nome da filial (alternativo ao branchId); resolução será feita no service.',
   })
   @IsOptional()
   @IsString()

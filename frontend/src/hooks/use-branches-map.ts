@@ -21,7 +21,9 @@ export function useBranchesMap() {
         setLoading(false);
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   return { map, loading, error };

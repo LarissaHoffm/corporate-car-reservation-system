@@ -20,7 +20,11 @@ export default function ApproverLayout() {
   const { user, logout } = useAuth();
 
   const isDark = theme === "dark" || theme === "system";
-  const initials = user?.name?.split(" ").map((n) => n[0]).join("") ?? "AP";
+  const initials =
+    user?.name
+      ?.split(" ")
+      .map((n) => n[0])
+      .join("") ?? "AP";
 
   function clearFunctionalCaches() {
     try {
@@ -30,12 +34,14 @@ export default function ApproverLayout() {
         if (k.startsWith("reservcar:")) keys.push(k);
       }
       keys.forEach((k) => localStorage.removeItem(k));
-    } catch {/* ignore */}
+    } catch {
+      /* ignore */
+    }
   }
 
   async function handleLogout() {
     try {
-      await logout();          // POST /auth/logout + limpa token em memória
+      await logout(); // POST /auth/logout + limpa token em memória
       clearFunctionalCaches(); // limpa caches funcionais do app (MVP)
     } finally {
       navigate("/login", { replace: true });
@@ -52,7 +58,9 @@ export default function ApproverLayout() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Car className="h-8 w-8 text-[#1558E9]" />
-                <span className="text-xl font-bold text-foreground">ReservCar</span>
+                <span className="text-xl font-bold text-foreground">
+                  ReservCar
+                </span>
               </div>
               <Button
                 variant="ghost"
@@ -75,7 +83,10 @@ export default function ApproverLayout() {
 
           {/* Navegação */}
           <div className="flex-1 px-4 py-6">
-            <SidebarNav userRole={user?.role ?? "APPROVER"} baseHref="/approver" />
+            <SidebarNav
+              userRole={user?.role ?? "APPROVER"}
+              baseHref="/approver"
+            />
           </div>
 
           {/* Perfil + tema + logout */}
@@ -87,18 +98,30 @@ export default function ApproverLayout() {
                 onClick={() => setTheme(isDark ? "light" : "dark")}
                 className="h-8 w-8 p-0 focus:ring-2 focus:ring-[#1558E9] focus:ring-offset-2"
               >
-                {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                {isDark ? (
+                  <Sun className="h-4 w-4" />
+                ) : (
+                  <Moon className="h-4 w-4" />
+                )}
               </Button>
-              <span className="text-xs text-muted-foreground">{isDark ? "Dark" : "Light"}</span>
+              <span className="text-xs text-muted-foreground">
+                {isDark ? "Dark" : "Light"}
+              </span>
             </div>
 
             <div className="flex items-center gap-3 mt-3">
               <Avatar className="h-8 w-8">
-                <AvatarFallback className="bg-[#1558E9] text-white text-xs">{initials}</AvatarFallback>
+                <AvatarFallback className="bg-[#1558E9] text-white text-xs">
+                  {initials}
+                </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">{user?.name ?? "Approver"}</p>
-                <p className="text-xs text-muted-foreground truncate">{user?.email ?? "—"}</p>
+                <p className="text-sm font-medium text-foreground truncate">
+                  {user?.name ?? "Approver"}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {user?.email ?? "—"}
+                </p>
               </div>
               <Button
                 variant="ghost"

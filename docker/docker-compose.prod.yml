@@ -36,8 +36,8 @@ services:
     volumes:
       - uploads:/app/uploads
     depends_on:
-      db:     { condition: service_healthy }
-      redis:  { condition: service_healthy }
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
     expose:
       - "3000"
     healthcheck:

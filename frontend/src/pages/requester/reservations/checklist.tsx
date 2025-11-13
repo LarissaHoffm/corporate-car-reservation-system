@@ -46,12 +46,18 @@ export default function RequesterReservationChecklist() {
         }
       } catch (e: any) {
         if (mounted) {
-          setErr(e?.response?.data?.message || e?.message || "Unable to load reservation.");
+          setErr(
+            e?.response?.data?.message ||
+              e?.message ||
+              "Unable to load reservation.",
+          );
           setLoading(false);
         }
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [id, getReservation]);
 
   async function finalize() {
@@ -71,7 +77,9 @@ export default function RequesterReservationChecklist() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">Conclude Reservation</h1>
-          <p className="text-sm text-muted-foreground">Step 3 of 3 — Final checklist.</p>
+          <p className="text-sm text-muted-foreground">
+            Step 3 of 3 — Final checklist.
+          </p>
         </div>
         <Link to={`/requester/reservations/upload?id=${id}`}>
           <Button variant="ghost">Back to Upload</Button>
@@ -80,9 +88,15 @@ export default function RequesterReservationChecklist() {
 
       {/* Stepper visual */}
       <div className="grid grid-cols-3 gap-2 text-xs">
-        <div className="rounded-full px-3 py-2 bg-muted/60 text-foreground text-center">1. Details</div>
-        <div className="rounded-full px-3 py-2 bg-muted/60 text-foreground text-center">2. Upload</div>
-        <div className="rounded-full px-3 py-2 bg-[#1558E9] text-white text-center">3. Checklist</div>
+        <div className="rounded-full px-3 py-2 bg-muted/60 text-foreground text-center">
+          1. Details
+        </div>
+        <div className="rounded-full px-3 py-2 bg-muted/60 text-foreground text-center">
+          2. Upload
+        </div>
+        <div className="rounded-full px-3 py-2 bg-[#1558E9] text-white text-center">
+          3. Checklist
+        </div>
       </div>
 
       <Card className="border-border/50 shadow-sm">
@@ -100,10 +114,15 @@ export default function RequesterReservationChecklist() {
             <>
               <div className="grid grid-cols-1 gap-3">
                 {defaultItems.map((i) => (
-                  <label key={i.key} className="flex items-center gap-3 text-sm">
+                  <label
+                    key={i.key}
+                    className="flex items-center gap-3 text-sm"
+                  >
                     <Checkbox
                       checked={!!items[i.key]}
-                      onCheckedChange={(v) => setItems((s) => ({ ...s, [i.key]: !!v }))}
+                      onCheckedChange={(v) =>
+                        setItems((s) => ({ ...s, [i.key]: !!v }))
+                      }
                     />
                     {i.label}
                   </label>

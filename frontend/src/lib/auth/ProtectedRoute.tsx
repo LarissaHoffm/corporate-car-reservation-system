@@ -1,16 +1,37 @@
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/lib/auth/useAuth";
 
-export default function ProtectedRoute({ roles }: { roles?: Array<"ADMIN"|"APPROVER"|"REQUESTER"> }) {
-  const { user, loading, hasRole } = useAuth();
+type Role = "ADMIN" | "APPROVER" | "REQUESTER";
 
-  if (loading) return null; // pode trocar por skeleton/spinner
-  if (!user) return <Navigate to="/login" replace />;
+type Props = {
+  roles?: Role[];
+  allowedRoles?: Role[];
+  requireAuth?: boolean;
+  fallbackPath?: string;
+  forbiddenPath?: string;
+  children?: React.ReactNode;
+};
 
-  if (roles && roles.length > 0 && !hasRole(roles)) {
-    // logged but forbidden
-    return <Navigate to="/forbidden" replace />;
+export default function ProtectedRoute({
+  roles,
+  allowedRoles,
+  requireAuth = true,
+  fallbackPath = "/login",
+  forbiddenPath = "/",
+  children,
+}: Props) {
+  const { user, loading } = useAuth();
+
+  if (loading) return null;
+
+  if (!requireAuth) return <>{children ?? <Outlet />}</>;
+
+  if (!user) return <Navigate to={fallbackPath} replace />;
+
+  const list = roles ?? allowedRoles;
+  if (list && list.length > 0 && !list.includes(user.role as Role)) {
+    return <Navigate to={forbiddenPath} replace />;
   }
 
-  return <Outlet />;
+  return <>{children ?? <Outlet />}</>;
 }

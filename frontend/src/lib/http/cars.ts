@@ -1,6 +1,11 @@
 import { api } from "./api";
 
-export type CarStatus = "AVAILABLE" | "IN_USE" | "MAINTENANCE" | "INACTIVE" | "ACTIVE";
+export type CarStatus =
+  | "AVAILABLE"
+  | "IN_USE"
+  | "MAINTENANCE"
+  | "INACTIVE"
+  | "ACTIVE";
 
 export type Car = {
   id: string;
@@ -18,8 +23,8 @@ export type CreateCarDto = {
   color?: string;
   mileage?: number;
   status?: CarStatus;
-  branchName?: string;  // backend aceita por nome
-  branchId?: string;    // ou por UUID
+  branchName?: string; // backend aceita por nome
+  branchId?: string; // ou por UUID
 };
 
 export type UpdateCarDto = Partial<CreateCarDto>;

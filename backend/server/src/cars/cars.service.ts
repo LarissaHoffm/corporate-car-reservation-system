@@ -9,7 +9,10 @@ import { CreateCarDto } from './dto/create-car.dto';
 import { UpdateCarDto } from './dto/update-car.dto';
 import { Prisma } from '@prisma/client';
 
-type ListFilters = { branchId?: string; status?: Prisma.CarWhereInput['status'] };
+type ListFilters = {
+  branchId?: string;
+  status?: Prisma.CarWhereInput['status'];
+};
 
 @Injectable()
 export class CarsService {
@@ -71,7 +74,7 @@ export class CarsService {
       }
       return b.id;
     }
-    return undefined; 
+    return undefined;
   }
 
   async create(tenantId: string, dto: CreateCarDto) {
@@ -79,7 +82,8 @@ export class CarsService {
       where: { tenantId, plate: dto.plate },
       select: { id: true },
     });
-    if (exists) throw new ConflictException('Plate already registered for this tenant');
+    if (exists)
+      throw new ConflictException('Plate already registered for this tenant');
 
     const resolvedBranchId = await this.resolveBranchId(tenantId, dto);
 
@@ -91,7 +95,7 @@ export class CarsService {
           model: dto.model,
           color: dto.color ?? null,
           mileage: dto.mileage ?? 0,
-          status: dto.status ?? undefined, 
+          status: dto.status ?? undefined,
           branchId: resolvedBranchId ?? null,
         },
         select: {
@@ -105,7 +109,10 @@ export class CarsService {
         },
       });
     } catch (e: unknown) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
         // unique constraint (tenantId, plate)
         throw new ConflictException('Plate already registered for this tenant');
       }
@@ -114,16 +121,19 @@ export class CarsService {
   }
 
   async update(tenantId: string, id: string, dto: UpdateCarDto) {
-    const current = await this.prisma.car.findFirst({ where: { id, tenantId } });
+    const current = await this.prisma.car.findFirst({
+      where: { id, tenantId },
+    });
     if (!current) throw new NotFoundException('Car not found');
 
-    // Pré-checagem 
+    // Pré-checagem
     if (dto.plate && dto.plate !== current.plate) {
       const dup = await this.prisma.car.findFirst({
         where: { tenantId, plate: dto.plate, NOT: { id } },
         select: { id: true },
       });
-      if (dup) throw new ConflictException('Plate already registered for this tenant');
+      if (dup)
+        throw new ConflictException('Plate already registered for this tenant');
     }
 
     const resolvedBranchId =
@@ -140,7 +150,9 @@ export class CarsService {
           ...(dto.color !== undefined ? { color: dto.color } : {}),
           ...(dto.mileage !== undefined ? { mileage: dto.mileage } : {}),
           ...(dto.status !== undefined ? { status: dto.status } : {}),
-          ...(resolvedBranchId !== undefined ? { branchId: resolvedBranchId } : {}),
+          ...(resolvedBranchId !== undefined
+            ? { branchId: resolvedBranchId }
+            : {}),
         },
         select: {
           id: true,
@@ -153,7 +165,10 @@ export class CarsService {
         },
       });
     } catch (e: unknown) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
         throw new ConflictException('Plate already registered for this tenant');
       }
       throw e;
@@ -161,16 +176,24 @@ export class CarsService {
   }
 
   async remove(tenantId: string, id: string) {
-    const ok = await this.prisma.car.findFirst({ where: { id, tenantId }, select: { id: true } });
+    const ok = await this.prisma.car.findFirst({
+      where: { id, tenantId },
+      select: { id: true },
+    });
     if (!ok) throw new NotFoundException('Car not found');
 
     try {
       await this.prisma.car.delete({ where: { id } });
       return { ok: true };
     } catch (e: unknown) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2003') {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2003'
+      ) {
         // foreign key constraint failed
-        throw new ConflictException('Cannot remove: related records exist for this car');
+        throw new ConflictException(
+          'Cannot remove: related records exist for this car',
+        );
       }
       throw e;
     }

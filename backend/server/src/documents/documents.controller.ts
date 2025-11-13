@@ -12,12 +12,7 @@ import {
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiConsumes,
-  ApiTags,
-  ApiBody,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiConsumes, ApiTags, ApiBody } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 
@@ -116,10 +111,7 @@ export class DocumentsController {
       id,
     );
     res.setHeader('Content-Type', got.mimetype);
-    res.setHeader(
-      'Content-Disposition',
-      `inline; filename="${got.filename}"`,
-    );
+    res.setHeader('Content-Disposition', `inline; filename="${got.filename}"`);
     return res.send(got.bin);
   }
 

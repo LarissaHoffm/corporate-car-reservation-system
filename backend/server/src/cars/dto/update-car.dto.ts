@@ -1,16 +1,31 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, Matches, Min, MinLength } from 'class-validator';
+import {
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  Matches,
+  Min,
+  MinLength,
+} from 'class-validator';
 import { CarStatus } from '@prisma/client';
 import { BR_PLATE_REGEX, BRANCH_ID_REGEX } from './create-car.dto';
 
 export class UpdateCarDto {
-  @ApiPropertyOptional({ example: 'ABC1D23', description: 'Aceita ABC-1234 ou ABC1D23' })
+  @ApiPropertyOptional({
+    example: 'ABC1D23',
+    description: 'Aceita ABC-1234 ou ABC1D23',
+  })
   @IsOptional()
   @IsString()
-  @Matches(BR_PLATE_REGEX, { message: 'plate inválida. Use ABC-1234 ou ABC1D23' })
+  @Matches(BR_PLATE_REGEX, {
+    message: 'plate inválida. Use ABC-1234 ou ABC1D23',
+  })
   @Transform(({ value }) =>
-    typeof value === 'string' ? value.replace(/[\s-]+/g, '').toUpperCase() : value,
+    typeof value === 'string'
+      ? value.replace(/[\s-]+/g, '').toUpperCase()
+      : value,
   )
   plate?: string;
 
@@ -31,18 +46,22 @@ export class UpdateCarDto {
   @Min(0, { message: 'mileage não pode ser negativo' })
   mileage?: number;
 
-  @ApiPropertyOptional({ enum: ['AVAILABLE', 'IN_USE', 'MAINTENANCE', 'INACTIVE', 'ACTIVE'] })
+  @ApiPropertyOptional({
+    enum: ['AVAILABLE', 'IN_USE', 'MAINTENANCE', 'INACTIVE', 'ACTIVE'],
+  })
   @IsOptional()
   @IsEnum(CarStatus, { message: 'status inválido' })
   status?: CarStatus;
 
   @ApiPropertyOptional({
     example: 'FOR ou 3fa85f64-5717-4562-b3fc-2c963f66afa6',
-    description: 'branchId como código (3 letras) OU UUID v4. Envie null para limpar.',
+    description:
+      'branchId como código (3 letras) OU UUID v4. Envie null para limpar.',
   })
   @IsOptional()
   @Matches(BRANCH_ID_REGEX, {
-    message: 'branchId deve ser código de 3 letras (ex.: FOR) ou UUID v4 válido',
+    message:
+      'branchId deve ser código de 3 letras (ex.: FOR) ou UUID v4 válido',
   })
   @Transform(({ value }) => {
     if (typeof value !== 'string') return value;
@@ -52,7 +71,8 @@ export class UpdateCarDto {
 
   @ApiPropertyOptional({
     example: 'Fortaleza',
-    description: 'Nome da filial (alternativo ao branchId); resolução será feita no service.',
+    description:
+      'Nome da filial (alternativo ao branchId); resolução será feita no service.',
   })
   @IsOptional()
   @IsString()

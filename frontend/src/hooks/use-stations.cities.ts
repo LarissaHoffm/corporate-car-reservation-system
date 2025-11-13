@@ -1,6 +1,9 @@
 // frontend/src/hooks/use-station-cities.ts
 import { useEffect, useMemo, useRef, useState } from "react";
-import StationsAPI, { StationListResponse, StationListParams } from "@/lib/http/stations";
+import StationsAPI, {
+  StationListResponse,
+  StationListParams,
+} from "@/lib/http/stations";
 
 /**
  * Busca e deduplica TODAS as cidades existentes na base de postos do tenant atual,
@@ -8,7 +11,10 @@ import StationsAPI, { StationListResponse, StationListParams } from "@/lib/http/
  *
  * Obs.: depois podemos trocar por um endpoint otimizado (/stations/cities).
  */
-export function useStationCities(opts?: { branchId?: string; isActive?: boolean }) {
+export function useStationCities(opts?: {
+  branchId?: string;
+  isActive?: boolean;
+}) {
   const [cities, setCities] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +31,8 @@ export function useStationCities(opts?: { branchId?: string; isActive?: boolean 
           page: 1,
           pageSize: 50, // pagina moderada
           branchId: opts?.branchId || undefined,
-          isActive: typeof opts?.isActive === "boolean" ? opts?.isActive : undefined,
+          isActive:
+            typeof opts?.isActive === "boolean" ? opts?.isActive : undefined,
           orderBy: "city",
           order: "asc",
         };
@@ -36,7 +43,10 @@ export function useStationCities(opts?: { branchId?: string; isActive?: boolean 
         let total = Infinity;
 
         while (fetched < total) {
-          const res: StationListResponse = await StationsAPI.list({ ...paramsBase, page });
+          const res: StationListResponse = await StationsAPI.list({
+            ...paramsBase,
+            page,
+          });
           // protege contra respostas inesperadas
           const list = Array.isArray(res?.data) ? res.data : [];
           list.forEach((st: any) => {
@@ -59,13 +69,17 @@ export function useStationCities(opts?: { branchId?: string; isActive?: boolean 
 
         // ordena case-insensitive
         const sorted = Array.from(acc).sort((a, b) =>
-          a.localeCompare(b, undefined, { sensitivity: "accent" })
+          a.localeCompare(b, undefined, { sensitivity: "accent" }),
         );
 
         if (mounted.current) setCities(sorted);
       } catch (e: any) {
-        const msg = e?.response?.data?.message ?? e?.message ?? "Falha ao carregar cidades.";
-        if (mounted.current) setError(Array.isArray(msg) ? msg[0] : String(msg));
+        const msg =
+          e?.response?.data?.message ??
+          e?.message ??
+          "Falha ao carregar cidades.";
+        if (mounted.current)
+          setError(Array.isArray(msg) ? msg[0] : String(msg));
       } finally {
         if (mounted.current) setLoading(false);
       }

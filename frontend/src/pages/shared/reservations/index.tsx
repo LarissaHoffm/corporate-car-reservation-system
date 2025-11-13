@@ -35,7 +35,6 @@ import {
 import useReservations from "@/hooks/use-reservations";
 import type { Reservation } from "@/lib/http/reservations";
 
-// ---- helpers
 function fmt(dt?: string) {
   if (!dt) return "-";
   try {
@@ -48,30 +47,28 @@ function period(a?: string, b?: string) {
   return `${fmt(a)} → ${fmt(b)}`;
 }
 function chip(status: Reservation["status"]) {
-  // mapeia para o mesmo esquema visual usado no restante do app
   return statusChipClasses(
     status === "PENDING"
       ? "Warning"
       : status === "APPROVED"
-      ? "Active"
-      : status === "COMPLETED"
-      ? "Success"
-      : "Inactive"
+        ? "Active"
+        : status === "COMPLETED"
+          ? "Success"
+          : "Inactive",
   );
 }
 
-// ---- componente
 export default function AdminApproverReservationsPage() {
   const {
     items,
     loading,
     errors,
-    refresh,            // lista geral (todas)
-    refreshPending,     // se quiser atualizar só pendentes em algum momento
-    listAvailableCars,  // carros disponíveis (pode usar branchId)
-    approveReservation, // aprova com { carId }
-    cancelReservation,  // cancela
-    getReservation,     // detalhe (para o modal)
+    refresh,
+    refreshPending,
+    listAvailableCars,
+    approveReservation,
+    cancelReservation,
+    getReservation,
   } = useReservations();
 
   // carregamento inicial
@@ -79,13 +76,15 @@ export default function AdminApproverReservationsPage() {
     refresh();
   }, [refresh]);
 
-  // ---------- filtros (client-side) ----------
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<"ALL" | Reservation["status"]>("ALL");
+  const onChangeStatus = (v: string) =>
+    setStatus(v as "ALL" | Reservation["status"]);
 
   const filtered = useMemo(() => {
+    const list = items ?? [];
     const term = q.trim().toLowerCase();
-    return (items ?? [])
+    return list
       .filter((r) => {
         if (status !== "ALL" && r.status !== status) return false;
         if (!term) return true;
@@ -93,16 +92,17 @@ export default function AdminApproverReservationsPage() {
           `${r.id} ${r.origin ?? ""} ${r.destination ?? ""} ${r.user?.name ?? ""} ${r.user?.email ?? ""}`.toLowerCase();
         return hay.includes(term);
       })
-      .sort((a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime());
+      .sort(
+        (a, b) => new Date(b.startAt).getTime() - new Date(a.startAt).getTime(),
+      );
   }, [items, q, status]);
 
-  // ---------- métricas ----------
-  const total = items.length;
-  const pendingCount = items.filter((r) => r.status === "PENDING").length;
-  const approvedCount = items.filter((r) => r.status === "APPROVED").length;
-  const canceledCount = items.filter((r) => r.status === "CANCELED").length;
+  const list = items ?? [];
+  const total = list.length;
+  const pendingCount = list.filter((r) => r.status === "PENDING").length;
+  const approvedCount = list.filter((r) => r.status === "APPROVED").length;
+  const canceledCount = list.filter((r) => r.status === "CANCELED").length;
 
-  // ---------- state modais ----------
   const [viewing, setViewing] = useState<Reservation | null>(null);
 
   type ModalApproveState = {
@@ -120,7 +120,6 @@ export default function AdminApproverReservationsPage() {
   >([]);
   const [selectedCar, setSelectedCar] = useState<string>("");
 
-  // ---------- ações ----------
   async function onOpenDetails(id: string) {
     try {
       const data = await getReservation(id);
@@ -134,7 +133,9 @@ export default function AdminApproverReservationsPage() {
     setSelectedCar("");
     setApproveModal({ open: true, id: r.id, branchId: r.branch?.id });
     try {
-      const list = await listAvailableCars(r.branch?.id ? { branchId: r.branch.id } : undefined);
+      const list = await listAvailableCars(
+        r.branch?.id ? { branchId: r.branch.id } : undefined,
+      );
       setAvailableCars(list);
     } catch {
       setAvailableCars([]);
@@ -143,7 +144,9 @@ export default function AdminApproverReservationsPage() {
 
   async function onConfirmApprove() {
     if (!approveModal.id || !selectedCar) return;
-    const ok = await approveReservation(approveModal.id, { carId: selectedCar });
+    const ok = await approveReservation(approveModal.id, {
+      carId: selectedCar,
+    });
     if (ok.ok) {
       setApproveModal({ open: false, id: null, branchId: undefined });
       setSelectedCar("");
@@ -159,16 +162,21 @@ export default function AdminApproverReservationsPage() {
     }
   }
 
-  // ---------- UI ----------
   return (
     <div className="mx-auto p-6 max-w-[1400px] space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">Reservations</h1>
-          <p className="text-sm text-muted-foreground">Search and manage all reservations.</p>
+          <p className="text-sm text-muted-foreground">
+            Search and manage all reservations.
+          </p>
         </div>
-        <Button variant="outline" onClick={() => refresh()} disabled={loading.list}>
+        <Button
+          variant="outline"
+          onClick={() => refresh()}
+          disabled={loading.list}
+        >
           <RefreshCcw className="h-4 w-4 mr-2" />
           Refresh
         </Button>
@@ -179,7 +187,9 @@ export default function AdminApproverReservationsPage() {
         <Card className="border-border/50 shadow-sm">
           <CardContent className="p-5 flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Total Reservations</p>
+              <p className="text-sm text-muted-foreground">
+                Total Reservations
+              </p>
               <p className="text-2xl font-bold">{total}</p>
             </div>
             <CalendarCheck className="h-8 w-8 text-[#1558E9]" />
@@ -232,8 +242,10 @@ export default function AdminApproverReservationsPage() {
           </div>
           <div className="space-y-2">
             <Label>Status</Label>
-            <Select value={status} onValueChange={(v: any) => setStatus(v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
+            <Select value={status} onValueChange={onChangeStatus}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">All</SelectItem>
                 <SelectItem value="PENDING">Pending</SelectItem>
@@ -249,13 +261,17 @@ export default function AdminApproverReservationsPage() {
       {/* Tabela */}
       <Card className="border-border/50 shadow-sm">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Results ({filtered.length})</CardTitle>
+          <CardTitle className="text-base">
+            Results ({filtered.length})
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {loading.list ? (
             <div className="py-10 text-sm text-muted-foreground">Loading…</div>
           ) : filtered.length === 0 ? (
-            <div className="py-10 text-sm text-muted-foreground">No reservations found.</div>
+            <div className="py-10 text-sm text-muted-foreground">
+              No reservations found.
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -271,20 +287,31 @@ export default function AdminApproverReservationsPage() {
                 </thead>
                 <tbody>
                   {filtered.map((r) => (
-                    <tr key={r.id} className="border-b border-border/50 hover:bg-background">
+                    <tr
+                      key={r.id}
+                      className="border-b border-border/50 hover:bg-background"
+                    >
                       <td className="py-3 px-4">
-                        <div className="font-medium">{r.user?.name ?? r.userId}</div>
-                        <div className="text-xs text-muted-foreground">{r.user?.email}</div>
+                        <div className="font-medium">{r.user?.name ?? "—"}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {r.user?.email}
+                        </div>
                       </td>
                       <td className="py-3 px-4">{r.origin}</td>
                       <td className="py-3 px-4">{r.destination}</td>
-                      <td className="py-3 px-4">{period(r.startAt, r.endAt)}</td>
+                      <td className="py-3 px-4">
+                        {period(r.startAt, r.endAt)}
+                      </td>
                       <td className="py-3 px-4">
                         <Badge className={chip(r.status)}>{r.status}</Badge>
                       </td>
                       <td className="py-3 px-4">
                         <div className="flex items-center justify-end gap-2">
-                          <Button size="sm" variant="outline" onClick={() => onOpenDetails(r.id)}>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => onOpenDetails(r.id)}
+                          >
                             <Eye className="h-4 w-4 mr-2" />
                             Details
                           </Button>
@@ -302,7 +329,8 @@ export default function AdminApproverReservationsPage() {
                           )}
 
                           {/* Cancelar quando PENDING ou APPROVED */}
-                          {(r.status === "PENDING" || r.status === "APPROVED") && (
+                          {(r.status === "PENDING" ||
+                            r.status === "APPROVED") && (
                             <Button
                               size="sm"
                               variant="destructive"
@@ -318,14 +346,19 @@ export default function AdminApproverReservationsPage() {
                   ))}
                 </tbody>
               </table>
-              {errors.list && <p className="text-xs text-red-600 mt-3">{errors.list}</p>}
+              {errors.list && (
+                <p className="text-xs text-red-600 mt-3">{errors.list}</p>
+              )}
             </div>
           )}
         </CardContent>
       </Card>
 
       {/* Modal Detalhes */}
-      <Dialog open={!!viewing} onOpenChange={(open) => !open && setViewing(null)}>
+      <Dialog
+        open={!!viewing}
+        onOpenChange={(open) => !open && setViewing(null)}
+      >
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold">
@@ -338,50 +371,73 @@ export default function AdminApproverReservationsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-sm text-muted-foreground">User</Label>
-                  <div className="mt-1 font-medium">{viewing.user?.name ?? viewing.userId}</div>
-                  <div className="text-sm text-muted-foreground">{viewing.user?.email}</div>
+                  <div className="mt-1 font-medium">
+                    {viewing.user?.name ?? "—"}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {viewing.user?.email}
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <Label className="text-sm text-muted-foreground">Status</Label>
-                  <Badge className={chip(viewing.status)}>{viewing.status}</Badge>
+                  <Label className="text-sm text-muted-foreground">
+                    Status
+                  </Label>
+                  <Badge className={chip(viewing.status)}>
+                    {viewing.status}
+                  </Badge>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-sm text-muted-foreground">Branch</Label>
+                  <Label className="text-sm text-muted-foreground">
+                    Branch
+                  </Label>
                   <div className="mt-1">{viewing.branch?.name ?? "—"}</div>
                 </div>
                 <div>
-                  <Label className="text-sm text-muted-foreground">Vehicle</Label>
+                  <Label className="text-sm text-muted-foreground">
+                    Vehicle
+                  </Label>
                   <div className="mt-1">
-                    {viewing.car ? `${viewing.car.plate} — ${viewing.car.model}` : "—"}
+                    {viewing.car
+                      ? `${viewing.car.plate} — ${viewing.car.model}`
+                      : "—"}
                   </div>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-sm text-muted-foreground">Origin</Label>
+                  <Label className="text-sm text-muted-foreground">
+                    Origin
+                  </Label>
                   <div className="mt-1">{viewing.origin}</div>
                 </div>
                 <div>
-                  <Label className="text-sm text-muted-foreground">Destination</Label>
+                  <Label className="text-sm text-muted-foreground">
+                    Destination
+                  </Label>
                   <div className="mt-1">{viewing.destination}</div>
                 </div>
               </div>
 
               <div>
                 <Label className="text-sm text-muted-foreground">Period</Label>
-                <div className="mt-1">{period(viewing.startAt, viewing.endAt)}</div>
+                <div className="mt-1">
+                  {period(viewing.startAt, viewing.endAt)}
+                </div>
               </div>
 
               <div className="flex justify-end gap-3 pt-2">
                 <Button variant="outline" onClick={() => setViewing(null)}>
                   Close
                 </Button>
-                <Button onClick={() => window.print()} className="bg-[#1558E9] hover:bg-[#1558E9]/90">
+                <Button
+                  onClick={() => window.print()}
+                  className="bg-[#1558E9] hover:bg-[#1558E9]/90"
+                >
                   <Printer className="h-4 w-4 mr-2" />
                   Print
                 </Button>
@@ -405,7 +461,9 @@ export default function AdminApproverReservationsPage() {
             <div className="space-y-1">
               <Label>Available car</Label>
               <Select value={selectedCar} onValueChange={setSelectedCar}>
-                <SelectTrigger><SelectValue placeholder="Select a car" /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a car" />
+                </SelectTrigger>
                 <SelectContent>
                   {availableCars.length === 0 ? (
                     <div className="px-3 py-2 text-sm text-muted-foreground">
@@ -422,13 +480,19 @@ export default function AdminApproverReservationsPage() {
               </Select>
             </div>
 
-            {errors.approve && <p className="text-sm text-red-600">{errors.approve}</p>}
+            {errors.approve && (
+              <p className="text-sm text-red-600">{errors.approve}</p>
+            )}
 
             <div className="flex justify-end gap-2 pt-2">
               <Button
                 variant="outline"
                 onClick={() =>
-                  setApproveModal({ open: false, id: null, branchId: undefined })
+                  setApproveModal({
+                    open: false,
+                    id: null,
+                    branchId: undefined,
+                  })
                 }
               >
                 Cancel

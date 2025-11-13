@@ -4,7 +4,13 @@ import { Download, Eye, Check, X, Search } from "lucide-react";
 
 import { RoleGuard } from "@/components/role-guard";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,9 +28,30 @@ type Doc = {
 };
 
 const SEED: Doc[] = [
-  { id: "1", user: "John Perry",  documentType: "Driver License", uploadDate: "09/08/2025 14:20", status: "Pending",   pages: 2 },
-  { id: "2", user: "Alex Chen",   documentType: "Insurance",      uploadDate: "12/09/2025 10:15", status: "Validated", pages: 1 },
-  { id: "3", user: "Priya Singh", documentType: "Registration",   uploadDate: "11/09/2025 16:30", status: "Pending",   pages: 3 },
+  {
+    id: "1",
+    user: "John Perry",
+    documentType: "Driver License",
+    uploadDate: "09/08/2025 14:20",
+    status: "Pending",
+    pages: 2,
+  },
+  {
+    id: "2",
+    user: "Alex Chen",
+    documentType: "Insurance",
+    uploadDate: "12/09/2025 10:15",
+    status: "Validated",
+    pages: 1,
+  },
+  {
+    id: "3",
+    user: "Priya Singh",
+    documentType: "Registration",
+    uploadDate: "11/09/2025 16:30",
+    status: "Pending",
+    pages: 3,
+  },
 ];
 
 function docStatusChip(s: DocStatus) {
@@ -40,8 +67,12 @@ export default function SharedDocumentsPage() {
 
   // filtros
   const [search, setSearch] = useState(""); // <— barra de pesquisa
-  const [selectedDocType, setSelectedDocType] = useState<"all" | Doc["documentType"]>("all");
-  const [selectedStatus, setSelectedStatus]   = useState<"all" | DocStatus>("all");
+  const [selectedDocType, setSelectedDocType] = useState<
+    "all" | Doc["documentType"]
+  >("all");
+  const [selectedStatus, setSelectedStatus] = useState<"all" | DocStatus>(
+    "all",
+  );
 
   // seleção + rejeição
   const [selectedDocument, setSelectedDocument] = useState<Doc | null>(null);
@@ -51,7 +82,7 @@ export default function SharedDocumentsPage() {
   const listRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
 
-  // filtra em memória 
+  // filtra em memória
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return docs.filter((d) => {
@@ -59,8 +90,10 @@ export default function SharedDocumentsPage() {
         !q ||
         d.user.toLowerCase().includes(q) ||
         d.documentType.toLowerCase().includes(q);
-      const byType = selectedDocType === "all" ? true : d.documentType === selectedDocType;
-      const byStatus = selectedStatus === "all" ? true : d.status === selectedStatus;
+      const byType =
+        selectedDocType === "all" ? true : d.documentType === selectedDocType;
+      const byStatus =
+        selectedStatus === "all" ? true : d.status === selectedStatus;
       return byQuery && byType && byStatus;
     });
   }, [docs, search, selectedDocType, selectedStatus]);
@@ -73,7 +106,8 @@ export default function SharedDocumentsPage() {
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       const t = e.target as Node;
-      if (listRef.current?.contains(t) || previewRef.current?.contains(t)) return;
+      if (listRef.current?.contains(t) || previewRef.current?.contains(t))
+        return;
       setSelectedDocument(null);
       setRejectionComment("");
     };
@@ -82,14 +116,18 @@ export default function SharedDocumentsPage() {
   }, []);
 
   const applyStatus = (id: string, newStatus: DocStatus) => {
-    setDocs((prev) => prev.map((d) => (d.id === id ? { ...d, status: newStatus } : d)));
-    setSelectedDocument((prev) => (prev && prev.id === id ? { ...prev, status: newStatus } : prev));
+    setDocs((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, status: newStatus } : d)),
+    );
+    setSelectedDocument((prev) =>
+      prev && prev.id === id ? { ...prev, status: newStatus } : prev,
+    );
   };
 
   const handleValidate = () => {
     if (!selectedDocument) return;
     applyStatus(selectedDocument.id, "Validated");
-    setSelectedDocument(null); 
+    setSelectedDocument(null);
   };
 
   const handleReject = () => {
@@ -103,7 +141,9 @@ export default function SharedDocumentsPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Documents</h1>
-          <p className="text-muted-foreground">Validate or reject uploaded documents.</p>
+          <p className="text-muted-foreground">
+            Validate or reject uploaded documents.
+          </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -123,7 +163,10 @@ export default function SharedDocumentsPage() {
                 />
               </div>
 
-              <Select value={selectedDocType} onValueChange={(v: any) => setSelectedDocType(v)}>
+              <Select
+                value={selectedDocType}
+                onValueChange={(v: any) => setSelectedDocType(v)}
+              >
                 <SelectTrigger className="w-full sm:w-[200px] border-border/50 focus:border-[#1558E9] shadow-sm">
                   <SelectValue placeholder="Document Type" />
                 </SelectTrigger>
@@ -135,7 +178,10 @@ export default function SharedDocumentsPage() {
                 </SelectContent>
               </Select>
 
-              <Select value={selectedStatus} onValueChange={(v: any) => setSelectedStatus(v)}>
+              <Select
+                value={selectedStatus}
+                onValueChange={(v: any) => setSelectedStatus(v)}
+              >
                 <SelectTrigger className="w-full sm:w-[160px] border-border/50 focus:border-[#1558E9] shadow-sm">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
@@ -155,18 +201,28 @@ export default function SharedDocumentsPage() {
                   onClick={() => handleSelect(doc)}
                   aria-selected={selectedDocument?.id === doc.id}
                   className={`cursor-pointer transition-all border-border/50 shadow-sm hover:shadow-md ${
-                    selectedDocument?.id === doc.id ? "ring-2 ring-[#1558E9] border-[#1558E9]/20" : ""
+                    selectedDocument?.id === doc.id
+                      ? "ring-2 ring-[#1558E9] border-[#1558E9]/20"
+                      : ""
                   }`}
                 >
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className="font-medium text-foreground">{doc.user}</span>
-                          <Badge className={docStatusChip(doc.status)}>{doc.status}</Badge>
+                          <span className="font-medium text-foreground">
+                            {doc.user}
+                          </span>
+                          <Badge className={docStatusChip(doc.status)}>
+                            {doc.status}
+                          </Badge>
                         </div>
-                        <p className="text-sm text-muted-foreground">{doc.documentType}</p>
-                        <p className="text-xs text-muted-foreground">{doc.uploadDate}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {doc.documentType}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {doc.uploadDate}
+                        </p>
                       </div>
 
                       {doc.status === "Pending" && (
@@ -203,14 +259,18 @@ export default function SharedDocumentsPage() {
               ))}
 
               {filtered.length === 0 && (
-                <p className="text-sm text-muted-foreground px-1">No documents found for the selected filters.</p>
+                <p className="text-sm text-muted-foreground px-1">
+                  No documents found for the selected filters.
+                </p>
               )}
             </div>
           </div>
 
           {/* Preview / ações */}
           <div className="space-y-4" ref={previewRef}>
-            <h2 className="text-lg font-semibold text-foreground">Document Preview</h2>
+            <h2 className="text-lg font-semibold text-foreground">
+              Document Preview
+            </h2>
 
             <Card className="border-border/50 shadow-sm">
               <CardHeader>
@@ -226,10 +286,13 @@ export default function SharedDocumentsPage() {
                     <h3 className="font-medium text-foreground">
                       {selectedDocument.user} — {selectedDocument.documentType}
                     </h3>
-                    <Badge className={docStatusChip(selectedDocument.status)}>{selectedDocument.status}</Badge>
+                    <Badge className={docStatusChip(selectedDocument.status)}>
+                      {selectedDocument.status}
+                    </Badge>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Uploaded on {selectedDocument.uploadDate}. {selectedDocument.pages} pages
+                    Uploaded on {selectedDocument.uploadDate}.{" "}
+                    {selectedDocument.pages} pages
                   </p>
 
                   <div className="h-48 bg-card/50 border border-border/50 rounded-lg flex items-center justify-center">
@@ -239,7 +302,10 @@ export default function SharedDocumentsPage() {
                     </div>
                   </div>
 
-                  <Button variant="outline" className="w-full bg-transparent border-border/50 shadow-sm hover:bg-card/50">
+                  <Button
+                    variant="outline"
+                    className="w-full bg-transparent border-border/50 shadow-sm hover:bg-card/50"
+                  >
                     <Download className="h-4 w-4 mr-2" />
                     Download Document
                   </Button>
@@ -247,14 +313,18 @@ export default function SharedDocumentsPage() {
                   {selectedDocument.status === "Pending" && (
                     <>
                       <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground">Comment (required when rejecting)</label>
+                        <label className="text-sm font-medium text-foreground">
+                          Comment (required when rejecting)
+                        </label>
                         <Textarea
                           placeholder="Explain the reason for rejection..."
                           value={rejectionComment}
                           onChange={(e) => setRejectionComment(e.target.value)}
                           className="min-h-[80px] border-border/50 focus:border-[#1558E9] shadow-sm"
                         />
-                        <p className="text-xs text-muted-foreground">Provide a comment when clicking Reject.</p>
+                        <p className="text-xs text-muted-foreground">
+                          Provide a comment when clicking Reject.
+                        </p>
                       </div>
 
                       <div className="flex gap-2">
@@ -282,8 +352,12 @@ export default function SharedDocumentsPage() {
                   <div className="h-48 bg-card/50 border border-dashed border-border/50 rounded-lg flex items-center justify-center">
                     <div className="text-center text-muted-foreground">
                       <Eye className="h-8 w-8 mx-auto mb-2" />
-                      <p className="font-medium">Select a document to preview</p>
-                      <p className="text-xs">Click an item on the left to validate or reject.</p>
+                      <p className="font-medium">
+                        Select a document to preview
+                      </p>
+                      <p className="text-xs">
+                        Click an item on the left to validate or reject.
+                      </p>
                     </div>
                   </div>
                 </CardContent>
