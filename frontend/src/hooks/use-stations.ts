@@ -45,7 +45,10 @@ export interface UseStationsReturn {
 
   // crud
   createStation: (payload: StationInput) => Promise<Station | null>;
-  updateStation: (id: StationId, payload: StationInput) => Promise<Station | null>;
+  updateStation: (
+    id: StationId,
+    payload: StationInput,
+  ) => Promise<Station | null>;
   removeStation: (id: StationId) => Promise<boolean>;
 
   // misc
@@ -53,7 +56,10 @@ export interface UseStationsReturn {
 }
 
 export function useStations(initial?: Partial<QueryState>): UseStationsReturn {
-  const [query, setQueryState] = useState<QueryState>({ ...defaultQuery, ...(initial ?? {}) });
+  const [query, setQueryState] = useState<QueryState>({
+    ...defaultQuery,
+    ...(initial ?? {}),
+  });
   const [items, setItems] = useState<Station[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -71,7 +77,7 @@ export function useStations(initial?: Partial<QueryState>): UseStationsReturn {
       branchId: query.branchId || undefined,
       isActive: query.isActive,
     }),
-    [query, debouncedQ]
+    [query, debouncedQ],
   );
 
   const fetchList = useCallback(async (params: StationListParams) => {
@@ -84,7 +90,8 @@ export function useStations(initial?: Partial<QueryState>): UseStationsReturn {
       setTotal(res.total);
     } catch (e: any) {
       if (!mounted.current) return;
-      const message = e?.response?.data?.message ?? e?.message ?? "Erro ao carregar postos.";
+      const message =
+        e?.response?.data?.message ?? e?.message ?? "Erro ao carregar postos.";
       setError(Array.isArray(message) ? message[0] : String(message));
     } finally {
       if (mounted.current) setLoading(false);
@@ -118,9 +125,11 @@ export function useStations(initial?: Partial<QueryState>): UseStationsReturn {
   };
 
   const setPage = (p: number) => setQuery({ page: Math.max(1, p) });
-  const setPageSize = (s: number) => setQuery({ pageSize: Math.max(1, s), page: 1 });
+  const setPageSize = (s: number) =>
+    setQuery({ pageSize: Math.max(1, s), page: 1 });
   const onSearch = (text: string) => setQuery({ q: text });
-  const onSort = (orderBy: StationOrderBy, order: OrderDirection) => setQuery({ orderBy, order });
+  const onSort = (orderBy: StationOrderBy, order: OrderDirection) =>
+    setQuery({ orderBy, order });
 
   const refresh = () => fetchList(effectiveParams);
 
@@ -133,7 +142,8 @@ export function useStations(initial?: Partial<QueryState>): UseStationsReturn {
       await fetchList({ ...effectiveParams, page: 1 });
       return created;
     } catch (e: any) {
-      const message = e?.response?.data?.message ?? e?.message ?? "Falha ao criar posto.";
+      const message =
+        e?.response?.data?.message ?? e?.message ?? "Falha ao criar posto.";
       setError(Array.isArray(message) ? message[0] : String(message));
       return null;
     } finally {
@@ -148,7 +158,8 @@ export function useStations(initial?: Partial<QueryState>): UseStationsReturn {
       await fetchList(effectiveParams);
       return updated;
     } catch (e: any) {
-      const message = e?.response?.data?.message ?? e?.message ?? "Falha ao atualizar posto.";
+      const message =
+        e?.response?.data?.message ?? e?.message ?? "Falha ao atualizar posto.";
       setError(Array.isArray(message) ? message[0] : String(message));
       return null;
     } finally {
@@ -168,7 +179,8 @@ export function useStations(initial?: Partial<QueryState>): UseStationsReturn {
       await fetchList({ ...effectiveParams, page: nextPage });
       return true;
     } catch (e: any) {
-      const message = e?.response?.data?.message ?? e?.message ?? "Falha ao remover posto.";
+      const message =
+        e?.response?.data?.message ?? e?.message ?? "Falha ao remover posto.";
       setError(Array.isArray(message) ? message[0] : String(message));
       return false;
     } finally {

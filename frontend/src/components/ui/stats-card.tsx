@@ -27,7 +27,11 @@ function StatsCard({
             <p className="text-sm font-medium text-muted-foreground">{title}</p>
             <div className="flex items-center gap-2">
               <p className="text-2xl font-bold text-foreground">{value}</p>
-              {change && <span className="text-sm font-medium text-green-600">{change}</span>}
+              {change && (
+                <span className="text-sm font-medium text-green-600">
+                  {change}
+                </span>
+              )}
             </div>
           </div>
           <Icon className={`h-8 w-8 ${color}`} />
@@ -38,4 +42,4 @@ function StatsCard({
 }
 
 export default StatsCard;
-export { StatsCard }; 
+export { StatsCard };

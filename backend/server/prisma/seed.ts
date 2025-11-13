@@ -1,5 +1,11 @@
 // backend/server/prisma/seed.ts
-import { PrismaClient, Role, CarStatus, ChecklistItemType, UserStatus } from '@prisma/client';
+import {
+  PrismaClient,
+  Role,
+  CarStatus,
+  ChecklistItemType,
+  UserStatus,
+} from '@prisma/client';
 import * as argon2 from 'argon2';
 
 const prisma = new PrismaClient();
@@ -33,9 +39,22 @@ async function seedCars() {
     return;
   }
 
-  const MODELS = ['Onix', 'HB20', 'Argo', 'Gol', 'Cronos', 'Corolla', 'City', 'Kwid'];
+  const MODELS = [
+    'Onix',
+    'HB20',
+    'Argo',
+    'Gol',
+    'Cronos',
+    'Corolla',
+    'City',
+    'Kwid',
+  ];
   const COLORS = ['Prata', 'Branco', 'Preto', 'Cinza', 'Vermelho', 'Azul'];
-  const STATUSES: CarStatus[] = [CarStatus.AVAILABLE, CarStatus.IN_USE, CarStatus.MAINTENANCE];
+  const STATUSES: CarStatus[] = [
+    CarStatus.AVAILABLE,
+    CarStatus.IN_USE,
+    CarStatus.MAINTENANCE,
+  ];
 
   // Garante ao menos 2 carros por branch
   for (const br of branches) {
@@ -213,10 +232,30 @@ async function main() {
       name: 'Retorno Padrão',
       items: {
         create: [
-          { label: 'Nível de combustível (%)', type: ChecklistItemType.NUMBER, required: true, order: 1 },
-          { label: 'Quilometragem (km)', type: ChecklistItemType.NUMBER, required: true, order: 2 },
-          { label: 'Há avarias aparentes?', type: ChecklistItemType.BOOLEAN, required: true, order: 3 },
-          { label: 'Observações', type: ChecklistItemType.TEXT, required: false, order: 4 },
+          {
+            label: 'Nível de combustível (%)',
+            type: ChecklistItemType.NUMBER,
+            required: true,
+            order: 1,
+          },
+          {
+            label: 'Quilometragem (km)',
+            type: ChecklistItemType.NUMBER,
+            required: true,
+            order: 2,
+          },
+          {
+            label: 'Há avarias aparentes?',
+            type: ChecklistItemType.BOOLEAN,
+            required: true,
+            order: 3,
+          },
+          {
+            label: 'Observações',
+            type: ChecklistItemType.TEXT,
+            required: false,
+            order: 4,
+          },
         ],
       },
     },

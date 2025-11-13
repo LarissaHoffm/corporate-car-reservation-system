@@ -7,7 +7,9 @@ export function useIsMobile(breakpoint: number = MOBILE_BREAKPOINT) {
     typeof window !== "undefined" &&
     window.matchMedia?.(`(max-width: ${breakpoint - 1}px)`).matches;
 
-  const [isMobile, setIsMobile] = React.useState<boolean>(() => Boolean(getMatches()));
+  const [isMobile, setIsMobile] = React.useState<boolean>(() =>
+    Boolean(getMatches()),
+  );
 
   React.useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;

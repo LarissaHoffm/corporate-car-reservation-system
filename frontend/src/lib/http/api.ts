@@ -1,47 +1,71 @@
-import axios, { AxiosError, InternalAxiosRequestConfig } from "axios";
-import { getAccessToken, setAccessToken, clearAccessToken } from "@/lib/auth/token";
+import axios, {
+  AxiosError,
+  AxiosHeaders,
+  InternalAxiosRequestConfig,
+} from "axios";
+import {
+  getAccessToken,
+  setAccessToken,
+  clearAccessToken,
+} from "@/lib/auth/token";
 
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || "/api",
+  baseURL: (import.meta as any)?.env?.VITE_API_BASE_URL ?? "/api",
   withCredentials: true,
   headers: { "Content-Type": "application/json" },
 });
 export default api;
 
+function isAxiosHeaders(h: unknown): h is AxiosHeaders {
+  return !!h && typeof (h as any).set === "function";
+}
+
+function setHeader(
+  config: InternalAxiosRequestConfig,
+  key: string,
+  value: string,
+) {
+  if (isAxiosHeaders(config.headers)) {
+    (config.headers as AxiosHeaders).set(key, value);
+  } else {
+    const headers = (config.headers ?? {}) as Record<string, string>;
+    headers[key] = value;
+    config.headers = headers as any;
+  }
+}
+
+// cookies/CSRF
 function getCookie(name: string): string | null {
   const m = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
   return m ? decodeURIComponent(m[1]) : null;
 }
-
 function getCsrfCookie(): string | null {
   return getCookie("rcsrftoken") || getCookie("csrftoken");
 }
-
-// Garante que exista um cookie de CSRF antes de refresh/logout 
 async function ensureCsrf() {
   if (!getCsrfCookie()) await api.get("/auth/csrf");
 }
 
-
+// interceptors
 let isRefreshing = false;
 let pendingQueue: Array<(t: string | null) => void> = [];
 
 api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   // Bearer
   const token = getAccessToken();
-  if (token && !config.headers?.Authorization) {
-    config.headers = { ...(config.headers || {}), Authorization: `Bearer ${token}` };
+  if (token) {
+    setHeader(config, "Authorization", `Bearer ${token}`);
   }
 
   // CSRF só para refresh/logout
   const url = config.url || "";
-  const needsCsrf = url.endsWith("/auth/refresh") || url.endsWith("/auth/logout");
+  const needsCsrf =
+    url.endsWith("/auth/refresh") || url.endsWith("/auth/logout");
   if (needsCsrf) {
     const csrf = getCsrfCookie();
-    if (csrf) {
-      config.headers = { ...(config.headers || {}), "x-csrf-token": csrf };
-    }
+    if (csrf) setHeader(config, "x-csrf-token", csrf);
   }
+
   return config;
 });
 
@@ -51,13 +75,12 @@ api.interceptors.response.use(
     const original: any = error.config;
     const status = error?.response?.status;
 
-    const isAuthPath = (p: string | undefined) =>
+    const isAuthPath = (p?: string) =>
       !!p &&
       (p.includes("/auth/login") ||
         p.includes("/auth/refresh") ||
         p.includes("/auth/logout"));
 
-    // Tenta 1x refresh no 401 (exceto em rotas de auth)
     if (status === 401 && !original?._retry && !isAuthPath(original?.url)) {
       original._retry = true;
 
@@ -65,10 +88,14 @@ api.interceptors.response.use(
         isRefreshing = true;
         try {
           await ensureCsrf();
-          const csrf = getCsrfCookie();
-          const { data } = await api.post<{ accessToken: string }>("/auth/refresh", {}, {
-            headers: csrf ? { "x-csrf-token": csrf } : {},
-          });
+          const csrf = getCsrfCookie() || "";
+          const { data } = await api.post<{ accessToken: string }>(
+            "/auth/refresh",
+            {},
+            {
+              headers: csrf ? { "x-csrf-token": csrf } : {},
+            },
+          );
           setAccessToken(data?.accessToken || null);
           isRefreshing = false;
           pendingQueue.forEach((cb) => cb(data?.accessToken || null));
@@ -85,14 +112,26 @@ api.interceptors.response.use(
       return new Promise((resolve, reject) => {
         pendingQueue.push((newToken) => {
           if (!newToken) return reject(error);
-          original.headers = { ...(original.headers || {}), Authorization: `Bearer ${newToken}` };
+          // garante Authorization no retry
+          if (!original.headers) original.headers = {};
+          if (isAxiosHeaders(original.headers)) {
+            (original.headers as AxiosHeaders).set(
+              "Authorization",
+              `Bearer ${newToken}`,
+            );
+          } else {
+            original.headers = {
+              ...(original.headers || {}),
+              Authorization: `Bearer ${newToken}`,
+            };
+          }
           resolve(api(original));
         });
       });
     }
 
     return Promise.reject(error);
-  }
+  },
 );
 
 export type UserRole = "ADMIN" | "APPROVER" | "REQUESTER";
@@ -114,22 +153,26 @@ export interface LoginResponse {
   user?: SessionUser;
 }
 
+// ---------- API de Auth ----------
 export const AuthAPI = {
-  // Seta o cookie de CSRF  
+  // Seta o cookie de CSRF
   csrf: async () => api.get<void>("/auth/csrf"),
-
 
   login: async (
     a: { email: string; password: string; rememberMe?: boolean } | string,
     b?: string,
-    c?: boolean
+    c?: boolean,
   ) => {
     const email = typeof a === "string" ? a : a.email;
     const password = typeof a === "string" ? (b as string) : a.password;
     const rememberMe = typeof a === "string" ? (c ?? false) : !!a.rememberMe;
 
     await ensureCsrf();
-    const res = await api.post<LoginResponse>("/auth/login", { email, password, rememberMe });
+    const res = await api.post<LoginResponse>("/auth/login", {
+      email,
+      password,
+      rememberMe,
+    });
     if (res.data?.accessToken) setAccessToken(res.data.accessToken);
     return res;
   },
@@ -141,9 +184,13 @@ export const AuthAPI = {
   refresh: async () => {
     await ensureCsrf();
     const csrf = getCsrfCookie() || "";
-    const res = await api.post<{ accessToken: string }>("/auth/refresh", {}, {
-      headers: { "x-csrf-token": csrf },
-    });
+    const res = await api.post<{ accessToken: string }>(
+      "/auth/refresh",
+      {},
+      {
+        headers: csrf ? { "x-csrf-token": csrf } : {},
+      },
+    );
     setAccessToken(res.data?.accessToken || null);
     return res;
   },
@@ -152,7 +199,11 @@ export const AuthAPI = {
     await ensureCsrf();
     const csrf = getCsrfCookie() || "";
     try {
-      await api.post("/auth/logout", {}, { headers: { "x-csrf-token": csrf } });
+      await api.post(
+        "/auth/logout",
+        {},
+        { headers: csrf ? { "x-csrf-token": csrf } : {} },
+      );
     } finally {
       clearAccessToken();
     }
@@ -161,7 +212,7 @@ export const AuthAPI = {
   changePassword: async (currentPassword: string, newPassword: string) => {
     const res = await api.post<{ accessToken: string; user: SessionUser }>(
       "/auth/change-password",
-      { currentPassword, newPassword }
+      { currentPassword, newPassword },
     );
     if (res.data?.accessToken) setAccessToken(res.data.accessToken);
     return res;

@@ -51,7 +51,10 @@ function redact(obj: any): any {
 
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
-  constructor(private prisma: PrismaService, private reflector: Reflector) {}
+  constructor(
+    private prisma: PrismaService,
+    private reflector: Reflector,
+  ) {}
 
   intercept(ctx: ExecutionContext, next: CallHandler): Observable<any> {
     const req = ctx.switchToHttp().getRequest();
@@ -102,8 +105,7 @@ export class AuditInterceptor implements NestInterceptor {
               },
             },
           });
-        } catch {
-        }
+        } catch {}
       }),
       catchError((err) => {
         // registra falha também
@@ -120,7 +122,7 @@ export class AuditInterceptor implements NestInterceptor {
                 userAgent: baseData.userAgent,
                 metadata: {
                   ...baseData.baseMeta,
-                  status: (err?.status ?? err?.statusCode ?? 500),
+                  status: err?.status ?? err?.statusCode ?? 500,
                   durationMs: Date.now() - startedAt,
                   body: redact(req.body),
                   params: redact(req.params),

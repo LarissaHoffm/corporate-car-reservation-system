@@ -14,7 +14,7 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
     try {
       localStorage.setItem(key, JSON.stringify(state));
     } catch {
-     
+      /* empty */
     }
   }, [key, state]);
 

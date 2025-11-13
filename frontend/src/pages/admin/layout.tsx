@@ -20,7 +20,11 @@ export default function AdminLayout() {
   const { user, logout } = useAuth();
 
   const isDark = theme === "dark" || theme === "system";
-  const initials = user?.name?.split(" ").map((n) => n[0]).join("") ?? "AD";
+  const initials =
+    user?.name
+      ?.split(" ")
+      .map((n) => n[0])
+      .join("") ?? "AD";
 
   function clearFunctionalCaches() {
     try {
@@ -30,13 +34,15 @@ export default function AdminLayout() {
         if (k.startsWith("reservcar:")) keys.push(k);
       }
       keys.forEach((k) => localStorage.removeItem(k));
-    } catch {}
+    } catch {
+      /* empty */
+    }
   }
 
   async function handleLogout() {
     try {
-      await logout();           
-      clearFunctionalCaches(); 
+      await logout();
+      clearFunctionalCaches();
     } finally {
       navigate("/login", { replace: true }); // vai para login
     }
@@ -52,7 +58,9 @@ export default function AdminLayout() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Car className="h-8 w-8 text-[#1558E9]" />
-                <span className="text-xl font-bold text-foreground">ReservCar</span>
+                <span className="text-xl font-bold text-foreground">
+                  ReservCar
+                </span>
               </div>
               <Button
                 variant="ghost"
@@ -88,23 +96,35 @@ export default function AdminLayout() {
                 onClick={() => setTheme(isDark ? "light" : "dark")}
                 className="h-8 w-8 p-0 focus:ring-2 focus:ring-[#1558E9] focus:ring-offset-2"
               >
-                {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                {isDark ? (
+                  <Sun className="h-4 w-4" />
+                ) : (
+                  <Moon className="h-4 w-4" />
+                )}
               </Button>
-              <span className="text-xs text-muted-foreground">{isDark ? "Dark" : "Light"}</span>
+              <span className="text-xs text-muted-foreground">
+                {isDark ? "Dark" : "Light"}
+              </span>
             </div>
 
             <div className="flex items-center gap-3 mt-3">
               <Avatar className="h-8 w-8">
-                <AvatarFallback className="bg-[#1558E9] text-white text-xs">{initials}</AvatarFallback>
+                <AvatarFallback className="bg-[#1558E9] text-white text-xs">
+                  {initials}
+                </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground truncate">{user?.name ?? "Admin"}</p>
-                <p className="text-xs text-muted-foreground truncate">{user?.email ?? "—"}</p>
+                <p className="text-sm font-medium text-foreground truncate">
+                  {user?.name ?? "Admin"}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {user?.email ?? "—"}
+                </p>
               </div>
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={handleLogout}  // ⬅️ só esta linha mudou
+                onClick={handleLogout} // ⬅️ só esta linha mudou
                 className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
               >
                 <LogOut className="h-4 w-4" />

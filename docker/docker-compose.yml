@@ -36,9 +36,9 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_DB: "0"
-      REDIS_URL: ""     # evita 127.0.0.1 herdado
+      REDIS_URL: "" # evita 127.0.0.1 herdado
     volumes:
-      - ../backend/server:/app           # código fonte
+      - ../backend/server:/app # código fonte
       - api_node_modules:/app/node_modules
       - uploads:/app/uploads
     working_dir: /app
@@ -52,7 +52,14 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-    command: sh -lc "./docker-entrypoint.sh"
+    command: >
+      sh -lc '
+        set -e
+        [ -f ./docker-entrypoint.sh ] || { echo "❌ entrypoint não encontrado em /app"; ls -la; exit 1; }
+        sed -i "s/\r$//" ./docker-entrypoint.sh
+        chmod +x ./docker-entrypoint.sh
+        exec ./docker-entrypoint.sh
+      '
     expose:
       - "3000"
     restart: unless-stopped
@@ -92,6 +99,7 @@ services:
 
 volumes:
   pgdata:
+    name: docker_pgdata
   uploads:
   api_node_modules:
   web_node_modules:

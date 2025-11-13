@@ -7,7 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { statusChipClasses } from "@/components/ui/status";
 import { ArrowLeft, Save, X, PencilLine } from "lucide-react";
 import { useBranches } from "@/hooks/use-branches";
@@ -15,8 +21,9 @@ import { useDepartments } from "@/hooks/use-departments";
 import { getUser, updateUser, listUserReservations } from "@/lib/http/users";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
+import type { User } from "@/lib/http/users"; // <- (1) importa o tipo User
 
-type UserDetails = {
+type UserDetails = User & {
   id: string;
   name: string;
   email: string;
@@ -27,7 +34,7 @@ type UserDetails = {
   department?: string | null;
   phone?: string | null;
   photoUrl?: string | null;
-  createdAt: string;
+  createdAt?: string; // <- (2) agora opcional
   updatedAt?: string;
 };
 
@@ -37,7 +44,8 @@ function onlyDigits(v: string) {
 function formatPhoneBR(v?: string | null) {
   const d = onlyDigits(v || "");
   if (!d) return "";
-  if (d.length <= 10) return d.replace(/(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3").trim();
+  if (d.length <= 10)
+    return d.replace(/(\d{2})(\d{4})(\d{0,4})/, "($1) $2-$3").trim();
   return d.replace(/(\d{2})(\d{5})(\d{0,4})/, "($1) $2-$3").trim();
 }
 
@@ -56,7 +64,9 @@ export default function AdminUserDetailsPage() {
   // form
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"ADMIN" | "APPROVER" | "REQUESTER">("REQUESTER");
+  const [role, setRole] = useState<"ADMIN" | "APPROVER" | "REQUESTER">(
+    "REQUESTER",
+  );
   const [branchId, setBranchId] = useState<string | "">("");
   const [department, setDepartment] = useState<string>("");
   const [phone, setPhone] = useState<string>("");
@@ -70,7 +80,7 @@ export default function AdminUserDetailsPage() {
     (async () => {
       try {
         const data = await getUser(id);
-        setUser(data);
+        setUser(data as UserDetails); // <- (3) tipa o setUser
         setName(data.name ?? "");
         setEmail(data.email ?? "");
         setRole(data.role);
@@ -78,7 +88,10 @@ export default function AdminUserDetailsPage() {
         setDepartment(data.department ?? "");
         setPhone(formatPhoneBR(data.phone ?? ""));
       } catch (e: any) {
-        toast({ title: e?.response?.data?.message ?? "Erro ao carregar usuário", variant: "destructive" });
+        toast({
+          title: e?.response?.data?.message ?? "Erro ao carregar usuário",
+          variant: "destructive",
+        });
       } finally {
         setLoading(false);
       }
@@ -118,13 +131,21 @@ export default function AdminUserDetailsPage() {
         branch:
           updated.branch ??
           (updated.branchId
-            ? { id: updated.branchId, name: branches.find((b) => b.id === updated.branchId)?.name ?? updated.branchId }
+            ? {
+                id: updated.branchId,
+                name:
+                  branches.find((b) => b.id === updated.branchId)?.name ??
+                  updated.branchId,
+              }
             : null),
       });
       setEditing(false);
       toast({ title: "Dados salvos" });
     } catch (e: any) {
-      toast({ title: e?.response?.data?.message ?? "Erro ao salvar", variant: "destructive" });
+      toast({
+        title: e?.response?.data?.message ?? "Erro ao salvar",
+        variant: "destructive",
+      });
     }
   }
 
@@ -134,9 +155,14 @@ export default function AdminUserDetailsPage() {
       const to = next ?? (user.status === "ACTIVE" ? "INACTIVE" : "ACTIVE");
       const updated = await updateUser(user.id, { status: to });
       setUser({ ...user, status: updated.status ?? to });
-      toast({ title: `Status atualizado para ${to === "ACTIVE" ? "Active" : "Inactive"}` });
+      toast({
+        title: `Status atualizado para ${to === "ACTIVE" ? "Active" : "Inactive"}`,
+      });
     } catch (e: any) {
-      toast({ title: e?.response?.data?.message ?? "Erro ao alterar status", variant: "destructive" });
+      toast({
+        title: e?.response?.data?.message ?? "Erro ao alterar status",
+        variant: "destructive",
+      });
     }
   }
 
@@ -164,7 +190,10 @@ export default function AdminUserDetailsPage() {
             </Button>
           ) : (
             <>
-              <Button onClick={handleSave} className="bg-[#1558E9] hover:bg-[#1558E9]/90">
+              <Button
+                onClick={handleSave}
+                className="bg-[#1558E9] hover:bg-[#1558E9]/90"
+              >
                 <Save className="h-4 w-4 mr-2" /> Salvar
               </Button>
               <Button
@@ -200,7 +229,10 @@ export default function AdminUserDetailsPage() {
               <div className="space-y-1">
                 <Label>Full Name</Label>
                 {editing ? (
-                  <Input value={name} onChange={(e) => setName(e.target.value)} />
+                  <Input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
                 ) : (
                   <div className="text-foreground">{user.name || "-"}</div>
                 )}
@@ -209,7 +241,11 @@ export default function AdminUserDetailsPage() {
               <div className="space-y-1">
                 <Label>E-mail</Label>
                 {editing ? (
-                  <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
                 ) : (
                   <div className="text-foreground">{user.email}</div>
                 )}
@@ -220,7 +256,9 @@ export default function AdminUserDetailsPage() {
                 <Label>Role</Label>
                 {editing ? (
                   <Select value={role} onValueChange={(v: any) => setRole(v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="ADMIN">Administrator</SelectItem>
                       <SelectItem value="APPROVER">Approver</SelectItem>
@@ -229,7 +267,11 @@ export default function AdminUserDetailsPage() {
                   </Select>
                 ) : (
                   <div className="text-foreground">
-                    {user.role === "ADMIN" ? "Administrator" : user.role === "APPROVER" ? "Approver" : "Requester"}
+                    {user.role === "ADMIN"
+                      ? "Administrator"
+                      : user.role === "APPROVER"
+                        ? "Approver"
+                        : "Requester"}
                   </div>
                 )}
               </div>
@@ -238,15 +280,21 @@ export default function AdminUserDetailsPage() {
                 <Label>Department</Label>
                 {editing ? (
                   <Select value={department} onValueChange={setDepartment}>
-                    <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select department" />
+                    </SelectTrigger>
                     <SelectContent>
                       {departments.map((d) => (
-                        <SelectItem key={d.id} value={d.code ?? d.id}>{d.name}</SelectItem>
+                        <SelectItem key={d.id} value={d.code ?? d.id}>
+                          {d.name}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 ) : (
-                  <div className="text-foreground">{user.department ?? "-"}</div>
+                  <div className="text-foreground">
+                    {user.department ?? "-"}
+                  </div>
                 )}
               </div>
 
@@ -260,7 +308,9 @@ export default function AdminUserDetailsPage() {
                     placeholder="(11) 98765-4321"
                   />
                 ) : (
-                  <div className="text-foreground">{formatPhoneBR(user.phone) || "-"}</div>
+                  <div className="text-foreground">
+                    {formatPhoneBR(user.phone) || "-"}
+                  </div>
                 )}
               </div>
 
@@ -268,15 +318,21 @@ export default function AdminUserDetailsPage() {
                 <Label>Branch</Label>
                 {editing ? (
                   <Select value={branchId} onValueChange={setBranchId}>
-                    <SelectTrigger><SelectValue placeholder="Select branch" /></SelectTrigger>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select branch" />
+                    </SelectTrigger>
                     <SelectContent>
                       {branches.map((b) => (
-                        <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                        <SelectItem key={b.id} value={b.id}>
+                          {b.name}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 ) : (
-                  <div className="text-foreground">{user.branch?.name ?? "-"}</div>
+                  <div className="text-foreground">
+                    {user.branch?.name ?? "-"}
+                  </div>
                 )}
               </div>
             </div>
@@ -291,7 +347,8 @@ export default function AdminUserDetailsPage() {
                     alt="User photo"
                     className="h-full w-full object-cover"
                     onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src = "/images/avatar-placeholder.png";
+                      (e.currentTarget as HTMLImageElement).src =
+                        "/images/avatar-placeholder.png";
                     }}
                   />
                 </div>
@@ -300,12 +357,18 @@ export default function AdminUserDetailsPage() {
               <div className="space-y-1 mt-6">
                 <Label>Status</Label>
                 <div className="flex items-center gap-3">
-                  <Badge className={statusChipClasses(user.status === "ACTIVE" ? "Active" : "Inactive")}>
+                  <Badge
+                    className={statusChipClasses(
+                      user.status === "ACTIVE" ? "Active" : "Inactive",
+                    )}
+                  >
                     {user.status === "ACTIVE" ? "Active" : "Inactive"}
                   </Badge>
                   <Switch
                     checked={user.status === "ACTIVE"}
-                    onCheckedChange={(checked) => handleToggleStatus(checked ? "ACTIVE" : "INACTIVE")}
+                    onCheckedChange={(checked) =>
+                      handleToggleStatus(checked ? "ACTIVE" : "INACTIVE")
+                    }
                     disabled={!editing}
                   />
                 </div>
@@ -324,28 +387,49 @@ export default function AdminUserDetailsPage() {
           {loadingRes ? (
             <div>Carregando...</div>
           ) : reservations.length === 0 ? (
-            <div className="text-muted-foreground">Sem reservas para este usuário.</div>
+            <div className="text-muted-foreground">
+              Sem reservas para este usuário.
+            </div>
           ) : (
             <div className="max-h-[420px] overflow-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-border/50">
-                    <th className="text-left py-3 px-4 text-muted-foreground">RESERVATION ID</th>
-                    <th className="text-left py-3 px-4 text-muted-foreground">PICK-UP DATE</th>
-                    <th className="text-left py-3 px-4 text-muted-foreground">RETURN DATE</th>
-                    <th className="text-left py-3 px-4 text-muted-foreground">STATUS</th>
+                    <th className="text-left py-3 px-4 text-muted-foreground">
+                      RESERVATION ID
+                    </th>
+                    <th className="text-left py-3 px-4 text-muted-foreground">
+                      PICK-UP DATE
+                    </th>
+                    <th className="text-left py-3 px-4 text-muted-foreground">
+                      RETURN DATE
+                    </th>
+                    <th className="text-left py-3 px-4 text-muted-foreground">
+                      STATUS
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {reservations.map((r) => (
-                    <tr key={r.id} className="border-b border-border/50 hover:bg-background">
+                    <tr
+                      key={r.id}
+                      className="border-b border-border/50 hover:bg-background"
+                    >
                       <td className="py-3 px-4 text-sm">{r.code ?? r.id}</td>
-                      <td className="py-3 px-4 text-sm">{r.startDate?.slice(0, 10) ?? "-"}</td>
-                      <td className="py-3 px-4 text-sm">{r.endDate?.slice(0, 10) ?? "-"}</td>
+                      <td className="py-3 px-4 text-sm">
+                        {r.startAt?.slice(0, 10) ?? "-"}
+                      </td>{" "}
+                      {/* (4) startAt */}
+                      <td className="py-3 px-4 text-sm">
+                        {r.endAt?.slice(0, 10) ?? "-"}
+                      </td>{" "}
+                      {/* (4) endAt */}
                       <td className="py-3 px-4">
                         <Badge
                           className={statusChipClasses(
-                            String(r.status ?? "").toLowerCase() === "completed" ? "Active" : "Inactive"
+                            String(r.status ?? "").toLowerCase() === "completed"
+                              ? "Active"
+                              : "Inactive",
                           )}
                         >
                           {String(r.status ?? "-")}

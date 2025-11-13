@@ -1,4 +1,9 @@
-import { Controller, Post, UseInterceptors, UploadedFile } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  UseInterceptors,
+  UploadedFile,
+} from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { multerOptions } from './multer.config';
 import { AzureBlobService } from './azure-blob.service';
@@ -12,9 +17,9 @@ export class FilesController {
   constructor(private blob: AzureBlobService) {}
 
   @Post('upload')
-  @Roles('REQUESTER','APPROVER','ADMIN')
+  @Roles('REQUESTER', 'APPROVER', 'ADMIN')
   @UseInterceptors(FileInterceptor('file', multerOptions))
-  @Audit('DOCUMENT_UPLOAD','Document')
+  @Audit('DOCUMENT_UPLOAD', 'Document')
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {

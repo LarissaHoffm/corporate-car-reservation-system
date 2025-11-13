@@ -1,5 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Reservation as PrismaReservation, ReservationStatus } from '@prisma/client';
+import {
+  Reservation as PrismaReservation,
+  ReservationStatus,
+} from '@prisma/client';
 
 export class ReservationResponseDto {
   @ApiProperty({ format: 'uuid' })
@@ -17,7 +20,10 @@ export class ReservationResponseDto {
   @ApiPropertyOptional({ format: 'uuid', description: 'Aprovador (User.id)' })
   approverId?: string | null;
 
-  @ApiPropertyOptional({ format: 'uuid', description: 'Carro atribuído (Car.id)' })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Carro atribuído (Car.id)',
+  })
   carId?: string | null;
 
   @ApiProperty()
@@ -51,7 +57,9 @@ export class ReservationResponseDto {
   updatedAt: string;
 }
 
-export function toReservationResponseDto(r: PrismaReservation): ReservationResponseDto {
+export function toReservationResponseDto(
+  r: PrismaReservation,
+): ReservationResponseDto {
   return {
     id: r.id,
     tenantId: r.tenantId,
@@ -61,17 +69,31 @@ export function toReservationResponseDto(r: PrismaReservation): ReservationRespo
     carId: r.carId ?? null,
     origin: r.origin,
     destination: r.destination,
-    startAt: r.startAt instanceof Date ? r.startAt.toISOString() : (r.startAt as unknown as string),
-    endAt: r.endAt instanceof Date ? r.endAt.toISOString() : (r.endAt as unknown as string),
+    startAt:
+      r.startAt instanceof Date
+        ? r.startAt.toISOString()
+        : (r.startAt as unknown as string),
+    endAt:
+      r.endAt instanceof Date
+        ? r.endAt.toISOString()
+        : (r.endAt as unknown as string),
     status: r.status,
     purpose: r.purpose ?? null,
     approvedAt: r.approvedAt ? new Date(r.approvedAt).toISOString() : null,
     canceledAt: r.canceledAt ? new Date(r.canceledAt).toISOString() : null,
-    createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : (r.createdAt as unknown as string),
-    updatedAt: r.updatedAt instanceof Date ? r.updatedAt.toISOString() : (r.updatedAt as unknown as string),
+    createdAt:
+      r.createdAt instanceof Date
+        ? r.createdAt.toISOString()
+        : (r.createdAt as unknown as string),
+    updatedAt:
+      r.updatedAt instanceof Date
+        ? r.updatedAt.toISOString()
+        : (r.updatedAt as unknown as string),
   };
 }
 
-export function toReservationResponseList(list: PrismaReservation[]): ReservationResponseDto[] {
+export function toReservationResponseList(
+  list: PrismaReservation[],
+): ReservationResponseDto[] {
   return list.map(toReservationResponseDto);
 }

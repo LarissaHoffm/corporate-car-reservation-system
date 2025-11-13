@@ -183,11 +183,11 @@ model Reservation {
   status      ReservationStatus @default(PENDING)
 
   /// Novo campo: finalidade/justificativa da reserva
-  purpose     String?
+  purpose String?
 
   /// Novos carimbos: aprovação e cancelamento
-  approvedAt  DateTime?
-  canceledAt  DateTime?
+  approvedAt DateTime?
+  canceledAt DateTime?
 
   tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   branch   Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
@@ -197,8 +197,8 @@ model Reservation {
 
   checklists ChecklistSubmission[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
   Document  Document[]
 
   @@index([tenantId, branchId, carId])
@@ -206,7 +206,11 @@ model Reservation {
   // Índices para consultas por dono e por janela de tempo (escopo do tenant)
   @@index([tenantId, userId])
   @@index([tenantId, startAt, endAt])
+
+  // Índice composto para checagem/consulta de conflitos por carro e janela de tempo (escopo do tenant)
+  @@index([tenantId, carId, startAt, endAt], map: "res_car_time_idx")
 }
+
 
 model Document {
   id            String            @id @default(uuid())

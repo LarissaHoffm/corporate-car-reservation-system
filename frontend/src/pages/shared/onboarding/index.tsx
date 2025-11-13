@@ -6,10 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 import { Car, Calendar, FileText, BarChart3, Sun, Moon } from "lucide-react";
-
 
 type UserRole = "ADMIN" | "APPROVER" | "REQUESTER";
 function basePathByRole(role: UserRole): "/admin" | "/approver" | "/requester" {
@@ -44,27 +49,39 @@ export default function OnboardingPage() {
       content: (
         <div className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-muted-foreground mb-2">Nome Completo</label>
+            <label className="block text-sm font-medium text-muted-foreground mb-2">
+              Nome Completo
+            </label>
             <Input
               value={formData.fullName}
-              onChange={(e) => setFormData((prev) => ({ ...prev, fullName: e.target.value }))}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, fullName: e.target.value }))
+              }
               className="w-full h-12 border-border/50 focus:border-[#1558E9] shadow-sm"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-muted-foreground mb-2">E-mail Corporativo</label>
+            <label className="block text-sm font-medium text-muted-foreground mb-2">
+              E-mail Corporativo
+            </label>
             <Input
               type="email"
               value={formData.email}
-              onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, email: e.target.value }))
+              }
               className="w-full h-12 border-border/50 focus:border-[#1558E9] shadow-sm"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-muted-foreground mb-2">Unidade</label>
+            <label className="block text-sm font-medium text-muted-foreground mb-2">
+              Unidade
+            </label>
             <Select
               value={formData.unit}
-              onValueChange={(value) => setFormData((prev) => ({ ...prev, unit: value }))}
+              onValueChange={(value) =>
+                setFormData((prev) => ({ ...prev, unit: value }))
+              }
             >
               <SelectTrigger className="w-full h-12 border-border/50 focus:border-[#1558E9] shadow-sm">
                 <SelectValue />
@@ -85,17 +102,31 @@ export default function OnboardingPage() {
       content: (
         <div className="space-y-6">
           <div className="flex items-center justify-between p-4 bg-card/30 rounded-lg border border-border/50">
-            <label className="text-sm font-medium text-gray-700">Receber as notificações por e-mail</label>
+            <label className="text-sm font-medium text-gray-700">
+              Receber as notificações por e-mail
+            </label>
             <Switch
               checked={formData.emailNotifications}
-              onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, emailNotifications: checked }))}
+              onCheckedChange={(checked) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  emailNotifications: checked,
+                }))
+              }
             />
           </div>
           <div className="flex items-center justify-between p-4 bg-card/30 rounded-lg border border-border/50">
-            <label className="text-sm font-medium text-gray-700">Receber as notificações dentro do sistema</label>
+            <label className="text-sm font-medium text-gray-700">
+              Receber as notificações dentro do sistema
+            </label>
             <Switch
               checked={formData.systemNotifications}
-              onCheckedChange={(checked) => setFormData((prev) => ({ ...prev, systemNotifications: checked }))}
+              onCheckedChange={(checked) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  systemNotifications: checked,
+                }))
+              }
             />
           </div>
         </div>
@@ -107,11 +138,15 @@ export default function OnboardingPage() {
       content: (
         <div className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-muted-foreground mb-4">Tema</label>
+            <label className="block text-sm font-medium text-muted-foreground mb-4">
+              Tema
+            </label>
             <div className="flex gap-4">
               <button
                 type="button"
-                onClick={() => setFormData((prev) => ({ ...prev, theme: "light" }))}
+                onClick={() =>
+                  setFormData((prev) => ({ ...prev, theme: "light" }))
+                }
                 className={`flex-1 p-4 rounded-lg border-2 transition-all shadow-sm ${
                   formData.theme === "light"
                     ? "border-[#1558E9] bg-[#1558E9]/10"
@@ -125,7 +160,9 @@ export default function OnboardingPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setFormData((prev) => ({ ...prev, theme: "dark" }))}
+                onClick={() =>
+                  setFormData((prev) => ({ ...prev, theme: "dark" }))
+                }
                 className={`flex-1 p-4 rounded-lg border-2 transition-all shadow-sm ${
                   formData.theme === "dark"
                     ? "border-[#1558E9] bg-[#1558E9]/10"
@@ -140,10 +177,14 @@ export default function OnboardingPage() {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-muted-foreground mb-2">Idioma</label>
+            <label className="block text-sm font-medium text-muted-foreground mb-2">
+              Idioma
+            </label>
             <Select
               value={formData.language}
-              onValueChange={(value) => setFormData((prev) => ({ ...prev, language: value }))}
+              onValueChange={(value) =>
+                setFormData((prev) => ({ ...prev, language: value }))
+              }
             >
               <SelectTrigger className="w-full h-12 border-border/50 focus:border-[#1558E9] shadow-sm">
                 <SelectValue />
@@ -167,17 +208,23 @@ export default function OnboardingPage() {
             <div className="text-center p-6 bg-card/30 rounded-lg border border-border/50 shadow-sm">
               <Calendar className="h-12 w-12 text-[#1558E9] mx-auto mb-4" />
               <h3 className="font-semibold text-foreground mb-2">Reservas</h3>
-              <p className="text-sm text-muted-foreground">Solicite e acompanhe suas reservas em tempo real</p>
+              <p className="text-sm text-muted-foreground">
+                Solicite e acompanhe suas reservas em tempo real
+              </p>
             </div>
             <div className="text-center p-6 bg-card/30 rounded-lg border border-border/50 shadow-sm">
               <FileText className="h-12 w-12 text-[#1558E9] mx-auto mb-4" />
               <h3 className="font-semibold text-foreground mb-2">Documentos</h3>
-              <p className="text-sm text-muted-foreground">Envie recibos e comprovantes de forma segura</p>
+              <p className="text-sm text-muted-foreground">
+                Envie recibos e comprovantes de forma segura
+              </p>
             </div>
             <div className="text-center p-6 bg-card/30 rounded-lg border border-border/50 shadow-sm">
               <BarChart3 className="h-12 w-12 text-[#1558E9] mx-auto mb-4" />
               <h3 className="font-semibold text-foreground mb-2">Relatórios</h3>
-              <p className="text-sm text-muted-foreground">Gere relatórios por carro, usuário, filial ou período</p>
+              <p className="text-sm text-muted-foreground">
+                Gere relatórios por carro, usuário, filial ou período
+              </p>
             </div>
           </div>
         </div>
@@ -191,13 +238,11 @@ export default function OnboardingPage() {
       return;
     }
 
-
     try {
       localStorage.setItem("onboarding_complete", "true");
-    } catch {} 
+    } catch {}
 
-
-    const path = basePathByRole("REQUESTER"); 
+    const path = basePathByRole("REQUESTER");
     navigate(path, { replace: true });
   };
 
@@ -215,7 +260,8 @@ export default function OnboardingPage() {
               Bem-vindo ao Sistema de Reserva de Carros Corporativos
             </h1>
             <p className="text-muted-foreground mb-8">
-              Vamos configurar rapidamente seu perfil para que você aproveite todos os recursos do sistema.
+              Vamos configurar rapidamente seu perfil para que você aproveite
+              todos os recursos do sistema.
             </p>
             <Button
               onClick={() => setCurrentStep(1)}
@@ -243,9 +289,13 @@ export default function OnboardingPage() {
             <div className="text-sm text-muted-foreground mb-2">
               Passo {currentStep} de {steps.length - 1}
             </div>
-            <h2 className="text-xl font-semibold text-foreground mb-2">{steps[currentStep].title}</h2>
+            <h2 className="text-xl font-semibold text-foreground mb-2">
+              {steps[currentStep].title}
+            </h2>
             {steps[currentStep].subtitle && (
-              <p className="text-sm text-muted-foreground">{steps[currentStep].subtitle}</p>
+              <p className="text-sm text-muted-foreground">
+                {steps[currentStep].subtitle}
+              </p>
             )}
           </CardHeader>
 

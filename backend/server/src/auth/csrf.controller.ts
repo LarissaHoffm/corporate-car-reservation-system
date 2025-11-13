@@ -13,12 +13,18 @@ function parseTtlSeconds(raw: unknown, fallback: number): number {
   const v = parseInt(m[1], 10);
   const u = m[2].toLowerCase();
   switch (u) {
-    case 'ms': return Math.max(1, Math.floor(v / 1000));
-    case 's':  return v;
-    case 'm':  return v * 60;
-    case 'h':  return v * 3600;
-    case 'd':  return v * 86400;
-    default:   return fallback;
+    case 'ms':
+      return Math.max(1, Math.floor(v / 1000));
+    case 's':
+      return v;
+    case 'm':
+      return v * 60;
+    case 'h':
+      return v * 3600;
+    case 'd':
+      return v * 86400;
+    default:
+      return fallback;
   }
 }
 
@@ -29,9 +35,16 @@ export class CsrfController {
   @Get('csrf')
   @HttpCode(204)
   csrf(@Res({ passthrough: true }) res: Response) {
-    const refreshTtlSec = parseTtlSeconds(this.cfg.get('JWT_REFRESH_TTL'), 60 * 60 * 24 * 7);
-    const sameSiteRaw = (this.cfg.get<string>('COOKIE_SAMESITE') ?? 'lax').toLowerCase();
-    const sameSite = (['lax', 'strict', 'none'].includes(sameSiteRaw) ? sameSiteRaw : 'lax') as 'lax'|'strict'|'none';
+    const refreshTtlSec = parseTtlSeconds(
+      this.cfg.get('JWT_REFRESH_TTL'),
+      60 * 60 * 24 * 7,
+    );
+    const sameSiteRaw = (
+      this.cfg.get<string>('COOKIE_SAMESITE') ?? 'lax'
+    ).toLowerCase();
+    const sameSite = (
+      ['lax', 'strict', 'none'].includes(sameSiteRaw) ? sameSiteRaw : 'lax'
+    ) as 'lax' | 'strict' | 'none';
     const secure = this.cfg.get<string>('COOKIE_SECURE') === 'true';
     const domain = this.cfg.get<string>('COOKIE_DOMAIN') || undefined;
 
@@ -41,7 +54,7 @@ export class CsrfController {
       secure,
       domain,
       path: '/',
-      maxAge: refreshTtlSec * 1000, // ms 
+      maxAge: refreshTtlSec * 1000, // ms
     });
   }
 }

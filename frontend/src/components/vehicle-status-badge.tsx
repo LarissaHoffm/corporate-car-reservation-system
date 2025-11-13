@@ -26,7 +26,7 @@ export function VehicleStatusBadge({
       className={cn(
         "inline-flex items-center rounded-full px-3 py-1 text-xs font-medium",
         styles[status],
-        className
+        className,
       )}
     >
       {children}

@@ -21,6 +21,10 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
+  ApiBody,
+  ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
   ApiTags,
 } from '@nestjs/swagger';
 
@@ -36,13 +40,14 @@ import { Roles } from '../auth/decorators/roles.decorator';
 @ApiTags('Cars')
 @ApiBearerAuth('access-token')
 @UseGuards(JwtAuthGuard, RolesGuard)
+@ApiUnauthorizedResponse({ description: 'Não autenticado (401)' })
+@ApiForbiddenResponse({ description: 'Sem permissão (403)' })
 @Controller('cars')
 export class CarsController {
   private readonly logger = new Logger('CarsController');
 
   constructor(private readonly cars: CarsService) {}
 
-  // Helpers de auditoria
   private getClientIp(req: any): string | undefined {
     const xf = req.headers?.['x-forwarded-for'];
     return (Array.isArray(xf) ? xf[0] : xf?.split(',')[0])?.trim() ?? req.ip;
@@ -50,20 +55,23 @@ export class CarsController {
   private auditLog(req: any, action: string, data: Record<string, unknown>) {
     const payload = {
       ts: new Date().toISOString(),
-      action, // car.create | car.update | car.delete
+      action,
       method: req.method,
       path: req.originalUrl ?? req.url,
       ip: this.getClientIp(req),
-      userId: req.user?.id,
+      userId: req.user?.id ?? req.user?.sub,
       tenantId: req.user?.tenantId,
       ...data,
     };
     this.logger.log(JSON.stringify(payload));
   }
 
-  @Roles('ADMIN', 'APPROVER', 'USER')
+  @Roles('ADMIN', 'APPROVER', 'REQUESTER')
   @Get()
-  @ApiOperation({ summary: 'Listar carros do tenant (filtros opcionais)' })
+  @ApiOperation({
+    summary: 'Listar carros do tenant (filtros opcionais)',
+    description: 'RBAC: ADMIN | APPROVER | REQUESTER',
+  })
   @ApiOkResponse({ description: 'Lista de carros retornada com sucesso.' })
   @ApiBadRequestResponse({ description: 'Parâmetros inválidos.' })
   async list(@Req() req: any, @Query() query: ListCarsQueryDto) {
@@ -71,9 +79,13 @@ export class CarsController {
     return this.cars.list(tenantId, query);
   }
 
-  @Roles('ADMIN', 'APPROVER', 'USER')
+  @Roles('ADMIN', 'APPROVER', 'REQUESTER')
   @Get(':id')
-  @ApiOperation({ summary: 'Obter detalhes de um carro por ID' })
+  @ApiOperation({
+    summary: 'Obter detalhes de um carro por ID',
+    description: 'RBAC: ADMIN | APPROVER | REQUESTER',
+  })
+  @ApiParam({ name: 'id', type: String, format: 'uuid' })
   @ApiOkResponse({ description: 'Carro encontrado.' })
   @ApiNotFoundResponse({ description: 'Carro não encontrado.' })
   async get(
@@ -86,30 +98,65 @@ export class CarsController {
 
   @Roles('ADMIN', 'APPROVER')
   @Post()
-  @ApiOperation({ summary: 'Criar um novo carro' })
+  @ApiOperation({
+    summary: 'Criar um novo carro',
+    description: 'RBAC: ADMIN | APPROVER',
+  })
   @ApiCreatedResponse({ description: 'Carro criado com sucesso.' })
   @ApiBadRequestResponse({ description: 'Payload inválido.' })
   @ApiConflictResponse({ description: 'Placa já cadastrada neste tenant.' })
+  @ApiBody({
+    type: CreateCarDto,
+    examples: {
+      default: {
+        summary: 'Exemplo',
+        value: {
+          plate: 'ABC1D23',
+          model: 'Fiat Cronos',
+          color: 'PRATA',
+          mileage: 12345,
+          status: 'AVAILABLE',
+          branchId: 'b0e1a2c3-d4e5-6789-aaaa-bbbbccccdddd',
+        },
+      },
+    },
+  })
   async create(@Req() req: any, @Body() dto: CreateCarDto) {
     const tenantId = req.user?.tenantId as string;
     const result = await this.cars.create(tenantId, dto);
-
     this.auditLog(req, 'car.create', {
       carId: result.id,
       plate: result.plate,
       branchId: result.branchId ?? null,
     });
-
     return result;
   }
 
   @Roles('ADMIN', 'APPROVER')
   @Patch(':id')
-  @ApiOperation({ summary: 'Atualizar dados de um carro' })
+  @ApiOperation({
+    summary: 'Atualizar dados de um carro',
+    description: 'RBAC: ADMIN | APPROVER',
+  })
+  @ApiParam({ name: 'id', type: String, format: 'uuid' })
   @ApiOkResponse({ description: 'Carro atualizado com sucesso.' })
   @ApiBadRequestResponse({ description: 'Payload inválido.' })
   @ApiNotFoundResponse({ description: 'Carro não encontrado.' })
   @ApiConflictResponse({ description: 'Placa já cadastrada neste tenant.' })
+  @ApiBody({
+    type: UpdateCarDto,
+    examples: {
+      parcial: {
+        summary: 'Atualização parcial',
+        value: {
+          model: 'HB20 Comfort',
+          mileage: 34567,
+          status: 'MAINTENANCE',
+          branchName: 'Filial Norte',
+        },
+      },
+    },
+  })
   async update(
     @Req() req: any,
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
@@ -117,7 +164,6 @@ export class CarsController {
   ) {
     const tenantId = req.user?.tenantId as string;
     const result = await this.cars.update(tenantId, id, dto);
-
     this.auditLog(req, 'car.update', {
       carId: id,
       changed: {
@@ -126,29 +172,34 @@ export class CarsController {
         color: dto.color ?? undefined,
         mileage: dto.mileage ?? undefined,
         status: dto.status ?? undefined,
-        branchId: dto.branchId ?? (dto.branchName ? `name:${dto.branchName}` : undefined),
+        branchId:
+          dto.branchId ??
+          (dto.branchName ? `name:${dto.branchName}` : undefined),
       },
     });
-
     return result;
   }
 
   @Roles('ADMIN', 'APPROVER')
   @Delete(':id')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Remover um carro' })
+  @ApiOperation({
+    summary: 'Remover um carro',
+    description: 'RBAC: ADMIN | APPROVER',
+  })
+  @ApiParam({ name: 'id', type: String, format: 'uuid' })
   @ApiOkResponse({ description: 'Carro removido com sucesso.' })
   @ApiNotFoundResponse({ description: 'Carro não encontrado.' })
-  @ApiConflictResponse({ description: 'Existem vínculos que impedem a remoção.' })
+  @ApiConflictResponse({
+    description: 'Existem vínculos que impedem a remoção.',
+  })
   async remove(
     @Req() req: any,
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
   ) {
     const tenantId = req.user?.tenantId as string;
     const result = await this.cars.remove(tenantId, id);
-
     this.auditLog(req, 'car.delete', { carId: id });
-
     return result;
   }
 }

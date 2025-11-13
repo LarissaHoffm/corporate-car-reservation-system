@@ -39,19 +39,25 @@ export class QueryReservationsDto {
 
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
-  @Transform(({ value }) => (value === '' || value === null ? undefined : value))
+  @Transform(({ value }) =>
+    value === '' || value === null ? undefined : value,
+  )
   @IsUUID()
   carId?: string;
 
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
-  @Transform(({ value }) => (value === '' || value === null ? undefined : value))
+  @Transform(({ value }) =>
+    value === '' || value === null ? undefined : value,
+  )
   @IsUUID()
   userId?: string;
 
   @ApiPropertyOptional({ format: 'uuid' })
   @IsOptional()
-  @Transform(({ value }) => (value === '' || value === null ? undefined : value))
+  @Transform(({ value }) =>
+    value === '' || value === null ? undefined : value,
+  )
   @IsUUID()
   branchId?: string;
 

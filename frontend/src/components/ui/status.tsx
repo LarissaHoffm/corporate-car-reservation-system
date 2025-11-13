@@ -5,14 +5,32 @@ export function statusChipClasses(s: string) {
     .replace(/\p{Diacritic}/gu, "");
   const hit = (frag: string) => n.includes(frag);
 
-  const isInactive   = n === "inactive" || hit("inativo") || hit("indispon") || n === "unavailable";
-  const isCancelled  = hit("cancel") || hit("reprov") || hit("rejeit") || n === "denied";
-  const isPending    = hit("pend") || n === "pending" || n === "aguardando" || n === "em progresso" || n === "solicitado";
-  const isActiveBase = (hit("active") && !isInactive) || hit("confirm") || hit("aprov") || n === "approved" || n === "available" || n === "ok" || n === "concluida" || hit("valid"); 
+  const isInactive =
+    n === "inactive" ||
+    hit("inativo") ||
+    hit("indispon") ||
+    n === "unavailable";
+  const isCancelled =
+    hit("cancel") || hit("reprov") || hit("rejeit") || n === "denied";
+  const isPending =
+    hit("pend") ||
+    n === "pending" ||
+    n === "aguardando" ||
+    n === "em progresso" ||
+    n === "solicitado";
+  const isActiveBase =
+    (hit("active") && !isInactive) ||
+    hit("confirm") ||
+    hit("aprov") ||
+    n === "approved" ||
+    n === "available" ||
+    n === "ok" ||
+    n === "concluida" ||
+    hit("valid");
 
   // frota
-  const isReserved     = hit("reserv");                     
-  const isMaintenance  = hit("manuten") || n === "maintenance" || hit("service");
+  const isReserved = hit("reserv");
+  const isMaintenance = hit("manuten") || n === "maintenance" || hit("service");
 
   if (isInactive) {
     return "bg-zinc-100 text-zinc-800 border border-zinc-200 dark:bg-zinc-400/15 dark:text-zinc-500 dark:border-zinc-500/20";

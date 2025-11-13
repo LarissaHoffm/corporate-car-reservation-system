@@ -69,7 +69,8 @@ export class UsersService {
       where: { email, tenantId },
       select: { id: true },
     });
-    if (exists) throw new ConflictException('E-mail já cadastrado para este tenant.');
+    if (exists)
+      throw new ConflictException('E-mail já cadastrado para este tenant.');
 
     let branchIdToPersist: string | null = null;
     if (dto.branchId) {
@@ -78,7 +79,9 @@ export class UsersService {
         select: { id: true },
       });
       if (!branch) {
-        throw new BadRequestException('Filial (branchId) inexistente para este tenant.');
+        throw new BadRequestException(
+          'Filial (branchId) inexistente para este tenant.',
+        );
       }
       branchIdToPersist = dto.branchId;
     }
@@ -154,7 +157,12 @@ export class UsersService {
 
     const target = await this.prisma.user.findFirst({
       where: { id, ...(tenantId ? { tenantId } : {}) },
-      select: { id: true, tenantId: true, passwordHash: true, mustChangePassword: true },
+      select: {
+        id: true,
+        tenantId: true,
+        passwordHash: true,
+        mustChangePassword: true,
+      },
     });
     if (!target) throw new NotFoundException('Usuário não encontrado');
 
@@ -162,13 +170,19 @@ export class UsersService {
     const isSelf = actorId === id;
 
     if (!isAdmin && !isSelf) {
-      throw new ForbiddenException('Sem permissão para alterar a senha deste usuário.');
+      throw new ForbiddenException(
+        'Sem permissão para alterar a senha deste usuário.',
+      );
     }
 
     if (!isAdmin) {
       if (!target.mustChangePassword) {
-        if (!dto.currentPassword) throw new BadRequestException('Informe a senha atual.');
-        const ok = await argon2.verify(target.passwordHash, dto.currentPassword);
+        if (!dto.currentPassword)
+          throw new BadRequestException('Informe a senha atual.');
+        const ok = await argon2.verify(
+          target.passwordHash,
+          dto.currentPassword,
+        );
         if (!ok) throw new BadRequestException('Senha atual inválida.');
       }
     }
@@ -245,7 +259,10 @@ export class UsersService {
           where: { id: dto.branchId, tenantId: current.tenantId },
           select: { id: true },
         });
-        if (!branch) throw new BadRequestException('Filial (branchId) inexistente para este tenant.');
+        if (!branch)
+          throw new BadRequestException(
+            'Filial (branchId) inexistente para este tenant.',
+          );
         data.branchId = dto.branchId;
       }
     }
@@ -256,9 +273,12 @@ export class UsersService {
     }
 
     if ((dto as any).role !== undefined) data.role = (dto as any).role as Role;
-    if ((dto as any).status !== undefined) data.status = (dto as any).status as UserStatus;
+    if ((dto as any).status !== undefined)
+      data.status = (dto as any).status as UserStatus;
     if ((dto as any).email !== undefined)
-      data.email = String((dto as any).email).trim().toLowerCase();
+      data.email = String((dto as any).email)
+        .trim()
+        .toLowerCase();
     if (dto.department !== undefined) data.department = dto.department ?? null;
 
     // ADMIN definindo nova senha direto no update
@@ -308,7 +328,7 @@ export class UsersService {
       },
       orderBy: { createdAt: 'desc' },
     });
-    }
+  }
 
   async findOne(id: string, ctx?: { tenantId?: string }) {
     const u = await this.prisma.user.findFirst({
@@ -354,7 +374,10 @@ export class UsersService {
 
   async findReservationsByUser(userId: string, ctx?: { tenantId?: string }) {
     const user = await this.prisma.user.findFirst({
-      where: { id: userId, ...(ctx?.tenantId ? { tenantId: ctx.tenantId } : {}) },
+      where: {
+        id: userId,
+        ...(ctx?.tenantId ? { tenantId: ctx.tenantId } : {}),
+      },
       select: { id: true },
     });
     if (!user) throw new NotFoundException('Usuário não encontrado');

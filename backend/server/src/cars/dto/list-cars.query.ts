@@ -11,7 +11,8 @@ export class ListCarsQueryDto {
   })
   @IsOptional()
   @Matches(BRANCH_ID_REGEX, {
-    message: 'branchId deve ser código de 3 letras (ex.: FOR) ou UUID v4 válido',
+    message:
+      'branchId deve ser código de 3 letras (ex.: FOR) ou UUID v4 válido',
   })
   @Transform(({ value }) => {
     if (typeof value !== 'string') return value;

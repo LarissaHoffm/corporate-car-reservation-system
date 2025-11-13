@@ -7,7 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { statusChipClasses } from "@/components/ui/status";
 
 type ReservationStatus = "Pending" | "Completed" | "In Progress";
@@ -41,24 +47,36 @@ function writeJSON<T>(key: string, value: T) {
 
 // Mock inicial (seed no LS)
 const DEFAULT_RESERVATIONS: Reservation[] = [
-  { id: "R2023001", car: "Ford Focus",     date: "27/10/2025", status: "Pending" },
-  { id: "R2023002", car: "Toyota Corolla",  date: "28/10/2025", status: "In Progress" },
-  { id: "R2023003", car: "Honda Civic",     date: "01/11/2025", status: "Pending" },
-  { id: "R2023004", car: "VW T-Cross",      date: "03/11/2025", status: "Completed" },
+  { id: "R2023001", car: "Ford Focus", date: "27/10/2025", status: "Pending" },
+  {
+    id: "R2023002",
+    car: "Toyota Corolla",
+    date: "28/10/2025",
+    status: "In Progress",
+  },
+  { id: "R2023003", car: "Honda Civic", date: "01/11/2025", status: "Pending" },
+  {
+    id: "R2023004",
+    car: "VW T-Cross",
+    date: "03/11/2025",
+    status: "Completed",
+  },
 ];
 
 const CHECKLIST_ITEMS = [
-  { id: "tires",     label: "Tires" },
-  { id: "fuel",      label: "Full Tank" },
-  { id: "damages",   label: "Damages" },
-  { id: "cleaning",  label: "Cleaning (inside/outside)" },
-  { id: "mileage1",  label: "Final Mileage" },
-  { id: "mileage2",  label: "Final Mileage" },
-  { id: "mileage3",  label: "Final Mileage" },
+  { id: "tires", label: "Tires" },
+  { id: "fuel", label: "Full Tank" },
+  { id: "damages", label: "Damages" },
+  { id: "cleaning", label: "Cleaning (inside/outside)" },
+  { id: "mileage1", label: "Final Mileage" },
+  { id: "mileage2", label: "Final Mileage" },
+  { id: "mileage3", label: "Final Mileage" },
 ];
 
 // mapeia status para os chips usados (Pendente/Aprovado/Rejeitado)
-function toChipStatus(s: ReservationStatus): "Pendente" | "Aprovado" | "Rejeitado" {
+function toChipStatus(
+  s: ReservationStatus,
+): "Pendente" | "Aprovado" | "Rejeitado" {
   if (s === "Completed") return "Aprovado";
   return "Pendente"; // Pending + In Progress
 }
@@ -76,8 +94,9 @@ export default function RequesterChecklistPage() {
 
   // Filtros
   const [carFilter, setCarFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] =
-    useState<"all" | "pending" | "in-progress" | "completed">("all");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "pending" | "in-progress" | "completed"
+  >("all");
 
   // Seleção atual (inicia vazio)
   const [selectedId, setSelectedId] = useState<string>("");
@@ -142,8 +161,12 @@ export default function RequesterChecklistPage() {
       if (!selectedId) return;
       const target = e.target as Node;
       const path = (e.composedPath?.() as Node[]) || [];
-      const insideList = listRef.current && (path.includes(listRef.current) || listRef.current.contains(target));
-      const insidePanel = panelRef.current && (path.includes(panelRef.current) || panelRef.current.contains(target));
+      const insideList =
+        listRef.current &&
+        (path.includes(listRef.current) || listRef.current.contains(target));
+      const insidePanel =
+        panelRef.current &&
+        (path.includes(panelRef.current) || panelRef.current.contains(target));
       if (!insideList && !insidePanel) {
         setSelectedId("");
       }
@@ -178,7 +201,9 @@ export default function RequesterChecklistPage() {
       return;
     }
     setReservations((prev) =>
-      prev.map((r) => (r.id === selected.id ? { ...r, status: "Completed" } : r)),
+      prev.map((r) =>
+        r.id === selected.id ? { ...r, status: "Completed" } : r,
+      ),
     );
     // fecha painel após enviar
     setSelectedId("");
@@ -210,9 +235,9 @@ export default function RequesterChecklistPage() {
             {/* Status filter */}
             <Select
               value={statusFilter}
-              onValueChange={(v: "all" | "pending" | "in-progress" | "completed") =>
-                setStatusFilter(v)
-              }
+              onValueChange={(
+                v: "all" | "pending" | "in-progress" | "completed",
+              ) => setStatusFilter(v)}
             >
               <SelectTrigger className="w-[160px]">
                 <SelectValue placeholder="Status" />
@@ -232,7 +257,9 @@ export default function RequesterChecklistPage() {
           <div ref={listRef}>
             <Card className="border border-border/50 bg-card text-foreground shadow-sm">
               <CardContent className="p-6">
-                <h2 className="mb-4 text-lg font-semibold text-foreground">My Reservations</h2>
+                <h2 className="mb-4 text-lg font-semibold text-foreground">
+                  My Reservations
+                </h2>
 
                 <div className="overflow-hidden rounded-lg border border-border">
                   {/* header */}
@@ -250,7 +277,14 @@ export default function RequesterChecklistPage() {
                   <div className="divide-y divide-border/50">
                     {(filtered.length
                       ? filtered
-                      : [{ id: "—", car: "—", date: "—", status: "Pending" as ReservationStatus }]
+                      : [
+                          {
+                            id: "—",
+                            car: "—",
+                            date: "—",
+                            status: "Pending" as ReservationStatus,
+                          },
+                        ]
                     ).map((r) => {
                       const isCompleted = r.status === "Completed";
                       return (
@@ -260,11 +294,19 @@ export default function RequesterChecklistPage() {
                           onClick={() => setSelectedId(r.id)}
                         >
                           <div className="grid grid-cols-5 items-center gap-4 text-sm">
-                            <div className="font-medium text-foreground">{r.id}</div>
+                            <div className="font-medium text-foreground">
+                              {r.id}
+                            </div>
                             <div className="text-muted-foreground">{r.car}</div>
-                            <div className="text-muted-foreground">{r.date}</div>
+                            <div className="text-muted-foreground">
+                              {r.date}
+                            </div>
                             <div>
-                              <Badge className={statusChipClasses(toChipStatus(r.status))}>
+                              <Badge
+                                className={statusChipClasses(
+                                  toChipStatus(r.status),
+                                )}
+                              >
                                 {r.status}
                               </Badge>
                             </div>
@@ -295,133 +337,152 @@ export default function RequesterChecklistPage() {
             </Card>
           </div>
 
-{/* RIGHT: Checklist form / placeholder (igual ao Documents) */}
-<div ref={panelRef}>
-  <Card className="border border-border/50 bg-card text-foreground shadow-sm">
-    <CardHeader>
-      <CardTitle className="flex items-center gap-2 text-base text-foreground">
-        <Eye className="h-4 w-4" />
-        Checklist Preview
-      </CardTitle>
-    </CardHeader>
+          {/* RIGHT: Checklist form / placeholder (igual ao Documents) */}
+          <div ref={panelRef}>
+            <Card className="border border-border/50 bg-card text-foreground shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base text-foreground">
+                  <Eye className="h-4 w-4" />
+                  Checklist Preview
+                </CardTitle>
+              </CardHeader>
 
-    {selected ? (
-      <CardContent className="p-6">
-        <div className="space-y-6">
-          {/* título + status */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <div className="h-3 w-3 rounded-full bg-muted-foreground/60" />
-              <span className="font-medium">RESERVATION ID: {selected.id}</span>
-            </div>
-            <Badge className={statusChipClasses(toChipStatus(selected.status))}>
-              {selected.status}
-            </Badge>
-          </div>
+              {selected ? (
+                <CardContent className="p-6">
+                  <div className="space-y-6">
+                    {/* título + status */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <div className="h-3 w-3 rounded-full bg-muted-foreground/60" />
+                        <span className="font-medium">
+                          RESERVATION ID: {selected.id}
+                        </span>
+                      </div>
+                      <Badge
+                        className={statusChipClasses(
+                          toChipStatus(selected.status),
+                        )}
+                      >
+                        {selected.status}
+                      </Badge>
+                    </div>
 
-          {/* checklist */}
-          <div>
-            <h3 className="mb-4 text-base font-semibold text-foreground">Mandatory Checklist</h3>
-            <div className="space-y-3">
-              {CHECKLIST_ITEMS.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center space-x-3 rounded-lg border border-border p-3 transition-colors hover:bg-card/60"
-                >
-                  <Checkbox
-                    id={item.id}
-                    checked={Boolean(checks[item.id])}
-                    onCheckedChange={(v) =>
-                      setChecks((prev) => ({ ...prev, [item.id]: Boolean(v) }))
-                    }
-                    className="data-[state=checked]:border-[#1558E9] data-[state=checked]:bg-[#1558E9]"
-                    disabled={selected.status === "Completed"}
-                  />
-                  <label
-                    htmlFor={item.id}
-                    className="flex-1 cursor-pointer text-sm font-medium text-foreground"
-                  >
-                    {item.label}
-                  </label>
-                </div>
-              ))}
-            </div>
-          </div>
+                    {/* checklist */}
+                    <div>
+                      <h3 className="mb-4 text-base font-semibold text-foreground">
+                        Mandatory Checklist
+                      </h3>
+                      <div className="space-y-3">
+                        {CHECKLIST_ITEMS.map((item) => (
+                          <div
+                            key={item.id}
+                            className="flex items-center space-x-3 rounded-lg border border-border p-3 transition-colors hover:bg-card/60"
+                          >
+                            <Checkbox
+                              id={item.id}
+                              checked={Boolean(checks[item.id])}
+                              onCheckedChange={(v) =>
+                                setChecks((prev) => ({
+                                  ...prev,
+                                  [item.id]: Boolean(v),
+                                }))
+                              }
+                              className="data-[state=checked]:border-[#1558E9] data-[state=checked]:bg-[#1558E9]"
+                              disabled={selected.status === "Completed"}
+                            />
+                            <label
+                              htmlFor={item.id}
+                              className="flex-1 cursor-pointer text-sm font-medium text-foreground"
+                            >
+                              {item.label}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
 
-          {/* upload */}
-          <div>
-            <h3 className="mb-4 text-base font-semibold text-foreground">Uploaded Files</h3>
+                    {/* upload */}
+                    <div>
+                      <h3 className="mb-4 text-base font-semibold text-foreground">
+                        Uploaded Files
+                      </h3>
 
-            <div className="rounded-lg border-2 border-dashed border-border/70 p-6 text-center">
-              <Upload className="mx-auto mb-2 h-7 w-7 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground mb-3">
-                Drag & drop here or click to upload
-              </p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                className="hidden"
-                onChange={handleFileChange}
-                accept=".jpg,.jpeg,.png,.pdf"
-                disabled={selected.status === "Completed"}
-              />
-              <Button
-                variant="outline"
-                onClick={handleChooseFile}
-                className="border-border bg-transparent"
-                disabled={selected.status === "Completed"}
-              >
-                Choose file
-              </Button>
-            </div>
+                      <div className="rounded-lg border-2 border-dashed border-border/70 p-6 text-center">
+                        <Upload className="mx-auto mb-2 h-7 w-7 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground mb-3">
+                          Drag & drop here or click to upload
+                        </p>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          className="hidden"
+                          onChange={handleFileChange}
+                          accept=".jpg,.jpeg,.png,.pdf"
+                          disabled={selected.status === "Completed"}
+                        />
+                        <Button
+                          variant="outline"
+                          onClick={handleChooseFile}
+                          className="border-border bg-transparent"
+                          disabled={selected.status === "Completed"}
+                        >
+                          Choose file
+                        </Button>
+                      </div>
 
-            {files.length > 0 && (
-              <div className="mt-3 space-y-2">
-                {files.map((f, i) => (
-                  <div
-                    key={`${f.name}-${i}`}
-                    className="flex items-center gap-3 rounded-lg border border-border p-3"
-                  >
-                    <FileText className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm text-foreground">{f.name}</span>
+                      {files.length > 0 && (
+                        <div className="mt-3 space-y-2">
+                          {files.map((f, i) => (
+                            <div
+                              key={`${f.name}-${i}`}
+                              className="flex items-center gap-3 rounded-lg border border-border p-3"
+                            >
+                              <FileText className="h-4 w-4 text-muted-foreground" />
+                              <span className="text-sm text-foreground">
+                                {f.name}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* enviar / view */}
+                    <div className="pt-2">
+                      {selected.status === "Completed" ? (
+                        <Button variant="outline" className="w-full">
+                          View
+                        </Button>
+                      ) : (
+                        <Button
+                          className="w-full bg-[#1558E9] text-white hover:bg-[#1558E9]/90"
+                          onClick={handleSend}
+                        >
+                          Send
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                ))}
-              </div>
-            )}
+                </CardContent>
+              ) : (
+                // Placeholder (igual ao Documents)
+                <CardContent className="space-y-4">
+                  <div className="h-48 bg-card/50 border border-dashed border-border/50 rounded-lg flex items-center justify-center">
+                    <div className="text-center text-muted-foreground">
+                      <Eye className="h-8 w-8 mx-auto mb-2" />
+                      <p className="font-medium">
+                        Select a reservation to preview
+                      </p>
+                      <p className="text-xs">
+                        Click an item on the left to fill and send the
+                        checklist.
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              )}
+            </Card>
           </div>
-
-          {/* enviar / view */}
-          <div className="pt-2">
-            {selected.status === "Completed" ? (
-              <Button variant="outline" className="w-full">
-                View
-              </Button>
-            ) : (
-              <Button
-                className="w-full bg-[#1558E9] text-white hover:bg-[#1558E9]/90"
-                onClick={handleSend}
-              >
-                Send
-              </Button>
-            )}
-          </div>
-        </div>
-      </CardContent>
-    ) : (
-      // Placeholder (igual ao Documents)
-      <CardContent className="space-y-4">
-        <div className="h-48 bg-card/50 border border-dashed border-border/50 rounded-lg flex items-center justify-center">
-          <div className="text-center text-muted-foreground">
-            <Eye className="h-8 w-8 mx-auto mb-2" />
-            <p className="font-medium">Select a reservation to preview</p>
-            <p className="text-xs">Click an item on the left to fill and send the checklist.</p>
-          </div>
-        </div>
-      </CardContent>
-    )}
-  </Card>
-</div>
-
         </div>
       </div>
     </RoleGuard>

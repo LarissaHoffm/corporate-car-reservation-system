@@ -3,7 +3,13 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Search, Eye } from "lucide-react";
 
 interface Column {
@@ -61,7 +67,12 @@ export function DataTable({
                 <Select
                   key={filter.key}
                   value={filterValues[filter.key] || ""}
-                  onValueChange={(value) => setFilterValues((prev) => ({ ...prev, [filter.key]: value }))}
+                  onValueChange={(value) =>
+                    setFilterValues((prev) => ({
+                      ...prev,
+                      [filter.key]: value,
+                    }))
+                  }
                 >
                   <SelectTrigger className="w-[150px]">
                     <SelectValue placeholder={filter.label} />
@@ -96,7 +107,10 @@ export function DataTable({
               <thead>
                 <tr className="border-b border-border">
                   {columns.map((column) => (
-                    <th key={column.key} className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                    <th
+                      key={column.key}
+                      className="px-4 py-3 text-left text-sm font-medium text-muted-foreground"
+                    >
                       {column.label}
                     </th>
                   ))}
@@ -106,8 +120,13 @@ export function DataTable({
                 {data.map((row, index) => (
                   <tr key={index} className="border-b border-border">
                     {columns.map((column) => (
-                      <td key={column.key} className="px-4 py-3 text-sm text-foreground">
-                        {column.render ? column.render(row[column.key], row) : row[column.key]}
+                      <td
+                        key={column.key}
+                        className="px-4 py-3 text-sm text-foreground"
+                      >
+                        {column.render
+                          ? column.render(row[column.key], row)
+                          : row[column.key]}
                       </td>
                     ))}
                   </tr>

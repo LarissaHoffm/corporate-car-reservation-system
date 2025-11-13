@@ -6,9 +6,7 @@ export const AppLogger = WinstonModule.createLogger({
   format: format.combine(
     format.timestamp(),
     format.errors({ stack: true }),
-    format.json()
+    format.json(),
   ),
-  transports: [
-    new transports.Console()
-  ],
+  transports: [new transports.Console()],
 });

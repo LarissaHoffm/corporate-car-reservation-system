@@ -1,4 +1,12 @@
-import { Controller, Get, Param, Query, Req, UseGuards, NotFoundException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  Query,
+  Req,
+  UseGuards,
+  NotFoundException,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { DepartmentsService } from './departments.service';
 
@@ -14,7 +22,11 @@ export class DepartmentsController {
   }
 
   @Get(':id')
-  async byId(@Req() req: any, @Param('id') id: string, @Query('tenantId') tenantId?: string) {
+  async byId(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Query('tenantId') tenantId?: string,
+  ) {
     const tId = (req?.user?.tenantId as string) || tenantId || undefined;
     const dep = await this.service.getById(id, tId);
     if (!dep) throw new NotFoundException('Department not found');

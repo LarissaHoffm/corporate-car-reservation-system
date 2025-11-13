@@ -1,4 +1,13 @@
-import { Body, Controller, Get, HttpCode, Post, Req, Res, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import type { Response } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -14,8 +23,14 @@ export class AuthController {
   @Post('login')
   @HttpCode(200)
   @Audit('AUTH_LOGIN', 'Auth')
-  @ApiOperation({ summary: 'Login — define cookies (refresh HttpOnly + csrf) e retorna accessToken + user' })
-  async login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
+  @ApiOperation({
+    summary:
+      'Login — define cookies (refresh HttpOnly + csrf) e retorna accessToken + user',
+  })
+  async login(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const out = await this.auth.login(dto, res);
     return { accessToken: out.accessToken, user: out.user };
   }
@@ -24,7 +39,8 @@ export class AuthController {
   @HttpCode(200)
   @Audit('AUTH_REFRESH', 'Auth')
   @ApiOperation({
-    summary: 'Refresh — requer header x-csrf-token igual ao cookie rcsrftoken/csrftoken',
+    summary:
+      'Refresh — requer header x-csrf-token igual ao cookie rcsrftoken/csrftoken',
     description: 'Após um refresh, o CSRF é rotacionado.',
   })
   @ApiHeader({
@@ -40,7 +56,10 @@ export class AuthController {
   @Post('logout')
   @HttpCode(200)
   @Audit('AUTH_LOGOUT', 'Auth')
-  @ApiOperation({ summary: 'Logout — requer x-csrf-token igual ao cookie rcsrftoken/csrftoken' })
+  @ApiOperation({
+    summary:
+      'Logout — requer x-csrf-token igual ao cookie rcsrftoken/csrftoken',
+  })
   @ApiHeader({
     name: 'x-csrf-token',
     required: true,
@@ -57,7 +76,8 @@ export class AuthController {
   @Audit('AUTH_CHANGE_PASSWORD', 'Auth')
   @ApiBearerAuth('access-token')
   @ApiOperation({
-    summary: 'Troca a própria senha; zera mustChangePassword, rotaciona refresh e retorna novo accessToken + user',
+    summary:
+      'Troca a própria senha; zera mustChangePassword, rotaciona refresh e retorna novo accessToken + user',
   })
   async changePassword(
     @Req() req: any,

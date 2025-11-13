@@ -8,8 +8,22 @@ import {
   Post,
   Req,
   UseGuards,
+  ParseUUIDPipe,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBadRequestResponse,
+  ApiBearerAuth,
+  ApiBody,
+  ApiConflictResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+  ApiUnauthorizedResponse,
+  ApiCreatedResponse,
+} from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -23,20 +37,32 @@ import { Audit } from '../audit/audit.decorator';
 @Controller('users')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth('access-token')
+@ApiUnauthorizedResponse({ description: 'Não autenticado (401)' })
+@ApiForbiddenResponse({ description: 'Sem permissão (403)' })
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
   @Roles('ADMIN')
-  @ApiOperation({ summary: 'Listar usuários (ADMIN)' })
+  @ApiOperation({ summary: 'Listar usuários', description: 'RBAC: ADMIN' })
+  @ApiOkResponse({ description: 'Lista retornada com sucesso.' })
   findAll(@Req() req: any) {
     return this.usersService.findAll(req?.user?.tenantId);
   }
 
   @Get(':id')
   @Roles('ADMIN')
-  @ApiOperation({ summary: 'Obter detalhes de um usuário (ADMIN)' })
-  findOne(@Param('id') id: string, @Req() req: any) {
+  @ApiOperation({
+    summary: 'Obter detalhes de um usuário',
+    description: 'RBAC: ADMIN',
+  })
+  @ApiParam({ name: 'id', type: String, format: 'uuid' })
+  @ApiOkResponse({ description: 'Usuário encontrado.' })
+  @ApiNotFoundResponse({ description: 'Usuário não encontrado (404)' })
+  findOne(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: any,
+  ) {
     const tenantId = req?.user?.tenantId ?? req.headers['x-tenant-id'];
     return this.usersService.findOne(id, { tenantId });
   }
@@ -44,7 +70,26 @@ export class UsersController {
   @Post()
   @Roles('ADMIN')
   @Audit('USER_CREATE', 'User')
-  @ApiOperation({ summary: 'Criar usuário (ADMIN)' })
+  @ApiOperation({ summary: 'Criar usuário', description: 'RBAC: ADMIN' })
+  @ApiBody({
+    type: CreateUserDto,
+    examples: {
+      default: {
+        summary: 'Exemplo',
+        value: {
+          email: 'novo.user@empresa.com',
+          name: 'Novo User',
+          role: 'REQUESTER',
+          branchId: null,
+          department: 'SALES',
+          phone: '11999998888',
+        },
+      },
+    },
+  })
+  @ApiCreatedResponse({ description: 'Usuário criado.' })
+  @ApiBadRequestResponse({ description: 'Dados inválidos (400)' })
+  @ApiConflictResponse({ description: 'E-mail já cadastrado.' })
   create(@Body() dto: CreateUserDto, @Req() req: any) {
     const tenantId = req?.user?.tenantId ?? req.headers['x-tenant-id'];
     const actorId = req?.user?.sub ?? req?.user?.id ?? null;
@@ -54,8 +99,16 @@ export class UsersController {
   @Patch(':id')
   @Roles('ADMIN')
   @Audit('USER_UPDATE', 'User')
-  @ApiOperation({ summary: 'Atualizar usuário (ADMIN)' })
-  update(@Param('id') id: string, @Body() dto: UpdateUserDto, @Req() req: any) {
+  @ApiOperation({ summary: 'Atualizar usuário', description: 'RBAC: ADMIN' })
+  @ApiParam({ name: 'id', type: String, format: 'uuid' })
+  @ApiOkResponse({ description: 'Usuário atualizado.' })
+  @ApiBadRequestResponse({ description: 'Dados inválidos (400)' })
+  @ApiNotFoundResponse({ description: 'Usuário não encontrado (404)' })
+  update(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() dto: UpdateUserDto,
+    @Req() req: any,
+  ) {
     const tenantId = req?.user?.tenantId;
     return this.usersService.update(id, dto, { tenantId });
   }
@@ -63,43 +116,71 @@ export class UsersController {
   @Delete(':id')
   @Roles('ADMIN')
   @Audit('USER_DELETE', 'User')
-  @ApiOperation({ summary: 'Remover usuário (ADMIN)' })
-  remove(@Param('id') id: string) {
+  @ApiOperation({ summary: 'Remover usuário', description: 'RBAC: ADMIN' })
+  @ApiParam({ name: 'id', type: String, format: 'uuid' })
+  @ApiOkResponse({ description: 'Usuário removido.' })
+  @ApiNotFoundResponse({ description: 'Usuário não encontrado (404)' })
+  remove(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
     return this.usersService.remove(id);
   }
 
   @Patch(':id/make-approver')
   @Roles('ADMIN')
   @Audit('USER_MAKE_APPROVER', 'User')
-  @ApiOperation({ summary: 'Promover para APPROVER (ADMIN)' })
-  makeApprover(@Param('id') id: string) {
+  @ApiOperation({
+    summary: 'Promover para APPROVER',
+    description: 'RBAC: ADMIN',
+  })
+  @ApiParam({ name: 'id', type: String, format: 'uuid' })
+  @ApiOkResponse({ description: 'Usuário promovido.' })
+  @ApiNotFoundResponse({ description: 'Usuário não encontrado (404)' })
+  makeApprover(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
     return this.usersService.makeApprover(id);
   }
 
   @Patch(':id/revoke-approver')
   @Roles('ADMIN')
   @Audit('USER_REVOKE_APPROVER', 'User')
-  @ApiOperation({ summary: 'Revogar APPROVER (ADMIN)' })
-  revokeApprover(@Param('id') id: string) {
+  @ApiOperation({ summary: 'Revogar APPROVER', description: 'RBAC: ADMIN' })
+  @ApiParam({ name: 'id', type: String, format: 'uuid' })
+  @ApiOkResponse({ description: 'Permissão revogada.' })
+  @ApiNotFoundResponse({ description: 'Usuário não encontrado (404)' })
+  revokeApprover(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
     return this.usersService.revokeApprover(id);
   }
 
-  /**
-   * SELF + ADMIN
-   * Qualquer usuário autenticado pode alterar a PRÓPRIA senha (self).
-   * ADMIN pode alterar a senha de qualquer usuário.
-   * A checagem final (self/admin) é feita no service.
-   */
   @Patch(':id/password')
   @Audit('USER_PASSWORD_SET', 'User')
-  @ApiBody({ type: UpdatePasswordDto })
-  @ApiOperation({ summary: 'Alterar a própria senha (SELF) ou definir senha (ADMIN)' })
-  setPassword(@Param('id') id: string, @Body() dto: UpdatePasswordDto, @Req() req: any) {
+  @ApiOperation({
+    summary: 'Alterar própria senha (SELF) / Definir senha (ADMIN)',
+    description: 'RBAC: SELF ou ADMIN (verificado no service)',
+  })
+  @ApiParam({ name: 'id', type: String, format: 'uuid' })
+  @ApiBody({
+    type: UpdatePasswordDto,
+    examples: {
+      self: {
+        summary: 'Troca própria',
+        value: { currentPassword: 'Senha@Atual1', newPassword: 'Nova@Senha2' },
+      },
+      admin: {
+        summary: 'ADMIN definindo nova senha',
+        value: { newPassword: 'Definida@Admin3' },
+      },
+    },
+  })
+  @ApiOkResponse({ description: 'Senha atualizada.' })
+  @ApiBadRequestResponse({ description: 'Dados inválidos (400)' })
+  @ApiNotFoundResponse({ description: 'Usuário não encontrado (404)' })
+  setPassword(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() dto: UpdatePasswordDto,
+    @Req() req: any,
+  ) {
     const u = req?.user ?? {};
     const ctx = {
       tenantId: u.tenantId ?? null,
-      // 🔧 fix: usa id OU sub, conforme como o JwtStrategy populou o req.user
-      actorId: (u.id ?? u.sub) ?? null,
+      actorId: u.id ?? u.sub ?? null,
       actorRole: u.role ?? null,
     };
     return this.usersService.updatePassword(id, dto, ctx);
@@ -108,12 +189,21 @@ export class UsersController {
   @Post(':id/reset-password')
   @Roles('ADMIN')
   @Audit('USER_PASSWORD_RESET', 'User')
-  @ApiOperation({ summary: 'Resetar senha (gera temporaryPassword e força troca) (ADMIN)' })
-  resetPassword(@Param('id') id: string, @Req() req: any) {
+  @ApiOperation({
+    summary: 'Resetar senha (gera temporaryPassword e força troca)',
+    description: 'RBAC: ADMIN',
+  })
+  @ApiParam({ name: 'id', type: String, format: 'uuid' })
+  @ApiOkResponse({ description: 'Senha resetada.' })
+  @ApiNotFoundResponse({ description: 'Usuário não encontrado (404)' })
+  resetPassword(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: any,
+  ) {
     const u = req?.user ?? {};
     const ctx = {
       tenantId: u.tenantId ?? null,
-      actorId: (u.id ?? u.sub) ?? null,
+      actorId: u.id ?? u.sub ?? null,
       actorRole: u.role ?? null,
     };
     return this.usersService.resetPassword(id, ctx);
@@ -121,8 +211,17 @@ export class UsersController {
 
   @Get(':id/reservations')
   @Roles('ADMIN')
-  @ApiOperation({ summary: 'Listar reservas do usuário (ADMIN)' })
-  reservations(@Param('id') id: string, @Req() req: any) {
+  @ApiOperation({
+    summary: 'Listar reservas do usuário',
+    description: 'RBAC: ADMIN',
+  })
+  @ApiParam({ name: 'id', type: String, format: 'uuid' })
+  @ApiOkResponse({ description: 'Lista de reservas retornada.' })
+  @ApiNotFoundResponse({ description: 'Usuário não encontrado (404)' })
+  reservations(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: any,
+  ) {
     const tenantId = req?.user?.tenantId;
     return this.usersService.findReservationsByUser(id, { tenantId });
   }

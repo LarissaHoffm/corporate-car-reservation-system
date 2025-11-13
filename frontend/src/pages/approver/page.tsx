@@ -32,33 +32,127 @@ export default function ApproverDashboard() {
   // Cards
   const stats = useMemo(
     () => [
-      { title: "Pending Reservations",  value: "2",  icon: Calendar, color: "text-blue-600", to: "/approver/reservations?status=pending" },
-      { title: "Approved Reservations", value: "45", icon: Calendar, color: "text-blue-600", to: "/approver/reservations?status=approved" },
-      { title: "Documents to Validate", value: "34", icon: Users,    color: "text-blue-600", to: "/approver/documents?status=pending" },
-      { title: "Ongoing Checklists",    value: "8",  icon: FileCheck, color: "text-blue-600", to: "/approver/checklist" },
+      {
+        title: "Pending Reservations",
+        value: "2",
+        icon: Calendar,
+        color: "text-blue-600",
+        to: "/approver/reservations?status=pending",
+      },
+      {
+        title: "Approved Reservations",
+        value: "45",
+        icon: Calendar,
+        color: "text-blue-600",
+        to: "/approver/reservations?status=approved",
+      },
+      {
+        title: "Documents to Validate",
+        value: "34",
+        icon: Users,
+        color: "text-blue-600",
+        to: "/approver/documents?status=pending",
+      },
+      {
+        title: "Ongoing Checklists",
+        value: "8",
+        icon: FileCheck,
+        color: "text-blue-600",
+        to: "/approver/checklist",
+      },
     ],
-    []
+    [],
   );
 
   // Mock data
   const pendingReservations: PendingReservation[] = [
-    { id: "R2023001", car: "Toyota Camry",  user: "Alice Johnson",   pickupDate: "2023-10-26", status: "Pendente" },
-    { id: "R2023002", car: "Honda Civic",   user: "Bob Williams",    pickupDate: "2023-10-27", status: "Pendente" },
-    { id: "R2023003", car: "Ford Focus",    user: "Charlie Brown",   pickupDate: "2023-10-28", status: "Pendente" },
-    { id: "R2023004", car: "Tesla Model 3", user: "Diana Prince",    pickupDate: "2023-10-29", status: "Pendente" },
-    { id: "R2023005", car: "VW Golf",       user: "Eve Adams",       pickupDate: "2023-10-30", status: "Pendente" },
-    { id: "R2023006", car: "Chevrolet Onix",user: "Peter Parker",    pickupDate: "2023-11-01", status: "Pendente" },
-    { id: "R2023007", car: "Renault Kwid",  user: "Natasha Romanoff",pickupDate: "2023-11-02", status: "Pendente" },
+    {
+      id: "R2023001",
+      car: "Toyota Camry",
+      user: "Alice Johnson",
+      pickupDate: "2023-10-26",
+      status: "Pendente",
+    },
+    {
+      id: "R2023002",
+      car: "Honda Civic",
+      user: "Bob Williams",
+      pickupDate: "2023-10-27",
+      status: "Pendente",
+    },
+    {
+      id: "R2023003",
+      car: "Ford Focus",
+      user: "Charlie Brown",
+      pickupDate: "2023-10-28",
+      status: "Pendente",
+    },
+    {
+      id: "R2023004",
+      car: "Tesla Model 3",
+      user: "Diana Prince",
+      pickupDate: "2023-10-29",
+      status: "Pendente",
+    },
+    {
+      id: "R2023005",
+      car: "VW Golf",
+      user: "Eve Adams",
+      pickupDate: "2023-10-30",
+      status: "Pendente",
+    },
+    {
+      id: "R2023006",
+      car: "Chevrolet Onix",
+      user: "Peter Parker",
+      pickupDate: "2023-11-01",
+      status: "Pendente",
+    },
+    {
+      id: "R2023007",
+      car: "Renault Kwid",
+      user: "Natasha Romanoff",
+      pickupDate: "2023-11-02",
+      status: "Pendente",
+    },
   ];
 
   const documentsToValidate: PendingDocument[] = [
-    { user: "Priya Singh", documentType: "Insurance",      uploadedAt: "11 Sep 2025" },
-    { user: "Daniel Park", documentType: "Registration",   uploadedAt: "10 Sep 2025" },
-    { user: "Alex Chen",   documentType: "Driver License", uploadedAt: "09 Sep 2025" },
-    { user: "Priya Singh", documentType: "Insurance",      uploadedAt: "08 Sep 2025" },
-    { user: "Daniel Park", documentType: "Registration",   uploadedAt: "07 Sep 2025" },
-    { user: "Alex Chen",   documentType: "Driver License", uploadedAt: "06 Sep 2025" },
-    { user: "Daniel Park", documentType: "Registration",   uploadedAt: "05 Sep 2025" },
+    {
+      user: "Priya Singh",
+      documentType: "Insurance",
+      uploadedAt: "11 Sep 2025",
+    },
+    {
+      user: "Daniel Park",
+      documentType: "Registration",
+      uploadedAt: "10 Sep 2025",
+    },
+    {
+      user: "Alex Chen",
+      documentType: "Driver License",
+      uploadedAt: "09 Sep 2025",
+    },
+    {
+      user: "Priya Singh",
+      documentType: "Insurance",
+      uploadedAt: "08 Sep 2025",
+    },
+    {
+      user: "Daniel Park",
+      documentType: "Registration",
+      uploadedAt: "07 Sep 2025",
+    },
+    {
+      user: "Alex Chen",
+      documentType: "Driver License",
+      uploadedAt: "06 Sep 2025",
+    },
+    {
+      user: "Daniel Park",
+      documentType: "Registration",
+      uploadedAt: "05 Sep 2025",
+    },
   ];
 
   return (
@@ -82,8 +176,12 @@ export default function ApproverDashboard() {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
-                  <p className="text-2xl font-bold text-foreground">{stat.value}</p>
+                  <p className="text-sm font-medium text-muted-foreground">
+                    {stat.title}
+                  </p>
+                  <p className="text-2xl font-bold text-foreground">
+                    {stat.value}
+                  </p>
                 </div>
                 <stat.icon className={`h-8 w-8 ${stat.color}`} />
               </div>
@@ -97,7 +195,9 @@ export default function ApproverDashboard() {
         {/* LEFT: Pending Reservations */}
         <Card className="border-border/50 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-4">
-            <CardTitle className="text-lg font-semibold text-foreground">Pending Reservations</CardTitle>
+            <CardTitle className="text-lg font-semibold text-foreground">
+              Pending Reservations
+            </CardTitle>
             <Button
               variant="outline"
               size="sm"
@@ -115,23 +215,52 @@ export default function ApproverDashboard() {
                 <table className="w-full">
                   <thead className="sticky top-0 bg-background z-10">
                     <tr className="border-b border-border/50">
-                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">RESERVA ID</th>
-                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">CAR MODEL</th>
-                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">USER</th>
-                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">PICK-UP DATE</th>
-                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">STATUS</th>
-                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">ACTIONS</th>
+                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">
+                        RESERVA ID
+                      </th>
+                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">
+                        CAR MODEL
+                      </th>
+                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">
+                        USER
+                      </th>
+                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">
+                        PICK-UP DATE
+                      </th>
+                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">
+                        STATUS
+                      </th>
+                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">
+                        ACTIONS
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {pendingReservations.map((r, i) => (
-                      <tr key={r.id} className={i !== pendingReservations.length - 1 ? "border-b border-border/50" : ""}>
-                        <td className="py-3 px-4 text-sm font-medium text-foreground">{r.id}</td>
-                        <td className="py-3 px-4 text-sm text-foreground">{r.car}</td>
-                        <td className="py-3 px-4 text-sm text-foreground">{r.user}</td>
-                        <td className="py-3 px-4 text-sm text-foreground">{r.pickupDate}</td>
+                      <tr
+                        key={r.id}
+                        className={
+                          i !== pendingReservations.length - 1
+                            ? "border-b border-border/50"
+                            : ""
+                        }
+                      >
+                        <td className="py-3 px-4 text-sm font-medium text-foreground">
+                          {r.id}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-foreground">
+                          {r.car}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-foreground">
+                          {r.user}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-foreground">
+                          {r.pickupDate}
+                        </td>
                         <td className="py-3 px-4">
-                          <Badge className={statusChipClasses(r.status)}>{r.status}</Badge>
+                          <Badge className={statusChipClasses(r.status)}>
+                            {r.status}
+                          </Badge>
                         </td>
                         <td className="py-3 px-4">
                           <Button
@@ -156,7 +285,9 @@ export default function ApproverDashboard() {
         {/* RIGHT: Documents Awaiting Validation */}
         <Card className="border-border/50 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-4">
-            <CardTitle className="text-lg font-semibold text-foreground">Documents Awaiting Validation</CardTitle>
+            <CardTitle className="text-lg font-semibold text-foreground">
+              Documents Awaiting Validation
+            </CardTitle>
             <Button
               variant="outline"
               size="sm"
@@ -173,18 +304,39 @@ export default function ApproverDashboard() {
                 <table className="w-full">
                   <thead className="sticky top-0 bg-background z-10">
                     <tr className="border-b border-border/50">
-                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">USER</th>
-                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">DOCUMENT</th>
-                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">UPLOADED</th>
-                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">ACTIONS</th>
+                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">
+                        USER
+                      </th>
+                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">
+                        DOCUMENT
+                      </th>
+                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">
+                        UPLOADED
+                      </th>
+                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">
+                        ACTIONS
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {documentsToValidate.map((doc, i) => (
-                      <tr key={`${doc.user}-${i}`} className={i !== documentsToValidate.length - 1 ? "border-b border-border/50" : ""}>
-                        <td className="py-3 px-4 text-sm text-foreground">{doc.user}</td>
-                        <td className="py-3 px-4 text-sm text-foreground">{doc.documentType}</td>
-                        <td className="py-3 px-4 text-sm text-muted-foreground">{doc.uploadedAt}</td>
+                      <tr
+                        key={`${doc.user}-${i}`}
+                        className={
+                          i !== documentsToValidate.length - 1
+                            ? "border-b border-border/50"
+                            : ""
+                        }
+                      >
+                        <td className="py-3 px-4 text-sm text-foreground">
+                          {doc.user}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-foreground">
+                          {doc.documentType}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-muted-foreground">
+                          {doc.uploadedAt}
+                        </td>
                         <td className="py-3 px-4">
                           <Button
                             size="sm"

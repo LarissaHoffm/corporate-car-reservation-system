@@ -11,7 +11,7 @@ import { ArrowLeft } from "lucide-react";
 export default function RequesterReservationDetailsPage() {
   const [params] = useSearchParams();
   const id = params.get("id") || "";
-  const { getReservation, loading } = useReservations();
+  const { getReservation } = useReservations();
   const [data, setData] = useState<any>(null);
 
   useEffect(() => {
@@ -24,7 +24,11 @@ export default function RequesterReservationDetailsPage() {
   if (!data) {
     return (
       <div className="mx-auto p-6 max-w-[900px]">
-        <Card><CardContent className="py-10 text-sm text-muted-foreground">Loading…</CardContent></Card>
+        <Card>
+          <CardContent className="py-10 text-sm text-muted-foreground">
+            Loading…
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -33,10 +37,15 @@ export default function RequesterReservationDetailsPage() {
     <div className="mx-auto p-6 max-w-[900px] space-y-6">
       <div className="flex items-center justify-between">
         <Link to="/requester/reservations">
-          <Button variant="ghost"><ArrowLeft className="h-4 w-4 mr-2" />Back</Button>
+          <Button variant="ghost">
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
         </Link>
         <div className="flex gap-2">
-          <Button onClick={() => window.print()} variant="outline">Print</Button>
+          <Button onClick={() => window.print()} variant="outline">
+            Print
+          </Button>
         </div>
       </div>
 
@@ -44,11 +53,17 @@ export default function RequesterReservationDetailsPage() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Reservation Details</CardTitle>
-            <Badge className={statusChipClasses(
-              data.status === "PENDING" ? "Warning" :
-              data.status === "APPROVED" ? "Active" :
-              data.status === "COMPLETED" ? "Success" : "Inactive"
-            )}>
+            <Badge
+              className={statusChipClasses(
+                data.status === "PENDING"
+                  ? "Warning"
+                  : data.status === "APPROVED"
+                    ? "Active"
+                    : data.status === "COMPLETED"
+                      ? "Success"
+                      : "Inactive",
+              )}
+            >
               {data.status}
             </Badge>
           </div>
@@ -64,16 +79,22 @@ export default function RequesterReservationDetailsPage() {
           </div>
           <div>
             <div className="text-xs text-muted-foreground">Start</div>
-            <div className="font-medium">{new Date(data.startAt).toLocaleString()}</div>
+            <div className="font-medium">
+              {new Date(data.startAt).toLocaleString()}
+            </div>
           </div>
           <div>
             <div className="text-xs text-muted-foreground">End</div>
-            <div className="font-medium">{new Date(data.endAt).toLocaleString()}</div>
+            <div className="font-medium">
+              {new Date(data.endAt).toLocaleString()}
+            </div>
           </div>
           {data.car && (
             <div>
               <div className="text-xs text-muted-foreground">Car</div>
-              <div className="font-medium">{data.car.plate} — {data.car.model}</div>
+              <div className="font-medium">
+                {data.car.plate} — {data.car.model}
+              </div>
             </div>
           )}
           {data.branch && (

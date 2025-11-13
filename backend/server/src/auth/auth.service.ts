@@ -14,8 +14,11 @@ import { LoginDto } from './dto/login.dto';
 import { Role, UserStatus } from '@prisma/client';
 import { ChangePasswordDto } from './dto/change-password.dto';
 
-// Converte "15m" | "7d" | "3600" para segundos 
-function toSeconds(input: string | number | undefined, fallback: number): number {
+// Converte "15m" | "7d" | "3600" para segundos
+function toSeconds(
+  input: string | number | undefined,
+  fallback: number,
+): number {
   if (typeof input === 'number') return input;
   if (!input) return fallback;
   const s = String(input).trim().toLowerCase();
@@ -49,8 +52,10 @@ type RefreshJwtPayload = BaseJwtClaims & { jti: string };
 
 @Injectable()
 export class AuthService {
-  private readonly accessSecret = process.env.JWT_ACCESS_SECRET || 'dev_access_secret';
-  private readonly refreshSecret = process.env.JWT_REFRESH_SECRET || 'dev_refresh_secret';
+  private readonly accessSecret =
+    process.env.JWT_ACCESS_SECRET || 'dev_access_secret';
+  private readonly refreshSecret =
+    process.env.JWT_REFRESH_SECRET || 'dev_refresh_secret';
 
   private readonly accessTtlSec = toSeconds(
     process.env.JWT_ACCESS_TTL || process.env.JWT_ACCESS_EXPIRES || '15m',
@@ -67,7 +72,8 @@ export class AuthService {
   private readonly cookieDomain = process.env.COOKIE_DOMAIN || undefined;
   private readonly cookieSameSite = process.env.COOKIE_SAMESITE ?? 'Lax';
 
-  private refreshCookieName = process.env.REFRESH_COOKIE_NAME ?? 'rc_refresh_token';
+  private refreshCookieName =
+    process.env.REFRESH_COOKIE_NAME ?? 'rc_refresh_token';
   private csrfCookieName = process.env.CSRF_COOKIE_NAME ?? 'rcsrftoken';
 
   // compat
@@ -94,7 +100,7 @@ export class AuthService {
     });
   }
 
-  // jti fica no payload 
+  // jti fica no payload
   private signRefreshToken(payload: RefreshJwtPayload): string {
     return this.jwt.sign(payload, {
       secret: this.refreshSecret,
@@ -141,7 +147,9 @@ export class AuthService {
     const namesHttpOnly = [this.refreshCookieName, this.legacyRefreshCookie];
     const namesReadable = [this.csrfCookieName, this.legacyCsrfCookie];
 
-    const variants = [{ domain: this.cookieDomain }, {}] as Array<{ domain?: string }>;
+    const variants = [{ domain: this.cookieDomain }, {}] as Array<{
+      domain?: string;
+    }>;
 
     const emit = (name: string, httpOnly: boolean, v: { domain?: string }) => {
       const base = {
@@ -197,7 +205,8 @@ export class AuthService {
     });
 
     if (!user) throw new UnauthorizedException('Credenciais inválidas');
-    if (user.status === UserStatus.INACTIVE) throw new ForbiddenException('Usuário inativo');
+    if (user.status === UserStatus.INACTIVE)
+      throw new ForbiddenException('Usuário inativo');
 
     const ok = await argon2.verify(user.passwordHash, dto.password);
     if (!ok) throw new UnauthorizedException('Credenciais inválidas');
@@ -216,7 +225,11 @@ export class AuthService {
     this.setAuthCookies(res, refreshToken);
 
     try {
-      await this.redis.set(`rt:${jti}`, JSON.stringify({ uid: user.id }), this.refreshTtlSec);
+      await this.redis.set(
+        `rt:${jti}`,
+        JSON.stringify({ uid: user.id }),
+        this.refreshTtlSec,
+      );
     } catch {
       /* best effort */
     }
@@ -240,7 +253,9 @@ export class AuthService {
 
     let payload: RefreshJwtPayload & { iat?: number; exp?: number };
     try {
-      payload = this.jwt.verify(token, { secret: this.refreshSecret }) as RefreshJwtPayload;
+      payload = this.jwt.verify(token, {
+        secret: this.refreshSecret,
+      }) as RefreshJwtPayload;
     } catch {
       throw new UnauthorizedException('Refresh inválido');
     }
@@ -248,7 +263,8 @@ export class AuthService {
 
     const jtiKey = `rt:${payload.jti}`;
     const jtiVal = await this.redis.get(jtiKey);
-    if (!jtiVal) throw new UnauthorizedException('Refresh expirado ou revogado');
+    if (!jtiVal)
+      throw new UnauthorizedException('Refresh expirado ou revogado');
 
     // rotação de refresh
     await this.redis.del(jtiKey);
@@ -262,7 +278,11 @@ export class AuthService {
       jti: newJti,
     };
     const newRefresh = this.signRefreshToken(newRefreshPayload);
-    await this.redis.set(`rt:${newJti}`, JSON.stringify({ uid: payload.sub }), this.refreshTtlSec);
+    await this.redis.set(
+      `rt:${newJti}`,
+      JSON.stringify({ uid: payload.sub }),
+      this.refreshTtlSec,
+    );
     this.setAuthCookies(res, newRefresh);
 
     const accessPayload: AccessJwtPayload = {
@@ -282,7 +302,9 @@ export class AuthService {
     const token = this.getRefreshFromReq(req);
     if (token) {
       try {
-        const payload = this.jwt.verify(token, { secret: this.refreshSecret }) as RefreshJwtPayload;
+        const payload = this.jwt.verify(token, {
+          secret: this.refreshSecret,
+        }) as RefreshJwtPayload;
         if (payload?.jti) await this.redis.del(`rt:${payload.jti}`);
       } catch {
         /* ignore */
@@ -312,10 +334,17 @@ export class AuthService {
   /* -------------------- change-password -------------------- */
 
   private isStrong(password: string): boolean {
-    return /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/.test(password);
+    return /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/.test(
+      password,
+    );
   }
 
-  async changePassword(userId: string, dto: ChangePasswordDto, req: Request, res: Response) {
+  async changePassword(
+    userId: string,
+    dto: ChangePasswordDto,
+    req: Request,
+    res: Response,
+  ) {
     const { currentPassword, newPassword } = dto;
 
     const user = await this.prisma.user.findUnique({
@@ -332,7 +361,8 @@ export class AuthService {
       },
     });
     if (!user) throw new UnauthorizedException('Usuário não encontrado');
-    if (user.status === UserStatus.INACTIVE) throw new ForbiddenException('Usuário inativo');
+    if (user.status === UserStatus.INACTIVE)
+      throw new ForbiddenException('Usuário inativo');
 
     const ok = await argon2.verify(user.passwordHash, currentPassword);
     if (!ok) throw new UnauthorizedException('Senha atual inválida');
@@ -360,7 +390,9 @@ export class AuthService {
     const oldRt = this.getRefreshFromReq(req);
     if (oldRt) {
       try {
-        const payload = this.jwt.verify(oldRt, { secret: this.refreshSecret }) as RefreshJwtPayload;
+        const payload = this.jwt.verify(oldRt, {
+          secret: this.refreshSecret,
+        }) as RefreshJwtPayload;
         if (payload?.jti) await this.redis.del(`rt:${payload.jti}`);
       } catch {
         /* ignore */
@@ -382,7 +414,11 @@ export class AuthService {
     this.setAuthCookies(res, refreshToken);
 
     try {
-      await this.redis.set(`rt:${jti}`, JSON.stringify({ uid: user.id }), this.refreshTtlSec);
+      await this.redis.set(
+        `rt:${jti}`,
+        JSON.stringify({ uid: user.id }),
+        this.refreshTtlSec,
+      );
     } catch {
       /* best effort */
     }

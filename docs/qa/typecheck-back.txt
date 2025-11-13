@@ -1,0 +1,4 @@
+
+> server@0.0.1 typecheck
+> tsc -p tsconfig.build.json --noEmit
+

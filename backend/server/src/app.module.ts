@@ -7,7 +7,7 @@ import { HealthModule } from './health/health.module';
 
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { AuditInterceptor } from './infra/audit/audit.interceptor';
-import { PrismaService } from './infra/prisma.service'; 
+import { PrismaService } from './infra/prisma.service';
 import { CarsModule } from './cars/cars.module';
 import { StationsModule } from './stations/stations.module';
 import { ReservationsModule } from './reservations/reservations.module';
@@ -30,7 +30,7 @@ import { DepartmentsModule } from './departments/departments.module';
     DepartmentsModule,
   ],
   providers: [
-    PrismaService, 
+    PrismaService,
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
   ],
 })

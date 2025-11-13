@@ -1,6 +1,11 @@
 import React from "react";
 import CopyableSecret from "@/components/ui/copyable-secret";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 type Props = {
   open: boolean;
@@ -9,16 +14,24 @@ type Props = {
   password: string;
 };
 
-export default function TemporaryPasswordDialog({ open, onOpenChange, email, password }: Props) {
+export default function TemporaryPasswordDialog({
+  open,
+  onOpenChange,
+  email,
+  password,
+}: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-lg font-semibold text-foreground">Usuário criado</DialogTitle>
+          <DialogTitle className="text-lg font-semibold text-foreground">
+            Usuário criado
+          </DialogTitle>
         </DialogHeader>
 
         <p className="text-sm text-muted-foreground mb-2">
-          Senha temporária gerada para <b>{email}</b>. Copie e entregue ao usuário.
+          Senha temporária gerada para <b>{email}</b>. Copie e entregue ao
+          usuário.
         </p>
 
         <CopyableSecret value={password} />

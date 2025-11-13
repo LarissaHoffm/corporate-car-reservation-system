@@ -1,9 +1,22 @@
 import * as React from "react";
-import { BarChart3, Users, Car, Building, Calendar, Download } from "lucide-react";
+import {
+  BarChart3,
+  Users,
+  Car,
+  Building,
+  Calendar,
+  Download,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { StatsCard } from "@/components/ui/stats-card";        
+import { StatsCard } from "@/components/ui/stats-card";
 import { RoleGuard } from "@/components/role-guard";
 
 export default function RequesterReportsPage() {
@@ -12,7 +25,9 @@ export default function RequesterReportsPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Reports</h1>
-          <p className="text-muted-foreground">Manage your corporate fleet reservations</p>
+          <p className="text-muted-foreground">
+            Manage your corporate fleet reservations
+          </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -30,7 +45,9 @@ export default function RequesterReportsPage() {
                 <Users className="h-5 w-5 text-blue-600" />
                 Reports by User
               </CardTitle>
-              <p className="text-sm text-muted-foreground">Analyze user metrics and spend by user.</p>
+              <p className="text-sm text-muted-foreground">
+                Analyze user metrics and spend by user.
+              </p>
             </CardHeader>
             <CardContent className="space-y-3">
               <Button
@@ -50,7 +67,9 @@ export default function RequesterReportsPage() {
                 <Car className="h-5 w-5 text-blue-600" />
                 Reports by Car
               </CardTitle>
-              <p className="text-sm text-muted-foreground">Manage, reservations, and utilization.</p>
+              <p className="text-sm text-muted-foreground">
+                Manage, reservations, and utilization.
+              </p>
             </CardHeader>
             <CardContent className="space-y-3">
               <Button
@@ -70,7 +89,9 @@ export default function RequesterReportsPage() {
                 <Building className="h-5 w-5 text-blue-600" />
                 Reports by Branch
               </CardTitle>
-              <p className="text-sm text-muted-foreground">Compare performance by branch.</p>
+              <p className="text-sm text-muted-foreground">
+                Compare performance by branch.
+              </p>
             </CardHeader>
             <CardContent className="space-y-3">
               <Button
@@ -97,7 +118,9 @@ export default function RequesterReportsPage() {
                 <Calendar className="h-5 w-5 text-blue-600" />
                 Reports by Period
               </CardTitle>
-              <p className="text-sm text-muted-foreground">Time-based trends and insights.</p>
+              <p className="text-sm text-muted-foreground">
+                Time-based trends and insights.
+              </p>
             </CardHeader>
             <CardContent className="space-y-3">
               <Button

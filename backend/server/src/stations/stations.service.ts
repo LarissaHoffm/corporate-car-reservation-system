@@ -1,4 +1,8 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../infra/prisma.service';
 import { CreateStationDto } from './dto/create-station.dto';
@@ -24,14 +28,19 @@ export class StationsService {
           name: true,
           address: true,
           branchId: true,
-          isActive: true,        // ⬅️ adicionado
+          isActive: true, // ⬅️ adicionado
           createdAt: true,
           updatedAt: true,
         },
       });
     } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-        throw new ConflictException('Já existe um posto com esse nome neste tenant');
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          'Já existe um posto com esse nome neste tenant',
+        );
       }
       throw e;
     }
@@ -65,7 +74,7 @@ export class StationsService {
           name: true,
           address: true,
           branchId: true,
-          isActive: true,        // ⬅️ adicionado
+          isActive: true, // ⬅️ adicionado
           createdAt: true,
           updatedAt: true,
         },
@@ -84,7 +93,7 @@ export class StationsService {
         name: true,
         address: true,
         branchId: true,
-        isActive: true,          // ⬅️ adicionado
+        isActive: true, // ⬅️ adicionado
         createdAt: true,
         updatedAt: true,
       },
@@ -99,9 +108,13 @@ export class StationsService {
         where: { id },
         data: {
           ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
-          ...(dto.address !== undefined ? { address: dto.address?.trim() ?? null } : {}),
+          ...(dto.address !== undefined
+            ? { address: dto.address?.trim() ?? null }
+            : {}),
           ...(dto.branchId !== undefined
-            ? (dto.branchId ? { branchId: dto.branchId } : { branchId: null })
+            ? dto.branchId
+              ? { branchId: dto.branchId }
+              : { branchId: null }
             : {}),
           // isActive pode ser mapeado depois quando ajustarmos o DTO
         },
@@ -110,7 +123,7 @@ export class StationsService {
           name: true,
           address: true,
           branchId: true,
-          isActive: true,        // ⬅️ adicionado
+          isActive: true, // ⬅️ adicionado
           updatedAt: true,
         },
       });
@@ -122,8 +135,13 @@ export class StationsService {
 
       return s;
     } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
-        throw new ConflictException('Já existe um posto com esse nome neste tenant');
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          'Já existe um posto com esse nome neste tenant',
+        );
       }
       throw e;
     }

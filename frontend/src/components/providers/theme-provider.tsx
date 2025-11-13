@@ -7,15 +7,21 @@ type ThemeContextValue = {
   setTheme: (t: Theme) => void;
 };
 
-const ThemeContext = React.createContext<ThemeContextValue | undefined>(undefined);
+const ThemeContext = React.createContext<ThemeContextValue | undefined>(
+  undefined,
+);
 
 function getSystemPrefersDark() {
-  return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  return (
+    window.matchMedia &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches
+  );
 }
 
 function applyTheme(theme: Theme) {
   const root = document.documentElement;
-  const isDark = theme === "dark" || (theme === "system" && getSystemPrefersDark());
+  const isDark =
+    theme === "dark" || (theme === "system" && getSystemPrefersDark());
   root.classList.toggle("dark", isDark);
 }
 
@@ -29,7 +35,10 @@ export function ThemeProvider({
   storageKey?: string;
 }) {
   const [theme, setThemeState] = React.useState<Theme>(() => {
-    const stored = typeof window !== "undefined" ? (localStorage.getItem(storageKey) as Theme | null) : null;
+    const stored =
+      typeof window !== "undefined"
+        ? (localStorage.getItem(storageKey) as Theme | null)
+        : null;
     return stored ?? defaultTheme;
   });
 
@@ -39,7 +48,7 @@ export function ThemeProvider({
       localStorage.setItem(storageKey, t);
       applyTheme(t);
     },
-    [storageKey]
+    [storageKey],
   );
 
   React.useEffect(() => {
@@ -50,9 +59,14 @@ export function ThemeProvider({
     return () => mql.removeEventListener("change", onChange);
   }, [theme]);
 
-  const value = React.useMemo<ThemeContextValue>(() => ({ theme, setTheme }), [theme, setTheme]);
+  const value = React.useMemo<ThemeContextValue>(
+    () => ({ theme, setTheme }),
+    [theme, setTheme],
+  );
 
-  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+  return (
+    <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
+  );
 }
 
 export function useTheme() {

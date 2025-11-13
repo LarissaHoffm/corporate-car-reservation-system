@@ -4,7 +4,13 @@ import { Upload, FileText, ImageIcon, Eye } from "lucide-react";
 
 import { RoleGuard } from "@/components/role-guard";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { statusChipClasses } from "@/components/ui/status";
@@ -23,11 +29,24 @@ type UploadedFile = { name: string };
 
 const LS_PREFIX = "reservcar:req:docs";
 const LS_ROWS = `${LS_PREFIX}:rows`;
-const LS_FILES = (reservationId: string) => `${LS_PREFIX}:files:${reservationId}`;
+const LS_FILES = (reservationId: string) =>
+  `${LS_PREFIX}:files:${reservationId}`;
 
 const SEED: DocRow[] = [
-  { id: "1", reservationId: "R2023001", car: "Ford Focus",    date: "09/08/2025", status: "Pending" },
-  { id: "2", reservationId: "R2023002", car: "Toyota Corolla", date: "10/08/2025", status: "Validated" },
+  {
+    id: "1",
+    reservationId: "R2023001",
+    car: "Ford Focus",
+    date: "09/08/2025",
+    status: "Pending",
+  },
+  {
+    id: "2",
+    reservationId: "R2023002",
+    car: "Toyota Corolla",
+    date: "10/08/2025",
+    status: "Validated",
+  },
 ];
 
 function readJSON<T>(key: string): T | null {
@@ -59,8 +78,9 @@ export default function RequesterDocumentsPage() {
 
   // filtros: apenas Car e Status
   const [carFilter, setCarFilter] = useState<string>("all");
-  const [statusFilter, setStatusFilter] =
-    useState<"all" | "pending" | "validated">("all");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "pending" | "validated"
+  >("all");
 
   // seleção atual
   const [selectedId, setSelectedId] = useState<string>("");
@@ -116,8 +136,12 @@ export default function RequesterDocumentsPage() {
       if (!selectedId) return;
       const target = e.target as Node;
       const path = (e.composedPath?.() as Node[]) || [];
-      const insideList = listRef.current && (path.includes(listRef.current) || listRef.current.contains(target));
-      const insidePanel = panelRef.current && (path.includes(panelRef.current) || panelRef.current.contains(target));
+      const insideList =
+        listRef.current &&
+        (path.includes(listRef.current) || listRef.current.contains(target));
+      const insidePanel =
+        panelRef.current &&
+        (path.includes(panelRef.current) || panelRef.current.contains(target));
       if (!insideList && !insidePanel) setSelectedId("");
     };
     const onKey = (e: KeyboardEvent) => {
@@ -142,7 +166,11 @@ export default function RequesterDocumentsPage() {
 
   const markValidatedAndClose = () => {
     if (!selected) return;
-    setRows((prev) => prev.map((r) => (r.id === selected.id ? { ...r, status: "Validated" } : r)));
+    setRows((prev) =>
+      prev.map((r) =>
+        r.id === selected.id ? { ...r, status: "Validated" } : r,
+      ),
+    );
     setSelectedId("");
     alert("Documents sent. Reservation marked as Validated.");
   };
@@ -152,7 +180,9 @@ export default function RequesterDocumentsPage() {
       <div className="space-y-6">
         {/* Header + filtros (apenas Car e Status) */}
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-foreground">Upload Required Documents</h1>
+          <h1 className="text-2xl font-bold text-foreground">
+            Upload Required Documents
+          </h1>
 
           <div className="flex gap-3">
             <Select value={carFilter} onValueChange={(v) => setCarFilter(v)}>
@@ -170,7 +200,9 @@ export default function RequesterDocumentsPage() {
 
             <Select
               value={statusFilter}
-              onValueChange={(v: "all" | "pending" | "validated") => setStatusFilter(v)}
+              onValueChange={(v: "all" | "pending" | "validated") =>
+                setStatusFilter(v)
+              }
             >
               <SelectTrigger className="w-[160px]">
                 <SelectValue placeholder="Status" />
@@ -190,7 +222,9 @@ export default function RequesterDocumentsPage() {
           <div ref={listRef}>
             <Card className="border border-border/50 bg-card text-foreground shadow-sm">
               <CardContent className="p-6">
-                <h2 className="mb-4 text-lg font-semibold text-foreground">My Uploaded Documents</h2>
+                <h2 className="mb-4 text-lg font-semibold text-foreground">
+                  My Uploaded Documents
+                </h2>
 
                 <div className="overflow-hidden rounded-lg border border-border">
                   {/* header */}
@@ -206,7 +240,18 @@ export default function RequesterDocumentsPage() {
 
                   {/* rows */}
                   <div className="divide-y divide-border/50">
-                    {(filtered.length ? filtered : [{ id:"—", reservationId:"—", car:"—", date:"—", status:"Pending" as DocStatus }]).map((doc) => {
+                    {(filtered.length
+                      ? filtered
+                      : [
+                          {
+                            id: "—",
+                            reservationId: "—",
+                            car: "—",
+                            date: "—",
+                            status: "Pending" as DocStatus,
+                          },
+                        ]
+                    ).map((doc) => {
                       const isValidated = doc.status === "Validated";
                       return (
                         <button
@@ -215,11 +260,21 @@ export default function RequesterDocumentsPage() {
                           onClick={() => setSelectedId(doc.id)}
                         >
                           <div className="grid grid-cols-5 items-center gap-4 text-sm">
-                            <div className="font-medium text-foreground">{doc.reservationId}</div>
-                            <div className="text-muted-foreground">{doc.car}</div>
-                            <div className="text-muted-foreground">{doc.date}</div>
+                            <div className="font-medium text-foreground">
+                              {doc.reservationId}
+                            </div>
+                            <div className="text-muted-foreground">
+                              {doc.car}
+                            </div>
+                            <div className="text-muted-foreground">
+                              {doc.date}
+                            </div>
                             <div>
-                              <Badge className={statusChipClasses(toChipStatus(doc.status))}>
+                              <Badge
+                                className={statusChipClasses(
+                                  toChipStatus(doc.status),
+                                )}
+                              >
                                 {doc.status}
                               </Badge>
                             </div>
@@ -266,16 +321,24 @@ export default function RequesterDocumentsPage() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <div className="h-3 w-3 rounded-full bg-muted-foreground/60" />
-                      <span className="font-medium">RESERVATION ID: {selected.reservationId}</span>
+                      <span className="font-medium">
+                        RESERVATION ID: {selected.reservationId}
+                      </span>
                     </div>
-                    <Badge className={statusChipClasses(toChipStatus(selected.status))}>
+                    <Badge
+                      className={statusChipClasses(
+                        toChipStatus(selected.status),
+                      )}
+                    >
                       {selected.status}
                     </Badge>
                   </div>
 
                   {/* Driver Documents */}
                   <div className="space-y-3">
-                    <h3 className="text-base font-medium text-foreground">Driver Documents</h3>
+                    <h3 className="text-base font-medium text-foreground">
+                      Driver Documents
+                    </h3>
 
                     <Card
                       className="cursor-pointer border-2 border-dashed border-border bg-muted/20 transition-colors hover:border-[#1558E9]"
@@ -304,7 +367,9 @@ export default function RequesterDocumentsPage() {
 
                   {/* Vehicle Documents */}
                   <div className="space-y-3">
-                    <h3 className="text-base font-medium text-foreground">Vehicle Documents</h3>
+                    <h3 className="text-base font-medium text-foreground">
+                      Vehicle Documents
+                    </h3>
 
                     <Card
                       className="cursor-pointer border-2 border-dashed border-border bg-muted/20 transition-colors hover:border-[#1558E9]"
@@ -312,7 +377,9 @@ export default function RequesterDocumentsPage() {
                     >
                       <CardContent className="p-4 text-center">
                         <Upload className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
-                        <p className="text-sm font-medium text-foreground">Upload Fuel Receipt</p>
+                        <p className="text-sm font-medium text-foreground">
+                          Upload Fuel Receipt
+                        </p>
                       </CardContent>
                     </Card>
 
@@ -322,7 +389,9 @@ export default function RequesterDocumentsPage() {
                     >
                       <CardContent className="p-4 text-center">
                         <Upload className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
-                        <p className="text-sm font-medium text-foreground">Upload Damage Photos (if any)</p>
+                        <p className="text-sm font-medium text-foreground">
+                          Upload Damage Photos (if any)
+                        </p>
                       </CardContent>
                     </Card>
                   </div>
@@ -338,11 +407,16 @@ export default function RequesterDocumentsPage() {
 
                   {/* Lista de arquivos */}
                   <div className="space-y-2">
-                    <h4 className="text-sm font-medium text-foreground">Uploaded Files</h4>
+                    <h4 className="text-sm font-medium text-foreground">
+                      Uploaded Files
+                    </h4>
                     {files.length > 0 ? (
                       <div className="space-y-2">
                         {files.map((f, i) => (
-                          <div key={`${f.name}-${i}`} className="flex items-center gap-2 rounded border border-border bg-card p-3 text-foreground">
+                          <div
+                            key={`${f.name}-${i}`}
+                            className="flex items-center gap-2 rounded border border-border bg-card p-3 text-foreground"
+                          >
                             {/\.(png|jpg|jpeg)$/i.test(f.name) ? (
                               <ImageIcon className="h-4 w-4 text-[#1558E9]" />
                             ) : (
@@ -353,7 +427,9 @@ export default function RequesterDocumentsPage() {
                         ))}
                       </div>
                     ) : (
-                      <p className="text-sm text-muted-foreground">No files uploaded yet.</p>
+                      <p className="text-sm text-muted-foreground">
+                        No files uploaded yet.
+                      </p>
                     )}
                   </div>
 
@@ -371,8 +447,12 @@ export default function RequesterDocumentsPage() {
                   <div className="h-48 bg-card/50 border border-dashed border-border/50 rounded-lg flex items-center justify-center">
                     <div className="text-center text-muted-foreground">
                       <Eye className="h-8 w-8 mx-auto mb-2" />
-                      <p className="font-medium">Select a reservation to upload/view documents</p>
-                      <p className="text-xs">Click an item on the left to start uploading files.</p>
+                      <p className="font-medium">
+                        Select a reservation to upload/view documents
+                      </p>
+                      <p className="text-xs">
+                        Click an item on the left to start uploading files.
+                      </p>
                     </div>
                   </div>
                 </CardContent>
