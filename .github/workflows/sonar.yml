@@ -1,0 +1,59 @@
+name: SonarCloud / Code Quality
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  sonar:
+    name: Sonar analysis
+    runs-on: ubuntu-latest
+
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # Backend
+      - name: Install backend deps
+        working-directory: backend/server
+        run: npm ci
+
+      - name: Test backend with coverage
+        working-directory: backend/server
+        run: npm test -- --coverage --runInBand
+
+      # Frontend
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: Test frontend with coverage
+        working-directory: frontend
+        run: npx vitest run --coverage
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@v2
+        with:
+          args: >
+            -Dsonar.organization=LarissaHoffmann
+            -Dsonar.projectKey=corporate-car-reservation-system
+            -Dsonar.sources=backend/server/src,frontend/src
+            -Dsonar.tests=backend/server/src,frontend/src
+            -Dsonar.test.inclusions=**/*.spec.ts,**/*.test.ts,**/*.test.tsx,**/*.e2e-spec.ts
+            -Dsonar.exclusions=**/node_modules/**,**/dist/**,backend/server/test/**
+            -Dsonar.javascript.lcov.reportPaths=backend/server/coverage/lcov.info,frontend/coverage/lcov.info
+            -Dsonar.coverage.exclusions=**/*.module.ts,**/main.ts,backend/server/test/**
+            -Dsonar.host.url=https://sonarcloud.io
