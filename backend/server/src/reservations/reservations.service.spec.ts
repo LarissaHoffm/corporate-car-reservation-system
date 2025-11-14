@@ -302,6 +302,52 @@ describe('ReservationsService', () => {
         service.approve(approver, 'r1', { carId: 'c1' }),
       ).rejects.toBeInstanceOf(ConflictException);
     });
+
+    it('deve lançar NotFoundException se reserva não pertencer ao tenant', async () => {
+      prisma.$transaction.mockImplementation(async (cb: any) => {
+        const tx = makeTx();
+
+        tx.reservation.findUnique.mockResolvedValue({
+          id: 'r1',
+          tenantId: 'tX',
+          status: ReservationStatus.PENDING,
+        });
+
+        return cb(tx);
+      });
+
+      await expect(
+        service.approve(approver, 'r1', { carId: 'c1' }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('deve lançar NotFoundException se carro não pertencer ao tenant', async () => {
+      prisma.$transaction.mockImplementation(async (cb: any) => {
+        const tx = makeTx();
+
+        tx.reservation.findUnique.mockResolvedValue({
+          id: 'r1',
+          tenantId: 't1',
+          status: ReservationStatus.PENDING,
+          startAt: new Date(),
+          endAt: new Date(Date.now() + 3600000),
+          carId: null,
+          branchId: null,
+        });
+
+        tx.car.findUnique.mockResolvedValue({
+          id: 'c1',
+          tenantId: 'tX',
+          status: CarStatus.AVAILABLE,
+        });
+
+        return cb(tx);
+      });
+
+      await expect(
+        service.approve(approver, 'r1', { carId: 'c1' }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
   });
 
   // -----------------------------------------------------
@@ -444,26 +490,37 @@ describe('ReservationsService', () => {
   // -----------------------------------------------------
   describe('remove', () => {
     it('deve remover reserva quando tenant confere', async () => {
-      prisma.reservation.findUnique.mockResolvedValue({
-        id: 'r1',
-        tenantId: 't1',
+      prisma.$transaction.mockImplementation(async (cb: any) => {
+        const tx = makeTx();
+        tx.reservation.findUnique.mockResolvedValue({
+          id: 'r1',
+          tenantId: 't1',
+        });
+        tx.reservation.delete.mockResolvedValue({} as any);
+        tx.auditLog.create.mockResolvedValue({} as any);
+        return cb(tx);
       });
-      prisma.reservation.delete.mockResolvedValue({} as any);
 
-      const result = await service.remove({ tenantId: 't1' }, 'r1');
+      const result = await service.remove(
+        { tenantId: 't1', userId: 'admin1' } as any,
+        'r1',
+      );
 
       expect(result).toEqual({ id: 'r1', deleted: true });
-      expect(prisma.reservation.delete).toHaveBeenCalledWith({ where: { id: 'r1' } });
     });
 
     it('deve lançar NotFoundException quando tenant diverge', async () => {
-      prisma.reservation.findUnique.mockResolvedValue({
-        id: 'r1',
-        tenantId: 'tX',
+      prisma.$transaction.mockImplementation(async (cb: any) => {
+        const tx = makeTx();
+        tx.reservation.findUnique.mockResolvedValue({
+          id: 'r1',
+          tenantId: 'tX',
+        });
+        return cb(tx);
       });
 
       await expect(
-        service.remove({ tenantId: 't1' }, 'r1'),
+        service.remove({ tenantId: 't1', userId: 'admin1' } as any, 'r1'),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });

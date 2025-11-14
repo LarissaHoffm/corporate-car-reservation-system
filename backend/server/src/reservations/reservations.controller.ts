@@ -24,6 +24,7 @@ import {
   ApiNotFoundResponse,
   ApiParam,
   ApiQuery,
+  ApiConflictResponse,
 } from '@nestjs/swagger';
 
 import { ReservationsService } from './reservations.service';
@@ -52,7 +53,7 @@ export class ReservationsController {
   @ApiOperation({
     summary: 'Criar uma reserva',
     description:
-      'Cria uma nova reserva com status PENDING. Carro/Filial são opcionais nesta fase.',
+      'Cria uma nova reserva com status PENDING. Carro/Filial são opcionais nesta fase. Quando o carId é informado, é feita validação de disponibilidade e de conflito de horário.',
   })
   @ApiCreatedResponse({
     description: 'Reserva criada.',
@@ -82,6 +83,10 @@ export class ReservationsController {
   })
   @ApiBadRequestResponse({
     description: 'Dados inválidos (ex.: datas trocadas).',
+  })
+  @ApiConflictResponse({
+    description:
+      'Conflito de horário para o carro informado (quando carId é enviado).',
   })
   create(@Req() req: any, @Body() dto: CreateReservationDto) {
     return this.reservations.create(
@@ -163,7 +168,7 @@ export class ReservationsController {
   @ApiOperation({
     summary: 'Listar reservas do tenant (geral)',
     description:
-      'Lista paginada de reservas do tenant. Restrito a APPROVER/ADMIN.',
+      'Lista paginada de reservas do tenant. Restrito a APPROVER/ADMIN. Permite filtrar por status, filial, solicitante, carro e intervalo de datas.',
   })
   @ApiQuery({ name: 'status', required: false, enum: ReservationStatus })
   @ApiQuery({
@@ -189,7 +194,54 @@ export class ReservationsController {
     required: false,
     description: 'Itens por página (1–100)',
   })
-  @ApiOkResponse({ description: 'Lista paginada de reservas do tenant.' })
+  @ApiOkResponse({
+    description: 'Lista paginada de reservas do tenant.',
+    schema: {
+      example: {
+        items: [
+          {
+            id: '0f8fad5b-d9cb-469f-a165-70867728950e',
+            origin: 'Matriz',
+            destination: 'Cliente A',
+            startAt: '2025-11-09T12:00:00.000Z',
+            endAt: '2025-11-09T14:00:00.000Z',
+            status: 'PENDING',
+            purpose: 'Visita técnica',
+            approvedAt: null,
+            canceledAt: null,
+            user: {
+              id: '...',
+              name: 'Requester',
+              email: 'requester@reservcar.com',
+            },
+            branch: { id: '...', name: 'Matriz' },
+            car: { id: '...', plate: 'ABC1D23', model: 'Fiat Cronos' },
+          },
+          {
+            id: '1a2b3c4d-d9cb-469f-a165-70867728950e',
+            origin: 'Filial Sul',
+            destination: 'Cliente B',
+            startAt: '2025-11-10T09:00:00.000Z',
+            endAt: '2025-11-10T11:00:00.000Z',
+            status: 'APPROVED',
+            purpose: 'Reunião comercial',
+            approvedAt: '2025-11-09T18:00:00.000Z',
+            canceledAt: null,
+            user: {
+              id: '...',
+              name: 'Requester 2',
+              email: 'requester2@reservcar.com',
+            },
+            branch: { id: '...', name: 'Filial Sul' },
+            car: { id: '...', plate: 'DEF4G56', model: 'Chevrolet Onix' },
+          },
+        ],
+        total: 2,
+        page: 1,
+        pageSize: 10,
+      },
+    },
+  })
   list(@Req() req: any, @Query() q: QueryReservationsDto) {
     return this.reservations.list(
       { tenantId: req.user.tenantId, role: req.user.role, userId: req.user.id },
@@ -205,7 +257,30 @@ export class ReservationsController {
       'Retorna os detalhes da reserva, respeitando escopo de tenant e propriedade (REQUESTER só vê a própria).',
   })
   @ApiParam({ name: 'id', description: 'UUID da reserva', format: 'uuid' })
-  @ApiOkResponse({ description: 'Reserva encontrada.' })
+  @ApiOkResponse({
+    description: 'Reserva encontrada.',
+    schema: {
+      example: {
+        id: '0f8fad5b-d9cb-469f-a165-70867728950e',
+        tenantId: 'e23c8c9a-4d1a-4a64-bc0a-0d0c0c0c0c0c',
+        origin: 'Matriz',
+        destination: 'Cliente XPTO',
+        startAt: '2025-11-08T14:00:00.000Z',
+        endAt: '2025-11-08T16:00:00.000Z',
+        status: 'APPROVED',
+        purpose: 'Visita comercial',
+        approvedAt: '2025-11-08T13:00:00.000Z',
+        canceledAt: null,
+        user: {
+          id: '...',
+          name: 'Requester',
+          email: 'requester@reservcar.com',
+        },
+        branch: { id: '...', name: 'Matriz' },
+        car: { id: '...', plate: 'ABC1D23', model: 'Fiat Cronos' },
+      },
+    },
+  })
   @ApiForbiddenResponse({
     description: 'REQUESTER tentando acessar reserva de outro usuário.',
   })
@@ -236,12 +311,15 @@ export class ReservationsController {
   @ApiOperation({
     summary: 'Aprovar reserva (atribuir carro)',
     description:
-      'Aprova uma reserva PENDING e vincula um carro disponível (APPROVER/ADMIN).',
+      'Aprova uma reserva PENDING e vincula um carro disponível (APPROVER/ADMIN). Também verifica conflitos de horário com outras reservas PENDING/APPROVED do mesmo carro.',
   })
   @ApiParam({ name: 'id', description: 'UUID da reserva', format: 'uuid' })
   @ApiOkResponse({ description: 'Reserva aprovada.' })
   @ApiBadRequestResponse({
     description: 'Estado inválido ou carro indisponível.',
+  })
+  @ApiConflictResponse({
+    description: 'Conflito de horário ao atribuir o carro à reserva.',
   })
   @ApiNotFoundResponse({
     description: 'Reserva/Carro não encontrado no tenant.',
@@ -286,7 +364,8 @@ export class ReservationsController {
   @Audit('RESERVATION_COMPLETE', 'Reservation')
   @ApiOperation({
     summary: 'Concluir reserva',
-    description: 'Marca a reserva como COMPLETED (regras adicionais aplicam).',
+    description:
+      'Marca a reserva como COMPLETED. Para REQUESTER, pode exigir documentos/checklist antes de permitir a conclusão.',
   })
   @ApiParam({ name: 'id', description: 'UUID da reserva', format: 'uuid' })
   @ApiOkResponse({ description: 'Reserva concluída.' })
@@ -312,12 +391,23 @@ export class ReservationsController {
     description: 'Remove uma reserva do tenant.',
   })
   @ApiParam({ name: 'id', description: 'UUID da reserva', format: 'uuid' })
-  @ApiOkResponse({ description: 'Reserva removida.' })
+  @ApiOkResponse({
+    description: 'Reserva removida.',
+    schema: {
+      example: {
+        id: '0f8fad5b-d9cb-469f-a165-70867728950e',
+        deleted: true,
+      },
+    },
+  })
   @ApiNotFoundResponse({ description: 'Reserva não encontrada no tenant.' })
   remove(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Req() req: any,
   ) {
-    return this.reservations.remove({ tenantId: req.user.tenantId }, id);
+    return this.reservations.remove(
+      { tenantId: req.user.tenantId, userId: req.user.id },
+      id,
+    );
   }
 }
