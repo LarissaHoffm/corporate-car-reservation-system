@@ -1,0 +1,50 @@
+# HELP ccrs_process_cpu_user_seconds_total Total user CPU time spent in seconds.
+# TYPE ccrs_process_cpu_user_seconds_total counter
+ccrs_process_cpu_user_seconds_total 9.396611999999996
+
+# HELP ccrs_process_cpu_system_seconds_total Total system CPU time spent in seconds.
+# TYPE ccrs_process_cpu_system_seconds_total counter
+ccrs_process_cpu_system_seconds_total 4.115198999999998
+
+# HELP ccrs_process_cpu_seconds_total Total user and system CPU time spent in seconds.
+# TYPE ccrs_process_cpu_seconds_total counter
+ccrs_process_cpu_seconds_total 13.511810999999998
+
+# HELP ccrs_process_start_time_seconds Start time of the process since unix epoch in seconds.
+# TYPE ccrs_process_start_time_seconds gauge
+ccrs_process_start_time_seconds 1763079829
+
+# HELP ccrs_process_resident_memory_bytes Resident memory size in bytes.
+# TYPE ccrs_process_resident_memory_bytes gauge
+ccrs_process_resident_memory_bytes 134217728
+
+# HELP ccrs_process_virtual_memory_bytes Virtual memory size in bytes.
+# TYPE ccrs_process_virtual_memory_bytes gauge
+ccrs_process_virtual_memory_bytes 831606784
+
+# HELP ccrs_process_heap_bytes Process heap size in bytes.
+# TYPE ccrs_process_heap_bytes gauge
+ccrs_process_heap_bytes 182390784
+
+# HELP ccrs_process_open_fds Number of open file descriptors.
+# TYPE ccrs_process_open_fds gauge
+ccrs_process_open_fds 40
+
+# HELP ccrs_process_max_fds Maximum number of open file descriptors.
+# TYPE ccrs_process_max_fds gauge
+ccrs_process_max_fds 1048576
+
+# HELP ccrs_nodejs_eventloop_lag_seconds Lag of event loop in seconds.
+# TYPE ccrs_nodejs_eventloop_lag_seconds gauge
+ccrs_nodejs_eventloop_lag_seconds 0.003340901
+
+# HELP ccrs_nodejs_eventloop_lag_min_seconds The minimum recorded event loop delay.
+# TYPE ccrs_nodejs_eventloop_lag_min_seconds gauge
+ccrs_nodejs_eventloop_lag_min_seconds 0.009314304
+
+# HELP ccrs_nodejs_eventloop_lag_max_seconds The maximum recorded event loop delay.
+# TYPE ccrs_nodejs_eventloop_lag_max_seconds gauge
+ccrs_nodejs_eventloop_lag_max_seconds 0.010149887
+
+# HELP ccrs_nodejs_eventloop_lag_mean_seconds The mean of the recorded event loop delays.
+# TYPE ccrs_nodejs_eventloop_lag_mean_seconds gauge
