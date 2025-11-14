@@ -1,4 +1,4 @@
-name: SonarCloud / Code Quality
+name: CI & SonarCloud
 
 on:
   push:
@@ -7,53 +7,45 @@ on:
     branches: [ "main" ]
 
 jobs:
-  sonar:
-    name: Sonar analysis
+  test-and-analyze:
     runs-on: ubuntu-latest
 
     env:
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_HOST_URL: https://sonarcloud.io
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0  # Sonar gosta de ter histórico completo
 
-      - name: Setup Node
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
       # Backend
-      - name: Install backend deps
+      - name: Install backend dependencies
         working-directory: backend/server
         run: npm ci
 
-      - name: Test backend with coverage
+      - name: Run backend unit tests with coverage
         working-directory: backend/server
         run: npm test -- --coverage --runInBand
 
       # Frontend
-      - name: Install frontend deps
+      - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
 
-      - name: Test frontend with coverage
+      - name: Run frontend unit tests with coverage
         working-directory: frontend
-        run: npx vitest run --coverage
+        run: npm test -- --coverage
 
+      # SonarCloud Scan (usa sonar-project.properties na raiz)
       - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@v2
+        uses: sonarsource/sonarqube-scan-action@master
         with:
-          args: >
-            -Dsonar.organization=LarissaHoffmann
-            -Dsonar.projectKey=corporate-car-reservation-system
-            -Dsonar.sources=backend/server/src,frontend/src
-            -Dsonar.tests=backend/server/src,frontend/src
-            -Dsonar.test.inclusions=**/*.spec.ts,**/*.test.ts,**/*.test.tsx,**/*.e2e-spec.ts
-            -Dsonar.exclusions=**/node_modules/**,**/dist/**,backend/server/test/**
-            -Dsonar.javascript.lcov.reportPaths=backend/server/coverage/lcov.info,frontend/coverage/lcov.info
-            -Dsonar.coverage.exclusions=**/*.module.ts,**/main.ts,backend/server/test/**
-            -Dsonar.host.url=https://sonarcloud.io
+          projectBaseDir: .
