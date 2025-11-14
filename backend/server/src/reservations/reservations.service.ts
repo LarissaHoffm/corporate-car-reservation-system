@@ -455,16 +455,32 @@ export class ReservationsService {
     });
   }
 
-  async remove(actor: Pick<ActorBase, 'tenantId'>, id: string) {
-    const r = await this.prisma.reservation.findUnique({
-      where: { id },
-      select: { id: true, tenantId: true },
-    });
-    if (!r || r.tenantId !== actor.tenantId) {
-      throw new NotFoundException('Reserva não encontrada.');
-    }
+  async remove(
+    actor: Pick<ActorBase, 'tenantId' | 'userId'>,
+    id: string,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const r = await tx.reservation.findUnique({
+        where: { id },
+        select: { id: true, tenantId: true },
+      });
 
-    await this.prisma.reservation.delete({ where: { id } });
-    return { id, deleted: true };
+      if (!r || r.tenantId !== actor.tenantId) {
+        throw new NotFoundException('Reserva não encontrada.');
+      }
+
+      await tx.reservation.delete({ where: { id: r.id } });
+
+      await this.log(tx, {
+        tenantId: actor.tenantId,
+        userId: actor.userId,
+        action: 'reservation.deleted',
+        entity: 'Reservation',
+        entityId: r.id,
+        metadata: {},
+      });
+
+      return { id: r.id, deleted: true };
+    });
   }
 }
