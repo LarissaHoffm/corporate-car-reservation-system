@@ -1,0 +1,14 @@
+
+> server@0.0.1 test:e2e
+> jest --config ./test/jest-e2e.json
+
+PASS test/e2e/app.e2e-spec.ts
+  App E2E
+    ✓ GET /health deve responder (21 ms)
+    ✓ fluxo completo: requester cria reserva e approver aprova com carro AVAILABLE (235 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       2 passed, 2 total
+Snapshots:   0 total
+Time:        4.668 s, estimated 6 s
+Ran all test suites.
