@@ -1,0 +1,19 @@
+SonarCloud - Resumo de Qualidade (P1.5)
+
+Organização: <org SonarCloud>
+Projeto: <LarissaHoffm_corporate-car-reservation-system>
+Link: https://sonarcloud.io/project/overview?id=<LarissaHoffm_corporate-car-reservation-system>
+
+Última análise: <data/hora da tela>
+Quality Gate: PASSED
+
+Cobertura global: <X>%  (front + back)
+Duplicações: <Y>%
+Security: <nota da tela> (ex.: A)
+Reliability: <nota>
+Maintainability: <nota>
+
+Observações:
+- Análise integrada ao GitHub Actions (workflow .github/workflows/ci-sonar.yml).
+- Pipeline executa testes com coverage no backend (Jest) e frontend (Vitest).
+- Checagem de Quality Gate aparece em Pull Requests para a branch main.

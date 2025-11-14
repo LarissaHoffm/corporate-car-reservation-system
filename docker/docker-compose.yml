@@ -97,6 +97,32 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # ⬇⬇⬇ SOMENTE AQUI AJUSTAMOS ⬇⬇⬇
+  prometheus:
+    image: prom/prometheus              # <-- removida a tag v2.53.0-alpine que não existe
+    container_name: ccrs-prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    ports:
+      - '9090:9090'
+    depends_on:
+      - api
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: ccrs-grafana
+    ports:
+      - '3001:3000'
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
 volumes:
   pgdata:
     name: docker_pgdata
@@ -105,3 +131,5 @@ volumes:
   web_node_modules:
   caddy_data:
   caddy_config:
+  grafana-data:
+    driver: local
