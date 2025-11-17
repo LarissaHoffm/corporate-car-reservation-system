@@ -1,7 +1,6 @@
-// frontend/src/pages/requester/reservations/checklist.tsx
 import * as React from "react";
 import { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,12 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2 } from "lucide-react";
 
 import useReservations from "@/hooks/use-reservations";
-import api from "@/lib/http/api";
-
-function useQuery() {
-  const { search } = useLocation();
-  return React.useMemo(() => new URLSearchParams(search), [search]);
-}
+import { useToast } from "@/components/ui/use-toast";
 
 const defaultItems = [
   { key: "fuel", label: "Fuel level verified" },
@@ -24,23 +18,34 @@ const defaultItems = [
 ];
 
 export default function RequesterReservationChecklist() {
-  const q = useQuery();
-  const id = q.get("id") || "";
+  const { id = "" } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const { getReservation } = useReservations();
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [items, setItems] = useState<Record<string, boolean>>({});
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     let mounted = true;
+
+    // se a rota veio sem id, já falha aqui
+    if (!id) {
+      setErr("Invalid reservation id.");
+      setLoading(false);
+      return;
+    }
+
     (async () => {
       try {
         await getReservation(id);
         if (mounted) {
           const start: Record<string, boolean> = {};
-          defaultItems.forEach((i) => (start[i.key] = false));
+          defaultItems.forEach((i) => {
+            start[i.key] = false;
+          });
           setItems(start);
           setLoading(false);
         }
@@ -55,25 +60,55 @@ export default function RequesterReservationChecklist() {
         }
       }
     })();
+
     return () => {
       mounted = false;
     };
   }, [id, getReservation]);
 
-  async function finalize() {
-    // Tenta completar; se rota não existir ainda, volta para a lista
-    try {
-      await api.patch(`/reservations/${id}/complete`);
-    } catch {
-      /* ignore silently */
-    }
-    navigate("/requester/reservations");
-  }
-
   const allChecked = defaultItems.every((i) => !!items[i.key]);
 
+  function handleFinalizeReservation() {
+    if (!id) return;
+
+    if (!allChecked) {
+      toast({
+        title: "Checklist incomplete",
+        description: "Please check all items before finalizing the reservation.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSubmitting(true);
+
+    // Marca localmente que o checklist foi concluído para esta reserva.
+    // Isso será usado na tela de lista para esconder o botão "Conclude"
+    // e exibir um label de "Pending validation" apenas na UI.
+    try {
+      sessionStorage.setItem(
+        `reservationChecklistCompleted:${id}`,
+        "true",
+      );
+    } catch {
+      // se der erro no storage, não quebramos o fluxo
+    }
+
+    toast({
+      title: "Checklist completed",
+      description: "Your reservation is now waiting for document validation.",
+    });
+
+    // volta para a lista do requester
+    navigate("/requester/reservations");
+
+    // o componente será desmontado na navegação,
+    // mas mantemos por segurança
+    setSubmitting(false);
+  }
+
   return (
-    <div className="mx-auto p-6 max-w-[900px] space-y-6">
+    <div className="mx-auto max-w-[900px] space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold">Conclude Reservation</h1>
@@ -81,20 +116,20 @@ export default function RequesterReservationChecklist() {
             Step 3 of 3 — Final checklist.
           </p>
         </div>
-        <Link to={`/requester/reservations/upload?id=${id}`}>
+        <Link to={`/requester/reservations/${id}/upload`}>
           <Button variant="ghost">Back to Upload</Button>
         </Link>
       </div>
 
       {/* Stepper visual */}
       <div className="grid grid-cols-3 gap-2 text-xs">
-        <div className="rounded-full px-3 py-2 bg-muted/60 text-foreground text-center">
+        <div className="rounded-full bg-muted/60 px-3 py-2 text-center text-foreground">
           1. Details
         </div>
-        <div className="rounded-full px-3 py-2 bg-muted/60 text-foreground text-center">
+        <div className="rounded-full bg-muted/60 px-3 py-2 text-center text-foreground">
           2. Upload
         </div>
-        <div className="rounded-full px-3 py-2 bg-[#1558E9] text-white text-center">
+        <div className="rounded-full bg-[#1558E9] px-3 py-2 text-center text-white">
           3. Checklist
         </div>
       </div>
@@ -105,7 +140,7 @@ export default function RequesterReservationChecklist() {
         </CardHeader>
         <CardContent className="space-y-4">
           {loading ? (
-            <div className="py-12 text-sm text-muted-foreground flex items-center gap-2">
+            <div className="flex items-center gap-2 py-12 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" /> Loading…
             </div>
           ) : err ? (
@@ -130,15 +165,22 @@ export default function RequesterReservationChecklist() {
               </div>
 
               <div className="flex items-center justify-between pt-2">
-                <Link to={`/requester/reservations/upload?id=${id}`}>
+                <Link to={`/requester/reservations/${id}/upload`}>
                   <Button variant="outline">Back</Button>
                 </Link>
                 <Button
                   className="bg-[#1558E9] hover:bg-[#1558E9]/90"
-                  onClick={finalize}
-                  disabled={!allChecked}
+                  onClick={handleFinalizeReservation}
+                  disabled={!allChecked || submitting}
                 >
-                  Finalize Reservation
+                  {submitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Finalizing…
+                    </>
+                  ) : (
+                    "Finalize Reservation"
+                  )}
                 </Button>
               </div>
             </>

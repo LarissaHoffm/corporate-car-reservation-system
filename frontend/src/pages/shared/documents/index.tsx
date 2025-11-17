@@ -15,44 +15,68 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { useToast } from "@/components/ui/use-toast";
+import { api } from "@/lib/http/api";
+
+/* ----------------------------- Tipos locais ----------------------------- */
 
 type DocStatus = "Pending" | "Validated" | "Rejected";
+
+type DocTypeLabel =
+  | "Driver License"
+  | "Fuel Receipt"
+  | "Vehicle Photos"
+  | "Other";
 
 type Doc = {
   id: string;
   user: string;
-  documentType: "Driver License" | "Insurance" | "Registration";
+  documentType: DocTypeLabel;
   uploadDate: string;
   status: DocStatus;
   pages: number;
+  reservationId: string;
+  route: string;
 };
 
-const SEED: Doc[] = [
-  {
-    id: "1",
-    user: "John Perry",
-    documentType: "Driver License",
-    uploadDate: "09/08/2025 14:20",
-    status: "Pending",
-    pages: 2,
-  },
-  {
-    id: "2",
-    user: "Alex Chen",
-    documentType: "Insurance",
-    uploadDate: "12/09/2025 10:15",
-    status: "Validated",
-    pages: 1,
-  },
-  {
-    id: "3",
-    user: "Priya Singh",
-    documentType: "Registration",
-    uploadDate: "11/09/2025 16:30",
-    status: "Pending",
-    pages: 3,
-  },
-];
+type ApiInboxDocument = {
+  id: string;
+  type: "CNH" | "RECEIPT" | "ODOMETER_PHOTO" | "OTHER";
+  status: "APPROVED" | "REJECTED" | null;
+  createdAt: string;
+  metadata?: Record<string, any> | null;
+  reservation: {
+    id: string;
+    origin: string;
+    destination: string;
+    startAt: string;
+    user: {
+      id: string;
+      name: string | null;
+      email: string;
+    } | null;
+  } | null;
+};
+
+function mapTypeToLabel(type: ApiInboxDocument["type"]): DocTypeLabel {
+  switch (type) {
+    case "CNH":
+      return "Driver License";
+    case "RECEIPT":
+      return "Fuel Receipt";
+    case "ODOMETER_PHOTO":
+      return "Vehicle Photos";
+    case "OTHER":
+    default:
+      return "Other";
+  }
+}
+
+function mapStatusToDocStatus(status: ApiInboxDocument["status"]): DocStatus {
+  if (status === "APPROVED") return "Validated";
+  if (status === "REJECTED") return "Rejected";
+  return "Pending";
+}
 
 function docStatusChip(s: DocStatus) {
   if (s === "Validated")
@@ -62,46 +86,90 @@ function docStatusChip(s: DocStatus) {
   return "bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-400/15 dark:text-amber-500 dark:border-amber-500/20";
 }
 
+/* --------------------------------- Page --------------------------------- */
+
 export default function SharedDocumentsPage() {
-  const [docs, setDocs] = useState<Doc[]>(SEED);
+  const { toast } = useToast();
+
+  const [docs, setDocs] = useState<Doc[]>([]);
+  const [loading, setLoading] = useState(false);
 
   // filtros
-  const [search, setSearch] = useState(""); // <— barra de pesquisa
-  const [selectedDocType, setSelectedDocType] = useState<
-    "all" | Doc["documentType"]
-  >("all");
+  const [search, setSearch] = useState("");
+  const [selectedDocType, setSelectedDocType] = useState<"all" | DocTypeLabel>(
+    "all",
+  );
   const [selectedStatus, setSelectedStatus] = useState<"all" | DocStatus>(
     "all",
   );
 
-  // seleção + rejeição
+  // seleção + comentário
   const [selectedDocument, setSelectedDocument] = useState<Doc | null>(null);
   const [rejectionComment, setRejectionComment] = useState("");
+
+  // preview
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   // refs p/ clique fora
   const listRef = useRef<HTMLDivElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
 
-  // filtra em memória
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return docs.filter((d) => {
-      const byQuery =
-        !q ||
-        d.user.toLowerCase().includes(q) ||
-        d.documentType.toLowerCase().includes(q);
-      const byType =
-        selectedDocType === "all" ? true : d.documentType === selectedDocType;
-      const byStatus =
-        selectedStatus === "all" ? true : d.status === selectedStatus;
-      return byQuery && byType && byStatus;
-    });
-  }, [docs, search, selectedDocType, selectedStatus]);
+  /* ---------------------------- Carregar inbox ---------------------------- */
 
-  const handleSelect = (doc: Doc) => {
-    setSelectedDocument(doc);
-    setRejectionComment("");
-  };
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const { data } = await api.get<ApiInboxDocument[]>("/documents");
+
+        const mapped: Doc[] = (data ?? []).map((d) => {
+          const userName =
+            d.reservation?.user?.name ||
+            d.reservation?.user?.email ||
+            "—";
+
+          const uploadDate = d.createdAt
+            ? new Date(d.createdAt).toLocaleString("pt-BR")
+            : "—";
+
+          const pages =
+            typeof d.metadata?.pages === "number" ? d.metadata.pages : 1;
+
+          const routeLabel = d.reservation
+            ? `${d.reservation.origin} → ${d.reservation.destination}`
+            : "—";
+
+          return {
+            id: d.id,
+            user: userName,
+            documentType: mapTypeToLabel(d.type),
+            uploadDate,
+            status: mapStatusToDocStatus(d.status),
+            pages,
+            reservationId: d.reservation?.id ?? "",
+            route: routeLabel,
+          };
+        });
+
+        setDocs(mapped);
+      } catch (err) {
+        console.error(err);
+        toast({
+          title: "Erro ao carregar documentos",
+          description:
+            "Não foi possível carregar os documentos para validação.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, [toast]);
+
+  /* ------------------------ Clique fora do preview ------------------------ */
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -110,10 +178,91 @@ export default function SharedDocumentsPage() {
         return;
       setSelectedDocument(null);
       setRejectionComment("");
+      setPreviewUrl((old) => {
+        if (old) window.URL.revokeObjectURL(old);
+        return null;
+      });
     };
     document.addEventListener("click", handler);
-    return () => document.removeEventListener("click", handler);
+    return () => {
+      document.removeEventListener("click", handler);
+      setPreviewUrl((old) => {
+        if (old) window.URL.revokeObjectURL(old);
+        return null;
+      });
+    };
   }, []);
+
+  /* -------------------- helpers para arquivo/preview -------------------- */
+
+  async function fetchFileBlob(docId: string): Promise<Blob> {
+    const response = await api.get(`/documents/${docId}/file`, {
+      responseType: "blob",
+    });
+    return response.data as Blob;
+  }
+
+  async function openDocument(doc: Doc) {
+    try {
+      const blob = await fetchFileBlob(doc.id);
+      const url = window.URL.createObjectURL(blob);
+
+      window.open(url, "_blank");
+
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+      }, 60_000);
+    } catch (err) {
+      console.error(err);
+      toast({
+        title: "Erro ao abrir documento",
+        description:
+          "Não foi possível carregar o arquivo. Tente novamente em instantes.",
+        variant: "destructive",
+      });
+    }
+  }
+
+  async function loadPreview(doc: Doc) {
+    setPreviewLoading(true);
+    try {
+      const blob = await fetchFileBlob(doc.id);
+      const url = window.URL.createObjectURL(blob);
+
+      setPreviewUrl((old) => {
+        if (old) window.URL.revokeObjectURL(old);
+        return url;
+      });
+    } catch (err) {
+      console.error(err);
+      toast({
+        title: "Erro ao carregar preview",
+        description:
+          "Não foi possível carregar a visualização do documento.",
+        variant: "destructive",
+      });
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  /* ----------------------------- Filtro em memória ----------------------------- */
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return docs.filter((d) => {
+      const byQuery =
+        !q ||
+        d.user.toLowerCase().includes(q) ||
+        d.documentType.toLowerCase().includes(q.toLowerCase()) ||
+        d.route.toLowerCase().includes(q.toLowerCase());
+      const byType =
+        selectedDocType === "all" ? true : d.documentType === selectedDocType;
+      const byStatus =
+        selectedStatus === "all" ? true : d.status === selectedStatus;
+      return byQuery && byType && byStatus;
+    });
+  }, [docs, search, selectedDocType, selectedStatus]);
 
   const applyStatus = (id: string, newStatus: DocStatus) => {
     setDocs((prev) =>
@@ -124,17 +273,74 @@ export default function SharedDocumentsPage() {
     );
   };
 
-  const handleValidate = () => {
+  const handleSelect = (doc: Doc) => {
+    setSelectedDocument(doc);
+    setRejectionComment("");
+    void loadPreview(doc);
+  };
+
+  /* --------------------------- Ações de validação --------------------------- */
+
+  async function validateDoc(doc: Doc) {
+    try {
+      await api.patch(`/documents/${doc.id}/validate`, {
+        result: "APPROVED",
+      });
+      applyStatus(doc.id, "Validated");
+      toast({
+        title: "Documento validado",
+        description:
+          "O documento foi marcado como aprovado. Se todos os documentos da reserva estiverem aprovados, a reserva será concluída.",
+      });
+    } catch (err) {
+      console.error(err);
+      toast({
+        title: "Erro ao validar",
+        description:
+          "Não foi possível validar o documento. Tente novamente.",
+        variant: "destructive",
+      });
+    }
+  }
+
+  // Comentário é OPCIONAL: mesmo sem comentário, vamos rejeitar
+  async function rejectDoc(doc: Doc) {
+    try {
+      await api.patch(`/documents/${doc.id}/validate`, {
+        result: "REJECTED",
+        // se no futuro o backend aceitar motivo, podemos enviar aqui
+        // comment: rejectionComment || null,
+      });
+      applyStatus(doc.id, "Rejected");
+      toast({
+        title: "Documento rejeitado",
+        description:
+          "O documento foi marcado como rejeitado. O solicitante deverá reenviar os arquivos.",
+      });
+    } catch (err) {
+      console.error(err);
+      toast({
+        title: "Erro ao rejeitar",
+        description:
+          "Não foi possível rejeitar o documento. Tente novamente.",
+        variant: "destructive",
+      });
+    }
+  }
+
+  const handleValidate = async () => {
     if (!selectedDocument) return;
-    applyStatus(selectedDocument.id, "Validated");
+    await validateDoc(selectedDocument);
     setSelectedDocument(null);
   };
 
-  const handleReject = () => {
+  const handleReject = async () => {
     if (!selectedDocument) return;
-    applyStatus(selectedDocument.id, "Rejected");
+    await rejectDoc(selectedDocument);
     setSelectedDocument(null);
   };
+
+  /* --------------------------------- JSX --------------------------------- */
 
   return (
     <RoleGuard allowedRoles={["ADMIN", "APPROVER"]} requireAuth={false}>
@@ -152,11 +358,11 @@ export default function SharedDocumentsPage() {
             <h2 className="text-lg font-semibold text-foreground">Uploads</h2>
 
             <div className="flex flex-col sm:flex-row gap-4">
-              {/* Search bar no padrão das demais telas */}
+              {/* Search */}
               <div className="relative flex-1 min-w-[220px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by user or document type…"
+                  placeholder="Search by user, document type or route…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="pl-10 border-border/50 focus:ring-2 focus:ring-[#1558E9] focus:border-[#1558E9] shadow-sm"
@@ -165,22 +371,31 @@ export default function SharedDocumentsPage() {
 
               <Select
                 value={selectedDocType}
-                onValueChange={(v: any) => setSelectedDocType(v)}
+                onValueChange={(v: DocTypeLabel | "all") =>
+                  setSelectedDocType(v)
+                }
               >
                 <SelectTrigger className="w-full sm:w-[200px] border-border/50 focus:border-[#1558E9] shadow-sm">
                   <SelectValue placeholder="Document Type" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="Driver License">Driver License</SelectItem>
-                  <SelectItem value="Insurance">Insurance</SelectItem>
-                  <SelectItem value="Registration">Registration</SelectItem>
+                  <SelectItem value="Driver License">
+                    Driver License
+                  </SelectItem>
+                  <SelectItem value="Fuel Receipt">Fuel Receipt</SelectItem>
+                  <SelectItem value="Vehicle Photos">
+                    Vehicle Photos
+                  </SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
                 </SelectContent>
               </Select>
 
               <Select
                 value={selectedStatus}
-                onValueChange={(v: any) => setSelectedStatus(v)}
+                onValueChange={(v: DocStatus | "all") =>
+                  setSelectedStatus(v)
+                }
               >
                 <SelectTrigger className="w-full sm:w-[160px] border-border/50 focus:border-[#1558E9] shadow-sm">
                   <SelectValue placeholder="Status" />
@@ -194,7 +409,20 @@ export default function SharedDocumentsPage() {
               </Select>
             </div>
 
-            <div className="space-y-3">
+            {/* LISTA COM SCROLL */}
+            <div className="max-h-[520px] overflow-y-auto pr-1 space-y-3">
+              {loading && docs.length === 0 && (
+                <p className="text-sm text-muted-foreground px-1">
+                  Loading documents…
+                </p>
+              )}
+
+              {!loading && filtered.length === 0 && (
+                <p className="text-sm text-muted-foreground px-1">
+                  No documents found for the selected filters.
+                </p>
+              )}
+
               {filtered.map((doc) => (
                 <Card
                   key={doc.id}
@@ -221,6 +449,9 @@ export default function SharedDocumentsPage() {
                           {doc.documentType}
                         </p>
                         <p className="text-xs text-muted-foreground">
+                          Route: {doc.route}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
                           {doc.uploadDate}
                         </p>
                       </div>
@@ -233,7 +464,7 @@ export default function SharedDocumentsPage() {
                             className="border-border/50 shadow-sm hover:bg-card/50 bg-transparent"
                             onClick={(e) => {
                               e.stopPropagation();
-                              applyStatus(doc.id, "Validated");
+                              validateDoc(doc);
                             }}
                           >
                             <Check className="h-3 w-3 mr-1" />
@@ -245,7 +476,8 @@ export default function SharedDocumentsPage() {
                             className="border-border/50 shadow-sm hover:bg-card/50 bg-transparent"
                             onClick={(e) => {
                               e.stopPropagation();
-                              applyStatus(doc.id, "Rejected");
+                              // Abre painel; rejeição final é pelo botão grande
+                              handleSelect(doc);
                             }}
                           >
                             <X className="h-3 w-3 mr-1" />
@@ -257,12 +489,6 @@ export default function SharedDocumentsPage() {
                   </CardContent>
                 </Card>
               ))}
-
-              {filtered.length === 0 && (
-                <p className="text-sm text-muted-foreground px-1">
-                  No documents found for the selected filters.
-                </p>
-              )}
             </div>
           </div>
 
@@ -283,47 +509,77 @@ export default function SharedDocumentsPage() {
               {selectedDocument ? (
                 <CardContent className="space-y-4">
                   <div className="flex items-center gap-3">
-                    <h3 className="font-medium text-foreground">
-                      {selectedDocument.user} — {selectedDocument.documentType}
-                    </h3>
-                    <Badge className={docStatusChip(selectedDocument.status)}>
+                    <div>
+                      <h3 className="font-medium text-foreground">
+                        {selectedDocument.user} —{" "}
+                        {selectedDocument.documentType}
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        Route: {selectedDocument.route}
+                      </p>
+                    </div>
+                    <Badge
+                      className={docStatusChip(selectedDocument.status)}
+                    >
                       {selectedDocument.status}
                     </Badge>
                   </div>
                   <p className="text-sm text-muted-foreground">
                     Uploaded on {selectedDocument.uploadDate}.{" "}
-                    {selectedDocument.pages} pages
+                    {selectedDocument.pages}{" "}
+                    {selectedDocument.pages === 1 ? "page" : "pages"}
                   </p>
 
-                  <div className="h-48 bg-card/50 border border-border/50 rounded-lg flex items-center justify-center">
-                    <div className="text-center text-muted-foreground">
-                      <Eye className="h-8 w-8 mx-auto mb-2" />
-                      <p>Document preview would be displayed here</p>
-                    </div>
+                  <div className="h-48 bg-card/50 border border-border/50 rounded-lg flex items-center justify-center overflow-hidden">
+                    {previewLoading && (
+                      <p className="text-sm text-muted-foreground">
+                        Loading preview…
+                      </p>
+                    )}
+                    {!previewLoading && previewUrl && (
+                      <iframe
+                        src={previewUrl}
+                        className="w-full h-full rounded-md"
+                        title="Document preview"
+                      />
+                    )}
+                    {!previewLoading && !previewUrl && (
+                      <div className="text-center text-muted-foreground">
+                        <Eye className="h-8 w-8 mx-auto mb-2" />
+                        <p>Document preview will be displayed here.</p>
+                      </div>
+                    )}
                   </div>
 
                   <Button
                     variant="outline"
                     className="w-full bg-transparent border-border/50 shadow-sm hover:bg-card/50"
+                    onClick={() => {
+                      if (selectedDocument) {
+                        openDocument(selectedDocument);
+                      }
+                    }}
                   >
                     <Download className="h-4 w-4 mr-2" />
-                    Download Document
+                    Open / Download Document
                   </Button>
 
                   {selectedDocument.status === "Pending" && (
                     <>
                       <div className="space-y-2">
                         <label className="text-sm font-medium text-foreground">
-                          Comment (required when rejecting)
+                          Comment (optional)
                         </label>
                         <Textarea
-                          placeholder="Explain the reason for rejection..."
+                          placeholder="Explain the reason for rejection (optional)..."
                           value={rejectionComment}
-                          onChange={(e) => setRejectionComment(e.target.value)}
+                          onChange={(e) =>
+                            setRejectionComment(e.target.value)
+                          }
                           className="min-h-[80px] border-border/50 focus:border-[#1558E9] shadow-sm"
                         />
                         <p className="text-xs text-muted-foreground">
-                          Provide a comment when clicking Reject.
+                          You can add a reason before rejecting, if needed.
                         </p>
                       </div>
 

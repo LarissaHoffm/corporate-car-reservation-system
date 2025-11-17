@@ -263,7 +263,7 @@ export class ReservationsService {
     return r;
   }
 
-  /** A aprovação completa fica para o dia 10/11; mantendo aqui para compatibilidade. */
+  /** Aprovação com vínculo de carro. */
   async approve(
     actor: Pick<ActorBase, 'userId' | 'tenantId' | 'role'>,
     id: string,
@@ -340,7 +340,7 @@ export class ReservationsService {
     });
   }
 
-  /** Cancelamento (Dia 08/11): apenas o solicitante e apenas se PENDING. */
+  /** Cancelamento: solicitante pode cancelar reservas PENDING ou APPROVED. */
   async cancel(actor: ActorBase, id: string) {
     return this.prisma.$transaction(async (tx) => {
       const r = await tx.reservation.findUnique({
@@ -356,10 +356,10 @@ export class ReservationsService {
         throw new NotFoundException('Reserva não encontrada.');
       }
 
-      // Escopo de hoje: só o dono pode cancelar e somente se PENDING.
+      // Apenas o solicitante pode cancelar a própria reserva
       if (actor.role !== 'REQUESTER') {
         throw new ForbiddenException(
-          'Somente o solicitante pode cancelar nesta fase.',
+          'Somente o solicitante pode cancelar esta reserva.',
         );
       }
       if (r.userId !== actor.userId) {
@@ -367,9 +367,22 @@ export class ReservationsService {
           'Sem permissão para cancelar esta reserva.',
         );
       }
-      if (r.status !== ReservationStatus.PENDING) {
+
+      // Já finalizada / cancelada
+      if (
+        r.status === ReservationStatus.CANCELED ||
+        r.status === ReservationStatus.COMPLETED
+      ) {
+        throw new ConflictException('Reserva já finalizada ou cancelada.');
+      }
+
+      // Permitido apenas PENDING e APPROVED
+      if (
+        r.status !== ReservationStatus.PENDING &&
+        r.status !== ReservationStatus.APPROVED
+      ) {
         throw new BadRequestException(
-          'Só é possível cancelar reservas PENDING.',
+          'Só é possível cancelar reservas PENDING ou APPROVED.',
         );
       }
 
@@ -394,37 +407,68 @@ export class ReservationsService {
     });
   }
 
+  /** 
+   * Conclusão de reserva:
+   * - REQUESTER: apenas envia para validação de documentos (mantém status).
+   * - APPROVER / ADMIN: marca como COMPLETED após validação.
+   */
   async complete(actor: ActorBase, id: string) {
     return this.prisma.$transaction(async (tx) => {
       const r = await tx.reservation.findUnique({
         where: { id },
-        select: { id: true, tenantId: true, userId: true, status: true },
+        select: {
+          id: true,
+          tenantId: true,
+          userId: true,
+          status: true,
+          origin: true,
+          destination: true,
+          startAt: true,
+          endAt: true,
+          carId: true,
+          branchId: true,
+        },
       });
 
       if (!r || r.tenantId !== actor.tenantId) {
         throw new NotFoundException('Reserva não encontrada.');
       }
 
-      if (actor.role === 'REQUESTER' && r.userId !== actor.userId) {
-        throw new ForbiddenException(
-          'Sem permissão para concluir esta reserva.',
-        );
+      // Fluxo REQUESTER: finalizar checklist + upload → "envia para validação"
+      if (actor.role === 'REQUESTER') {
+        if (r.userId !== actor.userId) {
+          throw new ForbiddenException(
+            'Sem permissão para finalizar esta reserva.',
+          );
+        }
+
+        if (r.status !== ReservationStatus.APPROVED) {
+          throw new BadRequestException(
+            'Só é possível finalizar reservas aprovadas.',
+          );
+        }
+
+        await this.log(tx, {
+          tenantId: actor.tenantId,
+          userId: actor.userId,
+          action: 'reservation.sent_for_validation',
+          entity: 'Reservation',
+          entityId: r.id,
+          metadata: {
+            statusBefore: r.status,
+          },
+        });
+
+        // Mantém status APPROVED; a conclusão real acontece
+        // após a validação de documentos pelo APPROVER/ADMIN.
+        return r;
       }
 
+      // Fluxo APPROVER / ADMIN: conclusão definitiva (COMPLETED)
       if (r.status !== ReservationStatus.APPROVED) {
         throw new BadRequestException(
-          'Só é possível concluir reservas APROVADAS.',
+          `Só é possível concluir reservas APROVADAS (atual: ${r.status}).`,
         );
-      }
-
-      if (actor.role === 'REQUESTER') {
-        throw new ConflictException({
-          code: 'PRECONDITION_REQUIRED',
-          message:
-            'Envie os documentos obrigatórios e conclua o checklist antes de finalizar a reserva.',
-          missing: ['documents', 'checklist'],
-          nextAction: 'upload',
-        } as any);
       }
 
       const updated = await tx.reservation.update({
@@ -449,16 +493,16 @@ export class ReservationsService {
         action: 'reservation.completed',
         entity: 'Reservation',
         entityId: updated.id,
+        metadata: {
+          statusBefore: r.status,
+        },
       });
 
       return updated;
     });
   }
 
-  async remove(
-    actor: Pick<ActorBase, 'tenantId' | 'userId'>,
-    id: string,
-  ) {
+  async remove(actor: Pick<ActorBase, 'tenantId' | 'userId'>, id: string) {
     return this.prisma.$transaction(async (tx) => {
       const r = await tx.reservation.findUnique({
         where: { id },

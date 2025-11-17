@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -32,6 +33,20 @@ import { ValidateDocumentDto } from './dto/validate-document.dto';
 export class DocumentsController {
   constructor(private readonly docs: DocumentsService) {}
 
+  /**
+   * Inbox de documentos (APPROVER/ADMIN).
+   * Retorna documentos do tenant, com reserva + usuário.
+   */
+  @Get('documents')
+  @Roles('APPROVER', 'ADMIN')
+  async inbox(@Req() req: any) {
+    return this.docs.listInbox({
+      tenantId: req.user.tenantId,
+      role: req.user.role,
+      branchId: req.user.branchId,
+    });
+  }
+
   @Post('reservations/:id/documents')
   @Roles('REQUESTER', 'APPROVER', 'ADMIN')
   @ApiConsumes('multipart/form-data')
@@ -61,6 +76,10 @@ export class DocumentsController {
     @Body() dto: UploadDocumentDto,
     @Req() req: any,
   ) {
+    if (!file) {
+      throw new BadRequestException('Arquivo é obrigatório');
+    }
+
     return this.docs.uploadToReservation({
       reservationId,
       actor: {
@@ -85,7 +104,11 @@ export class DocumentsController {
     @Req() req: any,
   ) {
     return this.docs.listByReservation(
-      { userId: req.user.id, role: req.user.role, tenantId: req.user.tenantId },
+      {
+        userId: req.user.id,
+        role: req.user.role,
+        tenantId: req.user.tenantId,
+      },
       reservationId,
     );
   }

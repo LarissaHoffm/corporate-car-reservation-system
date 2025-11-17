@@ -97,9 +97,8 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # ⬇⬇⬇ SOMENTE AQUI AJUSTAMOS ⬇⬇⬇
   prometheus:
-    image: prom/prometheus              # <-- removida a tag v2.53.0-alpine que não existe
+    image: prom/prometheus              
     container_name: ccrs-prometheus
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro

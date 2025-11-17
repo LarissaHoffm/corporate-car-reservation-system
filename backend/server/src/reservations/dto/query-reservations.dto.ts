@@ -86,5 +86,5 @@ export class QueryReservationsDto {
   @IsInt()
   @Min(1)
   @Max(100)
-  pageSize: number = 10;
+  pageSize: number = 50;
 }
