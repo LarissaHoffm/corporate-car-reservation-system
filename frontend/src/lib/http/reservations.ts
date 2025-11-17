@@ -78,8 +78,10 @@ export const ReservationsAPI = {
     return data as Reservation;
   },
 
-  async cancel(id: string): Promise<Reservation> {
-    const { data } = await api.patch(`/reservations/${id}/cancel`, {});
+  async cancel(id: string, reason?: string): Promise<Reservation> {
+    const { data } = await api.patch(`/reservations/${id}/cancel`, {
+      reason: reason ?? "Cancelled by requester via web app",
+    });
     return data as Reservation;
   },
 

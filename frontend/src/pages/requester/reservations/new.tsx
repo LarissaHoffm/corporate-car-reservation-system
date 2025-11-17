@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 
 import useReservations from "@/hooks/use-reservations";
+import { useToast } from "@/components/ui/use-toast";
 
 function toISO(localDateTime: string) {
   return new Date(localDateTime).toISOString();
@@ -51,6 +52,7 @@ type CreateReservationPayload = {
 export default function NewReservationPage() {
   const navigate = useNavigate();
   const { createReservation, loading, errors } = useReservations();
+  const { toast } = useToast();
 
   const [origin, setOrigin] = useState("");
   const [destination, setDestination] = useState("");
@@ -73,7 +75,7 @@ export default function NewReservationPage() {
     const s = Date.parse(startAtLocal);
     const e = Date.parse(endAtLocal);
     if (Number.isNaN(s) || Number.isNaN(e)) return false;
-    return s < e && s > Date.now();
+    return s < e;
   }, [origin, destination, startAtLocal, endAtLocal]);
 
   async function onSubmit(e: React.FormEvent) {
@@ -99,14 +101,19 @@ export default function NewReservationPage() {
         passengers: Number(passengers),
       };
 
-      // cria a solicitação (sem atribuição de carro aqui)
       const result = await createReservation(payload);
 
-      // OpResult não possui 'error' → usar erros do hook ou mensagem genérica
       if (!result.ok) {
         setFormError(errors.create || "Não foi possível criar a reserva.");
         return;
       }
+
+      toast({
+        title: "Reservation created",
+        description: "Your request was sent for approval.",
+      });
+
+      navigate("/requester/reservations");
     } catch (err: unknown) {
       const msg =
         (err as any)?.response?.data?.message ||
@@ -302,7 +309,7 @@ export default function NewReservationPage() {
                 <Button
                   type="button"
                   variant="ghost"
-                  onClick={() => navigate(-1)}
+                  onClick={() => navigate("/requester/reservations")}
                 >
                   Cancel
                 </Button>

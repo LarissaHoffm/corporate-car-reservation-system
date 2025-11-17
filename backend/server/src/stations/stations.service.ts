@@ -28,7 +28,7 @@ export class StationsService {
           name: true,
           address: true,
           branchId: true,
-          isActive: true, // ⬅️ adicionado
+          isActive: true,
           createdAt: true,
           updatedAt: true,
         },
@@ -74,7 +74,7 @@ export class StationsService {
           name: true,
           address: true,
           branchId: true,
-          isActive: true, // ⬅️ adicionado
+          isActive: true,
           createdAt: true,
           updatedAt: true,
         },
@@ -93,7 +93,7 @@ export class StationsService {
         name: true,
         address: true,
         branchId: true,
-        isActive: true, // ⬅️ adicionado
+        isActive: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -103,37 +103,44 @@ export class StationsService {
   }
 
   async update(actor: { tenantId: string }, id: string, dto: UpdateStationDto) {
+    const data: Prisma.StationUpdateInput = {
+      ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
+      ...(dto.address !== undefined
+        ? { address: dto.address?.trim() ?? null }
+        : {}),
+      ...(dto.branchId !== undefined
+        ? dto.branchId
+          ? { branchId: dto.branchId }
+          : { branchId: null }
+        : {}),
+    };
+
     try {
-      const s = await this.prisma.station.update({
-        where: { id },
-        data: {
-          ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
-          ...(dto.address !== undefined
-            ? { address: dto.address?.trim() ?? null }
-            : {}),
-          ...(dto.branchId !== undefined
-            ? dto.branchId
-              ? { branchId: dto.branchId }
-              : { branchId: null }
-            : {}),
-          // isActive pode ser mapeado depois quando ajustarmos o DTO
-        },
-        select: {
-          id: true,
-          name: true,
-          address: true,
-          branchId: true,
-          isActive: true, // ⬅️ adicionado
-          updatedAt: true,
-        },
-      });
+      return await this.prisma.$transaction(async (tx) => {
+        const belongs = await tx.station.findFirst({
+          where: { id, tenantId: actor.tenantId },
+          select: { id: true },
+        });
 
-      const belongs = await this.prisma.station.count({
-        where: { id, tenantId: actor.tenantId },
-      });
-      if (belongs === 0) throw new NotFoundException('Posto não encontrado');
+        if (!belongs) {
+          throw new NotFoundException('Posto não encontrado');
+        }
 
-      return s;
+        const s = await tx.station.update({
+          where: { id },
+          data,
+          select: {
+            id: true,
+            name: true,
+            address: true,
+            branchId: true,
+            isActive: true,
+            updatedAt: true,
+          },
+        });
+
+        return s;
+      });
     } catch (e) {
       if (
         e instanceof Prisma.PrismaClientKnownRequestError &&

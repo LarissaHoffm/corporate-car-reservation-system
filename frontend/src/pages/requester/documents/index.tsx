@@ -1,6 +1,12 @@
 import * as React from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Upload, FileText, ImageIcon, Eye } from "lucide-react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+} from "react";
+import { Upload, FileText, ImageIcon, Eye, RefreshCcw } from "lucide-react";
 
 import { RoleGuard } from "@/components/role-guard";
 import { Button } from "@/components/ui/button";
@@ -14,72 +20,158 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { statusChipClasses } from "@/components/ui/status";
+import { useToast } from "@/components/ui/use-toast";
 
-type DocStatus = "Pending" | "Validated";
+import { api } from "@/lib/http/api";
+import {
+  uploadDocumentForReservation,
+  listDocumentsByReservation,
+  type Document as ApiDocument,
+  type DocumentType,
+} from "@/lib/http/documents";
+
+/* ----------------------------- Tipos locais ----------------------------- */
+
+type DocStatus = "Pending" | "InValidation" | "PendingDocs" | "Validated";
 
 type DocRow = {
-  id: string;
+  id: string; // reservation id
   reservationId: string;
+  route: string; // "ORIGIN -> DESTINATION"
   car: string;
   date: string;
   status: DocStatus;
 };
 
-type UploadedFile = { name: string };
+type ApiReservation = {
+  id: string;
+  origin: string;
+  destination: string;
+  startAt: string;
+  status: string;
+  car?: {
+    model?: string | null;
+    plate?: string | null;
+  } | null;
+};
 
-const LS_PREFIX = "reservcar:req:docs";
-const LS_ROWS = `${LS_PREFIX}:rows`;
-const LS_FILES = (reservationId: string) =>
-  `${LS_PREFIX}:files:${reservationId}`;
+type ListMyReservationsResponse = {
+  page: number;
+  pageSize: number;
+  total: number;
+  items: ApiReservation[];
+  data?: ApiReservation[];
+};
 
-const SEED: DocRow[] = [
-  {
-    id: "1",
-    reservationId: "R2023001",
-    car: "Ford Focus",
-    date: "09/08/2025",
-    status: "Pending",
-  },
-  {
-    id: "2",
-    reservationId: "R2023002",
-    car: "Toyota Corolla",
-    date: "10/08/2025",
-    status: "Validated",
-  },
-];
+/* --------------------------- Funções auxiliares ------------------------- */
 
-function readJSON<T>(key: string): T | null {
-  try {
-    const s = localStorage.getItem(key);
-    return s ? (JSON.parse(s) as T) : null;
-  } catch {
-    return null;
+function normalizeDocStatus(raw: any): "PENDING" | "APPROVED" | "REJECTED" {
+  if (raw == null) return "PENDING";
+
+  const s = String(raw).toUpperCase();
+
+  if (s === "APPROVED" || s === "VALIDATED" || s === "APPROVE") {
+    return "APPROVED";
   }
-}
-function writeJSON<T>(key: string, value: T) {
-  localStorage.setItem(key, JSON.stringify(value));
+
+  if (s === "REJECTED" || s === "REJECT") {
+    return "REJECTED";
+  }
+
+  return "PENDING";
 }
 
-function toChipStatus(s: DocStatus): "Pendente" | "Aprovado" | "Rejeitado" {
-  return s === "Validated" ? "Aprovado" : "Pendente";
+/**
+ * Calcula o status agregado de documentos de uma reserva:
+ *
+ * - Agrupa por `type`.
+ * - Para cada tipo, considera APENAS o documento MAIS RECENTE
+ *   (updatedAt/createdAt).
+ * - Docs sem `type` só entram na conta se NÃO existir nenhum doc tipado.
+ *
+ * Regras finais:
+ * - Se algum tipo estiver PENDING → "InValidation"
+ * - Senão, se algum tipo estiver REJECTED → "PendingDocs"
+ * - Senão, se algum tipo estiver APPROVED → "Validated"
+ * - Senão → "Pending"
+ */
+function docStatusFromDocuments(docs: ApiDocument[]): DocStatus {
+  if (!docs.length) {
+    return "Pending";
+  }
+
+  const allDocs = docs as any[];
+  const typed = allDocs.filter((d) => d.type);
+  const source = typed.length > 0 ? typed : allDocs;
+
+  type Aggregated = {
+    latestTs: number;
+    status: "PENDING" | "APPROVED" | "REJECTED";
+  };
+
+  const byType = new Map<string, Aggregated>();
+
+  source.forEach((raw: any, index: number) => {
+    const type = (raw.type as string | undefined) ?? "__NO_TYPE__";
+
+    const rawDate =
+      raw.updatedAt ??
+      raw.createdAt ??
+      raw.created_at ??
+      raw.uploadedAt ??
+      null;
+
+    const ts =
+      rawDate && !Number.isNaN(new Date(rawDate).getTime())
+        ? new Date(rawDate).getTime()
+        : index; // fallback: ordem do array
+
+    const normStatus = normalizeDocStatus(raw.status);
+
+    const current = byType.get(type);
+    if (!current || ts >= current.latestTs) {
+      byType.set(type, { latestTs: ts, status: normStatus });
+    }
+  });
+
+  let anyPending = false;
+  let anyRejected = false;
+  let anyApproved = false;
+
+  for (const agg of byType.values()) {
+    if (agg.status === "PENDING") {
+      anyPending = true;
+    } else if (agg.status === "REJECTED") {
+      anyRejected = true;
+    } else if (agg.status === "APPROVED") {
+      anyApproved = true;
+    }
+  }
+
+  if (anyPending) return "InValidation";
+  if (anyRejected) return "PendingDocs";
+  if (anyApproved) return "Validated";
+  return "Pending";
 }
+
+function docStatusToChip(s: DocStatus): "Pendente" | "Aprovado" | "Rejeitado" {
+  if (s === "Validated") return "Aprovado";
+  if (s === "PendingDocs") return "Rejeitado";
+  return "Pendente"; // Pending / InValidation usam mesma cor "warning"
+}
+
+/* --------------------------------- Page --------------------------------- */
 
 export default function RequesterDocumentsPage() {
-  // linhas (seed + persistência)
-  const [rows, setRows] = useState<DocRow[]>(() => {
-    const stored = readJSON<DocRow[]>(LS_ROWS);
-    if (!stored || stored.length === 0) {
-      writeJSON(LS_ROWS, SEED);
-      return SEED;
-    }
-    return stored;
-  });
+  const { toast } = useToast();
+
+  const [rows, setRows] = useState<DocRow[]>([]);
+  const [loadingRows, setLoadingRows] = useState(false);
 
   // filtros: apenas Car e Status
   const [carFilter, setCarFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<
-    "all" | "pending" | "validated"
+    "all" | "pending" | "invalidation" | "pendingdocs" | "validated"
   >("all");
 
   // seleção atual
@@ -89,31 +181,116 @@ export default function RequesterDocumentsPage() {
     [rows, selectedId],
   );
 
-  // arquivos por reserva selecionada
-  const [files, setFiles] = useState<UploadedFile[]>([]);
+  // documentos da reserva selecionada
+  const [files, setFiles] = useState<ApiDocument[]>([]);
+  const [currentDocType, setCurrentDocType] =
+    useState<DocumentType | undefined>(undefined);
+  const [uploading, setUploading] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // refs para click-away
   const listRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // carregar/persistir
-  useEffect(() => {
-    writeJSON(LS_ROWS, rows);
-  }, [rows]);
+  /* -------------------- Carregar reservas do usuário -------------------- */
+
+  const loadRows = useCallback(async () => {
+    setLoadingRows(true);
+    try {
+      const { data } = await api.get<ListMyReservationsResponse>(
+        "/reservations/me",
+        { params: { page: 1, pageSize: 50 } },
+      );
+
+      const arr: ApiReservation[] = data.items ?? data.data ?? [];
+
+      const result: DocRow[] = [];
+
+      for (const r of arr) {
+        // Não faz sentido exibir documentos para reservas canceladas
+        if (r.status === "CANCELED") continue;
+
+        // Só consideramos reservas com carro vinculado (aprovadas/completas)
+        if (!r.car || !r.car.model) continue;
+
+        let docs: ApiDocument[] = [];
+        try {
+          docs = await listDocumentsByReservation(r.id);
+        } catch {
+          docs = [];
+        }
+
+        // Essa tela só mostra reservas que já têm ao menos 1 documento
+        if (!docs.length) continue;
+
+        const carLabel = r.car?.model ?? r.car?.plate ?? "—";
+
+        let date = "—";
+        const d = r.startAt ? new Date(r.startAt) : null;
+        if (d && !Number.isNaN(d.getTime())) {
+          date = d.toLocaleDateString("pt-BR");
+        }
+
+        const status = docStatusFromDocuments(docs);
+
+        result.push({
+          id: r.id,
+          reservationId: r.id,
+          route: `${r.origin} -> ${r.destination}`,
+          car: carLabel,
+          date,
+          status,
+        });
+      }
+
+      setRows(result);
+    } catch (err) {
+      console.error(err);
+      toast({
+        title: "Erro ao carregar reservas",
+        description:
+          "Não foi possível carregar suas reservas para upload de documentos.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoadingRows(false);
+    }
+  }, [toast]);
 
   useEffect(() => {
-    if (!selected) return;
-    const f = readJSON<UploadedFile[]>(LS_FILES(selected.reservationId)) ?? [];
-    setFiles(f);
-  }, [selected?.reservationId]);
+    void loadRows();
+  }, [loadRows]);
+
+  /* ---- Carregar documentos quando a reserva selecionada mudar ---- */
 
   useEffect(() => {
-    if (!selected) return;
-    writeJSON(LS_FILES(selected.reservationId), files);
-  }, [selected?.reservationId, files]);
+    if (!selectedId) {
+      setFiles([]);
+      return;
+    }
 
-  // opções de filtro
+    let cancelled = false;
+
+    const loadDocs = async () => {
+      try {
+        const docs = await listDocumentsByReservation(selectedId);
+        if (!cancelled) setFiles(docs);
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) setFiles([]);
+      }
+    };
+
+    void loadDocs();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId]);
+
+  /* --------------------------- Filtros em memória --------------------------- */
+
   const carOptions = useMemo(() => {
     const set = new Set(rows.map((r) => r.car));
     return ["all", ...Array.from(set)];
@@ -122,26 +299,57 @@ export default function RequesterDocumentsPage() {
   const filtered = useMemo(() => {
     return rows.filter((r) => {
       const byCar = carFilter === "all" || r.car === carFilter;
+
       const byStatus =
         statusFilter === "all" ||
         (statusFilter === "pending" && r.status === "Pending") ||
+        (statusFilter === "invalidation" && r.status === "InValidation") ||
+        (statusFilter === "pendingdocs" && r.status === "PendingDocs") ||
         (statusFilter === "validated" && r.status === "Validated");
+
       return byCar && byStatus;
     });
   }, [rows, carFilter, statusFilter]);
 
-  // click-away + Esc
+  const rowsForTable: DocRow[] =
+    filtered.length > 0
+      ? filtered
+      : [
+          {
+            id: "__placeholder__",
+            reservationId: "—",
+            route: "—",
+            car: "—",
+            date: "—",
+            status: "Pending",
+          },
+        ];
+
+  // Para permitir reenvio apenas se houver docs rejeitados SEM um novo doc ativo daquele tipo:
+  const hasActiveDocOfType = (type: DocumentType) =>
+    files.some((f: any) => {
+      const t = f.type as DocumentType | undefined;
+      const status = f.status as "APPROVED" | "REJECTED" | null | undefined;
+      if (t !== type) return false;
+      // "ativo" = pendente (null) ou aprovado; rejeitado não conta
+      return status === "APPROVED" || status == null;
+    });
+
+  /* --------------------- click-away + Esc para painel --------------------- */
+
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
       if (!selectedId) return;
       const target = e.target as Node;
-      const path = (e.composedPath?.() as Node[]) || [];
+      const path = (e as any).composedPath?.() as Node[] | undefined;
       const insideList =
         listRef.current &&
-        (path.includes(listRef.current) || listRef.current.contains(target));
+        (path?.includes(listRef.current) ||
+          listRef.current.contains(target));
       const insidePanel =
         panelRef.current &&
-        (path.includes(panelRef.current) || panelRef.current.contains(target));
+        (path?.includes(panelRef.current) ||
+          panelRef.current.contains(target));
       if (!insideList && !insidePanel) setSelectedId("");
     };
     const onKey = (e: KeyboardEvent) => {
@@ -155,37 +363,115 @@ export default function RequesterDocumentsPage() {
     };
   }, [selectedId]);
 
-  // handlers
-  const handleChooseFile = () => fileInputRef.current?.click();
-  const handleFileChange: React.ChangeEventHandler<HTMLInputElement> = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setFiles((prev) => [...prev, { name: file.name }]);
-    e.currentTarget.value = "";
+  /* ------------------------ Abrir arquivo (preview/download) ------------------------ */
+
+  const openFile = async (doc: ApiDocument) => {
+    try {
+      const response = await api.get(`/documents/${doc.id}/file`, {
+        responseType: "blob",
+      });
+
+      const blob = response.data as Blob;
+      const url = window.URL.createObjectURL(blob);
+
+      window.open(url, "_blank");
+
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+      }, 60_000);
+    } catch (err) {
+      console.error(err);
+      toast({
+        title: "Erro ao abrir documento",
+        description:
+          "Não foi possível carregar o arquivo. Tente novamente em instantes.",
+        variant: "destructive",
+      });
+    }
   };
 
-  const markValidatedAndClose = () => {
+  /* -------------------------------- Handlers -------------------------------- */
+
+  const handleChooseFile = (type: DocumentType) => {
     if (!selected) return;
-    setRows((prev) =>
-      prev.map((r) =>
-        r.id === selected.id ? { ...r, status: "Validated" } : r,
-      ),
-    );
-    setSelectedId("");
-    alert("Documents sent. Reservation marked as Validated.");
+    setCurrentDocType(type);
+    fileInputRef.current?.click();
   };
+
+  const handleFileChange: React.ChangeEventHandler<HTMLInputElement> = async (
+    e,
+  ) => {
+    const file = e.target.files?.[0];
+    e.currentTarget.value = "";
+
+    if (!file || !selected) return;
+
+    try {
+      setUploading(true);
+      await uploadDocumentForReservation(selected.id, {
+        file,
+        type: currentDocType,
+      });
+      const docs = await listDocumentsByReservation(selected.id);
+      setFiles(docs);
+
+      const newStatus = docStatusFromDocuments(docs);
+
+      setRows((prev) =>
+        prev.map((r) =>
+          r.id === selected.id ? { ...r, status: newStatus } : r,
+        ),
+      );
+
+      toast({
+        title: "Documento enviado",
+        description: "Seu arquivo foi enviado com sucesso.",
+      });
+    } catch (err) {
+      console.error(err);
+      toast({
+        title: "Erro ao enviar documento",
+        description:
+          "Não foi possível enviar o arquivo. Tente novamente em alguns instantes.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const markSentAndClose = () => {
+    if (!selected) return;
+    setSelectedId("");
+    toast({
+      title: "Documents sent",
+      description: "Reservation documents sent for validation.",
+    });
+  };
+
+  const handleRefreshClick = () => {
+    void loadRows();
+    setSelectedId("");
+    setFiles([]);
+  };
+
+  /* --------------------------------- JSX --------------------------------- */
 
   return (
     <RoleGuard allowedRoles={["REQUESTER"]} requireAuth={false}>
       <div className="space-y-6">
-        {/* Header + filtros (apenas Car e Status) */}
+        {/* Header + filtros (Car e Status) */}
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-foreground">
             Upload Required Documents
           </h1>
 
           <div className="flex gap-3">
-            <Select value={carFilter} onValueChange={(v) => setCarFilter(v)}>
+            <Select
+              value={carFilter}
+              onValueChange={(v) => setCarFilter(v)}
+              disabled={loadingRows}
+            >
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Car" />
               </SelectTrigger>
@@ -200,25 +486,48 @@ export default function RequesterDocumentsPage() {
 
             <Select
               value={statusFilter}
-              onValueChange={(v: "all" | "pending" | "validated") =>
-                setStatusFilter(v)
-              }
+              onValueChange={(
+                v: "all" | "pending" | "invalidation" | "pendingdocs" | "validated",
+              ) => setStatusFilter(v)}
+              disabled={loadingRows}
             >
-              <SelectTrigger className="w-[160px]">
+              <SelectTrigger className="w-[200px]">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All status</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="invalidation">In validation</SelectItem>
+                <SelectItem value="pendingdocs">Pending docs</SelectItem>
                 <SelectItem value="validated">Validated</SelectItem>
               </SelectContent>
             </Select>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="flex items-center gap-2"
+              onClick={handleRefreshClick}
+              disabled={loadingRows}
+            >
+              {loadingRows ? (
+                <>
+                  <RefreshCcw className="h-4 w-4 animate-spin" />
+                  Refresh
+                </>
+              ) : (
+                <>
+                  <RefreshCcw className="h-4 w-4" />
+                  Refresh
+                </>
+              )}
+            </Button>
           </div>
         </div>
 
-        {/* Grid: lista à esquerda + painel à direita (placeholder até selecionar) */}
+        {/* Grid: lista à esquerda + painel à direita */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          {/* LEFT: Tabela de documentos enviados (linhas) */}
+          {/* LEFT */}
           <div ref={listRef}>
             <Card className="border border-border/50 bg-card text-foreground shadow-sm">
               <CardContent className="p-6">
@@ -230,7 +539,7 @@ export default function RequesterDocumentsPage() {
                   {/* header */}
                   <div className="border-b border-border bg-card px-4 py-3">
                     <div className="grid grid-cols-5 gap-4 text-sm font-medium text-muted-foreground">
-                      <div>Reservation ID</div>
+                      <div>Route</div>
                       <div>Car</div>
                       <div>Date</div>
                       <div>Status</div>
@@ -238,30 +547,27 @@ export default function RequesterDocumentsPage() {
                     </div>
                   </div>
 
-                  {/* rows */}
-                  <div className="divide-y divide-border/50">
-                    {(filtered.length
-                      ? filtered
-                      : [
-                          {
-                            id: "—",
-                            reservationId: "—",
-                            car: "—",
-                            date: "—",
-                            status: "Pending" as DocStatus,
-                          },
-                        ]
-                    ).map((doc) => {
-                      const isValidated = doc.status === "Validated";
+                  {/* rows com scroll */}
+                  <div className="max-h-[420px] overflow-y-auto divide-y divide-border/50">
+                    {rowsForTable.map((doc) => {
+                      const isPlaceholder = doc.id === "__placeholder__";
+
+                      const showSend = doc.status === "PendingDocs";
+
                       return (
                         <button
                           key={doc.id}
+                          type="button"
                           className="w-full px-4 py-3 text-left transition-colors hover:bg-card/60 focus:outline-none"
-                          onClick={() => setSelectedId(doc.id)}
+                          onClick={() => {
+                            if (isPlaceholder) return;
+                            setSelectedId(doc.id);
+                          }}
+                          disabled={isPlaceholder || loadingRows}
                         >
                           <div className="grid grid-cols-5 items-center gap-4 text-sm">
                             <div className="font-medium text-foreground">
-                              {doc.reservationId}
+                              {doc.route}
                             </div>
                             <div className="text-muted-foreground">
                               {doc.car}
@@ -272,27 +578,36 @@ export default function RequesterDocumentsPage() {
                             <div>
                               <Badge
                                 className={statusChipClasses(
-                                  toChipStatus(doc.status),
+                                  docStatusToChip(doc.status),
                                 )}
                               >
-                                {doc.status}
+                                {doc.status === "Pending"
+                                  ? "Pending"
+                                  : doc.status === "InValidation"
+                                  ? "In validation"
+                                  : doc.status === "PendingDocs"
+                                  ? "Pending docs"
+                                  : "Validated"}
                               </Badge>
                             </div>
                             <div className="flex justify-start">
                               <Button
                                 size="sm"
-                                variant={isValidated ? "outline" : "default"}
+                                variant={showSend ? "default" : "outline"}
                                 className={
-                                  isValidated
-                                    ? "bg-transparent"
-                                    : "bg-[#1558E9] text-white hover:bg-[#1558E9]/90"
+                                  showSend
+                                    ? "bg-[#1558E9] text-white hover:bg-[#1558E9]/90"
+                                    : "bg-transparent"
                                 }
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  if (isPlaceholder) return;
                                   setSelectedId(doc.id);
+                                  // envio efetivo = upload no painel da direita
                                 }}
+                                disabled={isPlaceholder || loadingRows}
                               >
-                                {isValidated ? "View" : "Send"}
+                                {showSend ? "Send" : "View"}
                               </Button>
                             </div>
                           </div>
@@ -305,7 +620,7 @@ export default function RequesterDocumentsPage() {
             </Card>
           </div>
 
-          {/* RIGHT: Painel (placeholder até selecionar) */}
+          {/* RIGHT */}
           <div ref={panelRef}>
             <Card className="border border-border/50 bg-card text-foreground shadow-sm">
               <CardHeader>
@@ -322,88 +637,108 @@ export default function RequesterDocumentsPage() {
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <div className="h-3 w-3 rounded-full bg-muted-foreground/60" />
                       <span className="font-medium">
-                        RESERVATION ID: {selected.reservationId}
+                        ROUTE: {selected.route}
                       </span>
                     </div>
                     <Badge
                       className={statusChipClasses(
-                        toChipStatus(selected.status),
+                        docStatusToChip(selected.status),
                       )}
                     >
-                      {selected.status}
+                      {selected.status === "Pending"
+                        ? "Pending"
+                        : selected.status === "InValidation"
+                        ? "In validation"
+                        : selected.status === "PendingDocs"
+                        ? "Pending docs"
+                        : "Validated"}
                     </Badge>
                   </div>
 
                   {/* Driver Documents */}
-                  <div className="space-y-3">
-                    <h3 className="text-base font-medium text-foreground">
-                      Driver Documents
-                    </h3>
+                  {selected.status === "PendingDocs" && (
+                    <>
+                      <div className="space-y-3">
+                        <h3 className="text-base font-medium text-foreground">
+                          Driver Documents
+                        </h3>
 
-                    <Card
-                      className="cursor-pointer border-2 border-dashed border-border bg-muted/20 transition-colors hover:border-[#1558E9]"
-                      onClick={handleChooseFile}
-                    >
-                      <CardContent className="p-4 text-center">
-                        <Upload className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
-                        <p className="text-sm font-medium text-foreground">
-                          Upload Driver License (front & back)
-                        </p>
-                      </CardContent>
-                    </Card>
+                        {!hasActiveDocOfType("CNH") && (
+                          <Card
+                            className="cursor-pointer border-2 border-dashed border-border bg-muted/20 transition-colors hover:border-[#1558E9]"
+                            onClick={() => handleChooseFile("CNH")}
+                          >
+                            <CardContent className="p-4 text-center">
+                              <Upload className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
+                              <p className="text-sm font-medium text-foreground">
+                                Upload Driver License (front & back)
+                              </p>
+                            </CardContent>
+                          </Card>
+                        )}
 
-                    <Card
-                      className="cursor-pointer border-2 border-dashed border-border bg-muted/20 transition-colors hover:border-[#1558E9]"
-                      onClick={handleChooseFile}
-                    >
-                      <CardContent className="p-4 text-center">
-                        <Upload className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
-                        <p className="text-sm font-medium text-foreground">
-                          Upload Insurance Proof
-                        </p>
-                      </CardContent>
-                    </Card>
-                  </div>
+                        {!hasActiveDocOfType("OTHER") && (
+                          <Card
+                            className="cursor-pointer border-2 border-dashed border-border bg-muted/20 transition-colors hover:border-[#1558E9]"
+                            onClick={() => handleChooseFile("OTHER")}
+                          >
+                            <CardContent className="p-4 text-center">
+                              <Upload className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
+                              <p className="text-sm font-medium text-foreground">
+                                Upload Insurance Proof
+                              </p>
+                            </CardContent>
+                          </Card>
+                        )}
+                      </div>
 
-                  {/* Vehicle Documents */}
-                  <div className="space-y-3">
-                    <h3 className="text-base font-medium text-foreground">
-                      Vehicle Documents
-                    </h3>
+                      {/* Vehicle Documents */}
+                      <div className="space-y-3">
+                        <h3 className="text-base font-medium text-foreground">
+                          Vehicle Documents
+                        </h3>
 
-                    <Card
-                      className="cursor-pointer border-2 border-dashed border-border bg-muted/20 transition-colors hover:border-[#1558E9]"
-                      onClick={handleChooseFile}
-                    >
-                      <CardContent className="p-4 text-center">
-                        <Upload className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
-                        <p className="text-sm font-medium text-foreground">
-                          Upload Fuel Receipt
-                        </p>
-                      </CardContent>
-                    </Card>
+                        {!hasActiveDocOfType("RECEIPT") && (
+                          <Card
+                            className="cursor-pointer border-2 border-dashed border-border bg-muted/20 transition-colors hover:border-[#1558E9]"
+                            onClick={() => handleChooseFile("RECEIPT")}
+                          >
+                            <CardContent className="p-4 text-center">
+                              <Upload className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
+                              <p className="text-sm font-medium text-foreground">
+                                Upload Fuel Receipt
+                              </p>
+                            </CardContent>
+                          </Card>
+                        )}
 
-                    <Card
-                      className="cursor-pointer border-2 border-dashed border-border bg-muted/20 transition-colors hover:border-[#1558E9]"
-                      onClick={handleChooseFile}
-                    >
-                      <CardContent className="p-4 text-center">
-                        <Upload className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
-                        <p className="text-sm font-medium text-foreground">
-                          Upload Damage Photos (if any)
-                        </p>
-                      </CardContent>
-                    </Card>
-                  </div>
+                        {!hasActiveDocOfType("ODOMETER_PHOTO") && (
+                          <Card
+                            className="cursor-pointer border-2 border-dashed border-border bg-muted/20 transition-colors hover:border-[#1558E9]"
+                            onClick={() =>
+                              handleChooseFile("ODOMETER_PHOTO")
+                            }
+                          >
+                            <CardContent className="p-4 text-center">
+                              <Upload className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
+                              <p className="text-sm font-medium text-foreground">
+                                Upload Damage Photos (if any)
+                              </p>
+                            </CardContent>
+                          </Card>
+                        )}
+                      </div>
 
-                  {/* Input de arquivo oculto */}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    className="hidden"
-                    onChange={handleFileChange}
-                    accept=".jpg,.jpeg,.png,.pdf"
-                  />
+                      {/* Input de arquivo oculto */}
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        className="hidden"
+                        onChange={handleFileChange}
+                        accept=".jpg,.jpeg,.png,.pdf"
+                      />
+                    </>
+                  )}
 
                   {/* Lista de arquivos */}
                   <div className="space-y-2">
@@ -412,19 +747,30 @@ export default function RequesterDocumentsPage() {
                     </h4>
                     {files.length > 0 ? (
                       <div className="space-y-2">
-                        {files.map((f, i) => (
-                          <div
-                            key={`${f.name}-${i}`}
-                            className="flex items-center gap-2 rounded border border-border bg-card p-3 text-foreground"
-                          >
-                            {/\.(png|jpg|jpeg)$/i.test(f.name) ? (
-                              <ImageIcon className="h-4 w-4 text-[#1558E9]" />
-                            ) : (
-                              <FileText className="h-4 w-4 text-[#1558E9]" />
-                            )}
-                            <span className="text-sm">{f.name}</span>
-                          </div>
-                        ))}
+                        {files.map((f) => {
+                          const filename =
+                            (f as any).metadata?.filename ??
+                            (f as any).url?.split("/").pop() ??
+                            (f as any).id;
+                          const isImage = /\.(png|jpg|jpeg)$/i.test(
+                            filename ?? "",
+                          );
+                          return (
+                            <button
+                              key={f.id}
+                              type="button"
+                              onClick={() => openFile(f)}
+                              className="flex w-full items-center gap-2 rounded border border-border bg-card p-3 text-left text-foreground transition-colors hover:bg-muted/40"
+                            >
+                              {isImage ? (
+                                <ImageIcon className="h-4 w-4 text-[#1558E9]" />
+                              ) : (
+                                <FileText className="h-4 w-4 text-[#1558E9]" />
+                              )}
+                              <span className="text-sm">{filename}</span>
+                            </button>
+                          );
+                        })}
                       </div>
                     ) : (
                       <p className="text-sm text-muted-foreground">
@@ -433,16 +779,18 @@ export default function RequesterDocumentsPage() {
                     )}
                   </div>
 
-                  {/* Enviar */}
-                  <Button
-                    className="w-full bg-[#1558E9] hover:bg-[#1558E9]/90 text-white"
-                    onClick={markValidatedAndClose}
-                  >
-                    Send
-                  </Button>
+                  {/* Botão principal: aqui só faz sentido quando veio de PendingDocs */}
+                  {selected.status === "PendingDocs" && (
+                    <Button
+                      className="w-full bg-[#1558E9] hover:bg-[#1558E9]/90 text-white"
+                      onClick={markSentAndClose}
+                      disabled={uploading}
+                    >
+                      Send
+                    </Button>
+                  )}
                 </CardContent>
               ) : (
-                // Placeholder quando nada selecionado
                 <CardContent className="space-y-4">
                   <div className="h-48 bg-card/50 border border-dashed border-border/50 rounded-lg flex items-center justify-center">
                     <div className="text-center text-muted-foreground">
@@ -451,7 +799,8 @@ export default function RequesterDocumentsPage() {
                         Select a reservation to upload/view documents
                       </p>
                       <p className="text-xs">
-                        Click an item on the left to start uploading files.
+                        Click an item on the left to start uploading files or
+                        check statuses.
                       </p>
                     </div>
                   </div>
