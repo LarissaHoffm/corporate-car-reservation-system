@@ -137,7 +137,7 @@ export default function SharedGasStationsPage() {
         id: s.id,
         name: s.name,
         address: s.address ?? "",
-        city: "",
+        city: (s as any).city ?? "",
         phone: m.phone ?? "",
         openHours: "",
         fuelTypes: m.fuelTypes ?? [],
@@ -559,7 +559,7 @@ export default function SharedGasStationsPage() {
           </Card>
         </div>
 
-        {/* Modal: Create (sem Horário) */}
+        {/* Modal: Create (sem campo Cidade) */}
         <Dialog
           open={createOpen}
           onOpenChange={(open) => {
@@ -583,28 +583,6 @@ export default function SharedGasStationsPage() {
                   }
                   className="mt-1 border-border/50 focus:border-[#1558E9] shadow-sm"
                 />
-              </div>
-              <div>
-                <Label className="text-sm text-gray-700">Cidade</Label>
-                <Select
-                  value={(form.city || undefined) as any}
-                  onValueChange={(v: any) =>
-                    setForm((p) => ({ ...p, city: v }))
-                  }
-                >
-                  <SelectTrigger className="mt-1 border-border/50 focus:border-[#1558E9] shadow-sm">
-                    <SelectValue placeholder="Selecionar" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(cityItems.length ? cityItems : ["all"]).map((c) =>
-                      c === "all" ? null : (
-                        <SelectItem key={`form-city-${c}`} value={c}>
-                          {c}
-                        </SelectItem>
-                      ),
-                    )}
-                  </SelectContent>
-                </Select>
               </div>
               <div className="sm:col-span-2">
                 <Label className="text-sm text-gray-700">Endereço</Label>
@@ -696,7 +674,7 @@ export default function SharedGasStationsPage() {
                   Back
                 </Button>
               </DialogClose>
-              <Button
+            <Button
                 className="bg-[#1558E9] hover:bg-[#1558E9]/90"
                 onClick={submitCreate}
                 disabled={loading}
@@ -707,7 +685,7 @@ export default function SharedGasStationsPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Modal: Edit (agora também sem Horário) */}
+        {/* Modal: Edit (sem campo Cidade) */}
         <Dialog
           open={editOpen}
           onOpenChange={(open) => {
@@ -731,28 +709,6 @@ export default function SharedGasStationsPage() {
                   }
                   className="mt-1 border-border/50 focus:border-[#1558E9] shadow-sm"
                 />
-              </div>
-              <div>
-                <Label className="text-sm text-gray-700">Cidade</Label>
-                <Select
-                  value={(form.city || undefined) as any}
-                  onValueChange={(v: any) =>
-                    setForm((p) => ({ ...p, city: v }))
-                  }
-                >
-                  <SelectTrigger className="mt-1 border-border/50 focus:border-[#1558E9] shadow-sm">
-                    <SelectValue placeholder="Selecionar" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(cityItems.length ? cityItems : ["all"]).map((c) =>
-                      c === "all" ? null : (
-                        <SelectItem key={`form-edit-city-${c}`} value={c}>
-                          {c}
-                        </SelectItem>
-                      ),
-                    )}
-                  </SelectContent>
-                </Select>
               </div>
               <div className="sm:col-span-2">
                 <Label className="text-sm text-gray-700">Endereço</Label>
@@ -779,7 +735,6 @@ export default function SharedGasStationsPage() {
                   className="mt-1 border-border/50 focus:border-[#1558E9] shadow-sm"
                 />
               </div>
-              {/* REMOVIDO campo Horário aqui também */}
               <div className="sm:col-span-2 flex items-center justify-between pt-1">
                 <Label className="text-sm text-gray-700">24 horas?</Label>
                 <Switch

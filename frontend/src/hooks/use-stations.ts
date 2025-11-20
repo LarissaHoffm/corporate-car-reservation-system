@@ -1,5 +1,4 @@
-// frontend/src/hooks/use-stations.ts
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import StationsAPI, {
   Station,
   StationId,
@@ -80,23 +79,47 @@ export function useStations(initial?: Partial<QueryState>): UseStationsReturn {
     [query, debouncedQ],
   );
 
-  const fetchList = useCallback(async (params: StationListParams) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res: StationListResponse = await StationsAPI.list(params);
-      if (!mounted.current) return;
-      setItems(res.data);
-      setTotal(res.total);
-    } catch (e: any) {
-      if (!mounted.current) return;
-      const message =
-        e?.response?.data?.message ?? e?.message ?? "Erro ao carregar postos.";
-      setError(Array.isArray(message) ? message[0] : String(message));
-    } finally {
-      if (mounted.current) setLoading(false);
+  function buildErrorMessage(e: any, fallback: string): string {
+    const status = e?.response?.status;
+    const payload = e?.response?.data?.message;
+    const base = Array.isArray(payload) ? payload.join("\n") : payload;
+
+    if (status === 400) {
+      return (
+        base ||
+        "Dados inválidos. Verifique os campos e tente novamente."
+      );
     }
-  }, []);
+
+    if (status === 403) {
+      return (
+        base ||
+        "Você não tem permissão para executar esta ação."
+      );
+    }
+
+    return base || e?.message || fallback;
+  }
+
+  const fetchList = useCallback(
+    async (params: StationListParams) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res: StationListResponse = await StationsAPI.list(params);
+        if (!mounted.current) return;
+        setItems(Array.isArray(res.data) ? res.data : []);
+        setTotal(typeof res.total === "number" ? res.total : 0);
+      } catch (e: any) {
+        if (!mounted.current) return;
+        const message = buildErrorMessage(e, "Erro ao carregar postos.");
+        setError(message);
+      } finally {
+        if (mounted.current) setLoading(false);
+      }
+    },
+    [], // buildErrorMessage é estável dentro do hook
+  );
 
   useEffect(() => {
     mounted.current = true;
@@ -131,45 +154,48 @@ export function useStations(initial?: Partial<QueryState>): UseStationsReturn {
   const onSort = (orderBy: StationOrderBy, order: OrderDirection) =>
     setQuery({ orderBy, order });
 
-  const refresh = () => fetchList(effectiveParams);
+  const refresh = () => {
+    void fetchList(effectiveParams);
+  };
 
   const createStation = async (payload: StationInput) => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
       const created = await StationsAPI.create(payload);
       // recarrega mantendo filtros; volta pra página 1 para garantir visualização
       setQuery({ page: 1 });
       await fetchList({ ...effectiveParams, page: 1 });
       return created;
     } catch (e: any) {
-      const message =
-        e?.response?.data?.message ?? e?.message ?? "Falha ao criar posto.";
-      setError(Array.isArray(message) ? message[0] : String(message));
-      return null;
+      const message = buildErrorMessage(e, "Falha ao criar posto.");
+      setError(message);
+      throw e;
     } finally {
       setLoading(false);
     }
   };
 
   const updateStation = async (id: StationId, payload: StationInput) => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
       const updated = await StationsAPI.update(id, payload);
       await fetchList(effectiveParams);
       return updated;
     } catch (e: any) {
-      const message =
-        e?.response?.data?.message ?? e?.message ?? "Falha ao atualizar posto.";
-      setError(Array.isArray(message) ? message[0] : String(message));
-      return null;
+      const message = buildErrorMessage(e, "Falha ao atualizar posto.");
+      setError(message);
+      throw e;
     } finally {
       setLoading(false);
     }
   };
 
   const removeStation = async (id: StationId) => {
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
       await StationsAPI.remove(id);
       // Ajusta página se necessário e recarrega
       const newTotal = Math.max(0, total - 1);
@@ -179,10 +205,9 @@ export function useStations(initial?: Partial<QueryState>): UseStationsReturn {
       await fetchList({ ...effectiveParams, page: nextPage });
       return true;
     } catch (e: any) {
-      const message =
-        e?.response?.data?.message ?? e?.message ?? "Falha ao remover posto.";
-      setError(Array.isArray(message) ? message[0] : String(message));
-      return false;
+      const message = buildErrorMessage(e, "Falha ao remover posto.");
+      setError(message);
+      throw e;
     } finally {
       setLoading(false);
     }

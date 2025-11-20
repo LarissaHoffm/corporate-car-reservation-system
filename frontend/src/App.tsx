@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { Routes, Route, Navigate, Link, useLocation } from "react-router-dom";
 
 // Auth
 import LoginPage from "@/pages/shared/auth/LoginPage";
@@ -53,6 +53,29 @@ function NotFound() {
       <div className="text-center">
         <h1 className="text-2xl font-bold mb-2">404</h1>
         <p className="text-muted-foreground">Página não encontrada</p>
+      </div>
+    </div>
+  );
+}
+
+function Forbidden() {
+  const location = useLocation();
+  const state = (location.state as any) || {};
+  const homePath = state.home || "/";
+
+  return (
+    <div className="min-h-screen grid place-items-center">
+      <div className="text-center">
+        <h1 className="text-2xl font-bold mb-2">403</h1>
+        <p className="text-muted-foreground mb-4">
+          Você não tem permissão para acessar esta página.
+        </p>
+        <Link
+          to={homePath}
+          className="text-sm font-medium text-[#1558E9] hover:underline"
+        >
+          Voltar para a sua área
+        </Link>
       </div>
     </div>
   );
@@ -139,6 +162,7 @@ export default function App() {
           <Route path="my-profile" element={<SharedMyProfilePage />} />
         </Route>
 
+        <Route path="/forbidden" element={<Forbidden />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
 

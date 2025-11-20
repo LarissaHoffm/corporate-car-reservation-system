@@ -78,6 +78,34 @@ export class ReservationsService {
     });
   }
 
+  /** Marca carro como IN_USE após aprovação. */
+  private async markCarInUse(
+    tx: Prisma.TransactionClient,
+    carId: string,
+  ): Promise<void> {
+    await tx.car.updateMany({
+      where: { id: carId },
+      data: { status: CarStatus.IN_USE },
+    });
+  }
+
+  /**
+   * Libera o carro para uso futuro.
+   *
+   * Aqui **não** filtramos por status atual: sempre que a reserva for
+   * concluída/cancelada, garantimos que o carro volte para AVAILABLE,
+   * independente do valor anterior.
+   */
+  private async releaseCar(
+    tx: Prisma.TransactionClient,
+    carId: string,
+  ): Promise<void> {
+    await tx.car.updateMany({
+      where: { id: carId },
+      data: { status: CarStatus.AVAILABLE },
+    });
+  }
+
   /** Criação de reserva — aceita sem carro/filial, status = PENDING. */
   async create(actor: ActorBase, dto: CreateReservationDto) {
     const start = new Date(dto.startAt);
@@ -326,6 +354,10 @@ export class ReservationsService {
         },
       });
 
+      if (updated.carId) {
+        await this.markCarInUse(tx, updated.carId);
+      }
+
       await this.log(tx, {
         tenantId: actor.tenantId,
         userId: actor.userId,
@@ -349,6 +381,7 @@ export class ReservationsService {
           tenantId: true,
           userId: true,
           status: true,
+          carId: true,
         },
       });
       if (!r || r.tenantId !== actor.tenantId) {
@@ -391,8 +424,18 @@ export class ReservationsService {
           status: ReservationStatus.CANCELED,
           canceledAt: new Date(),
         },
-        select: { id: true, status: true, canceledAt: true, updatedAt: true },
+        select: {
+          id: true,
+          status: true,
+          canceledAt: true,
+          updatedAt: true,
+          carId: true,
+        },
       });
+
+      if (r.carId) {
+        await this.releaseCar(tx, r.carId);
+      }
 
       await this.log(tx, {
         tenantId: actor.tenantId,
@@ -465,7 +508,7 @@ export class ReservationsService {
         return r;
       }
 
-      // Fluxo APPROVER 
+      // Fluxo APPROVER / ADMIN
       if (r.status !== ReservationStatus.APPROVED) {
         throw new BadRequestException(
           `Só é possível concluir reservas APROVADAS (atual: ${r.status}).`,
@@ -488,6 +531,10 @@ export class ReservationsService {
         },
       });
 
+      if (updated.carId) {
+        await this.releaseCar(tx, updated.carId);
+      }
+
       await this.log(tx, {
         tenantId: actor.tenantId,
         userId: actor.userId,
@@ -502,7 +549,6 @@ export class ReservationsService {
       return updated;
     });
   }
-
 
   private normalizeValidationStatus(
     raw?: string | null,
@@ -666,9 +712,7 @@ export class ReservationsService {
 
     if (!submissions.length) return false;
 
-    const hasUserReturn = submissions.some(
-      (s) => s.kind === 'USER_RETURN',
-    );
+    const hasUserReturn = submissions.some((s) => s.kind === 'USER_RETURN');
     if (!hasUserReturn) return false;
 
     const validations = submissions.filter(
@@ -696,7 +740,6 @@ export class ReservationsService {
     return decision === 'APPROVED' || decision === 'REJECTED';
   }
 
-
   async maybeCompleteReservation(
     reservationId: string,
     actorId?: string | null,
@@ -704,27 +747,34 @@ export class ReservationsService {
     const can = await this.shouldCompleteReservation(reservationId);
     if (!can) return;
 
-    const updated = await this.prisma.reservation.update({
-      where: { id: reservationId },
-      data: { status: ReservationStatus.COMPLETED },
-      select: {
-        id: true,
-        tenantId: true,
-        status: true,
-      },
-    });
+    await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.reservation.update({
+        where: { id: reservationId },
+        data: { status: ReservationStatus.COMPLETED },
+        select: {
+          id: true,
+          tenantId: true,
+          status: true,
+          carId: true,
+        },
+      });
 
-    await this.prisma.auditLog.create({
-      data: {
-        tenantId: updated.tenantId,
-        userId: actorId ?? null,
-        action: 'reservation.completed',
-        entity: 'Reservation',
-        entityId: updated.id,
-        metadata: {
-          via: 'docs+checklist',
-        } as any,
-      },
+      if (updated.carId) {
+        await this.releaseCar(tx, updated.carId);
+      }
+
+      await tx.auditLog.create({
+        data: {
+          tenantId: updated.tenantId,
+          userId: actorId ?? null,
+          action: 'reservation.completed',
+          entity: 'Reservation',
+          entityId: updated.id,
+          metadata: {
+            via: 'docs+checklist',
+          } as any,
+        },
+      });
     });
   }
 

@@ -28,7 +28,9 @@ export function RoleGuard({
 
   if (!requireAuth) return <>{children}</>;
 
-  if (!user) return <Navigate to="/login" replace state={{ from: location }} />;
+  if (!user) {
+    return <Navigate to="/login" replace state={{ from: location }} />;
+  }
 
   if (user.mustChangePassword && location.pathname !== "/change-password") {
     return <Navigate to="/change-password" replace />;
@@ -39,7 +41,13 @@ export function RoleGuard({
     allowedRoles.length > 0 &&
     !allowedRoles.includes(user.role as Role)
   ) {
-    return <Navigate to={homeFor(user.role as Role)} replace />;
+    return (
+      <Navigate
+        to="/forbidden"
+        replace
+        state={{ from: location, home: homeFor(user.role as Role) }}
+      />
+    );
   }
 
   return <>{children}</>;
