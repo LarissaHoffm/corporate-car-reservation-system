@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, GripVertical, X, Trash2 } from "lucide-react";
 
 import { RoleGuard } from "@/components/role-guard";
@@ -23,185 +23,302 @@ import {
 } from "@/components/ui/select";
 import { Toggle } from "@/components/ui/toggle";
 import { statusChipClasses } from "@/components/ui/status";
+import { api } from "@/lib/http/api";
+import { useToast } from "@/components/ui/use-toast";
 
-type Template = {
+type ChecklistItemType = "BOOLEAN" | "NUMBER" | "TEXT" | "SELECT" | "PHOTO";
+
+type ChecklistTemplateItem = {
   id: string;
-  templateName: string;
-  carModel: string;
-  createdBy: string;
-  lastUpdated: string;
-  status: "Active" | "Inactive";
-  items: string[];
+  label: string;
+  type: ChecklistItemType;
+  required: boolean;
+  order: number;
+  options: any;
 };
 
-// Persistência MVP
-const LS_KEY = "rc:checklists:v1";
-const readTemplates = (): Template[] => {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    return raw ? (JSON.parse(raw) as Template[]) : [];
-  } catch {
-    return [];
-  }
+type ChecklistTemplate = {
+  id: string;
+  name: string;
+  active: boolean;
+  carId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  items: ChecklistTemplateItem[];
+  car: {
+    id: string;
+    plate: string;
+    model: string;
+  } | null;
 };
-const writeTemplates = (data: Template[]) =>
-  localStorage.setItem(LS_KEY, JSON.stringify(data));
 
-const seed: Template[] = [
-  {
-    id: "1",
-    templateName: "Standard Vehicle Check",
-    carModel: "All Models",
-    createdBy: "Alex Morgan",
-    lastUpdated: "2023-10-15",
-    status: "Active",
-    items: ["Tires", "Fuel", "Cleaning", "Mileage"],
-  },
-  {
-    id: "2",
-    templateName: "Luxury Vehicle Check",
-    carModel: "BMW X5",
-    createdBy: "Alex Morgan",
-    lastUpdated: "2023-10-14",
-    status: "Active",
-    items: ["Tires", "Fuel", "Cleaning", "Mileage"],
-  },
-  {
-    id: "3",
-    templateName: "Electric Vehicle Check",
-    carModel: "Tesla Model 3",
-    createdBy: "Alex Morgan",
-    lastUpdated: "2023-10-13",
-    status: "Active",
-    items: ["Tires", "Fuel", "Cleaning", "Mileage"],
-  },
-  {
-    id: "4",
-    templateName: "Sedan Inspection",
-    carModel: "Honda Civic",
-    createdBy: "Alex Morgan",
-    lastUpdated: "2023-10-12",
-    status: "Active",
-    items: ["Tires", "Fuel", "Cleaning", "Mileage"],
-  },
-  {
-    id: "5",
-    templateName: "SUV Maintenance",
-    carModel: "Toyota RAV4",
-    createdBy: "Alex Morgan",
-    lastUpdated: "2023-10-11",
-    status: "Active",
-    items: ["Tires", "Fuel", "Cleaning", "Mileage"],
-  },
-  {
-    id: "6",
-    templateName: "Truck Inspection",
-    carModel: "Ford F-150",
-    createdBy: "Alex Morgan",
-    lastUpdated: "2023-10-10",
-    status: "Active",
-    items: ["Tires", "Fuel", "Cleaning", "Mileage"],
-  },
-];
+type CarSummary = {
+  id: string;
+  plate: string;
+  model: string;
+  status: string;
+};
 
 export default function AdminChecklistsPage() {
-  const [templates, setTemplates] = useState<Template[]>(() => {
-    const ls = readTemplates();
-    if (ls.length) return ls;
-    writeTemplates(seed);
-    return seed;
-  });
-  useEffect(() => writeTemplates(templates), [templates]);
+  const { toast } = useToast();
 
-  const carModels = useMemo(
-    () => [
-      "All Models",
-      "BMW X5",
-      "Tesla Model 3",
-      "Honda Civic",
-      "Toyota RAV4",
-      "Ford F-150",
-    ],
-    [],
-  );
+  const [templates, setTemplates] = useState<ChecklistTemplate[]>([]);
+  const [cars, setCars] = useState<CarSummary[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // modal state
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<"create" | "edit">("create");
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [templateName, setTemplateName] = useState("");
-  const [carModel, setCarModel] = useState("");
+  const [carId, setCarId] = useState("");
   const [status, setStatus] = useState<"Active" | "Inactive">("Active");
   const [items, setItems] = useState<string[]>([]);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
+
+  // erro de formulário exibido ao lado dos botões
+  const [formError, setFormError] = useState<string | null>(null);
+
+  // helpers 
+
+  const extractErrorMessage = (err: any, fallback: string) => {
+    const res = err?.response;
+    const msg = res?.data?.message;
+    if (Array.isArray(msg) && msg.length) return msg[0];
+    if (typeof msg === "string" && msg.trim().length) return msg;
+    return fallback;
+  };
+
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      const [tplRes, carsRes] = await Promise.all([
+        api.get<ChecklistTemplate[]>("/checklists/templates", {
+          params: { onlyActive: true },
+        }),
+        api.get("/cars"),
+      ]);
+
+      const tplData = tplRes.data ?? [];
+
+      const rawCars = (carsRes.data ?? []) as any;
+      const carsData: CarSummary[] = Array.isArray(rawCars)
+        ? rawCars
+        : (rawCars.items ?? []);
+
+      setTemplates(tplData);
+      setCars(carsData);
+    } catch (err) {
+      console.error(err);
+      toast({
+        title: "Erro ao carregar checklists",
+        description: extractErrorMessage(
+          err,
+          "Não foi possível carregar templates e carros.",
+        ),
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const carOptions = useMemo(
+    () =>
+      cars.map((c) => ({
+        id: c.id,
+        label: `${c.plate} • ${c.model}`,
+      })),
+    [cars],
+  );
+
+  const resolveCarLabel = (t: ChecklistTemplate) => {
+    if (!t.car) return "-";
+    return `${t.car.plate} • ${t.car.model}`;
+  };
+
+  //  modal open/close 
 
   const openCreate = () => {
     setModalMode("create");
     setEditingId(null);
     setTemplateName("");
-    setCarModel("");
+    setCarId("");
     setStatus("Active");
     setItems(["Tires", "Fuel", "Cleaning", "Mileage"]);
+    setFormError(null);
     setModalOpen(true);
   };
 
-  const openEdit = (t: Template) => {
+  const openEdit = (t: ChecklistTemplate) => {
     setModalMode("edit");
     setEditingId(t.id);
-    setTemplateName(t.templateName);
-    setCarModel(t.carModel);
-    setStatus(t.status);
+    setTemplateName(t.name);
+    setCarId(t.carId ?? "");
+    setStatus(t.active ? "Active" : "Inactive");
     setItems(
-      t.items.length ? t.items : ["Tires", "Fuel", "Cleaning", "Mileage"],
+      t.items.length
+        ? [...t.items]
+            .sort((a, b) => a.order - b.order)
+            .map((it) => it.label)
+        : ["Tires", "Fuel", "Cleaning", "Mileage"],
     );
+    setFormError(null);
     setModalOpen(true);
   };
 
-  const removeTemplate = (id: string) =>
-    setTemplates((prev) => prev.filter((t) => t.id !== id));
+  //  excluir (desativar) 
 
-  const saveTemplate = () => {
-    const today = new Date().toISOString().split("T")[0];
-    if (modalMode === "create") {
-      const id = crypto.randomUUID?.() ?? String(Date.now());
-      const newT: Template = {
-        id,
-        templateName: templateName.trim() || "Untitled",
-        carModel: carModel || "All Models",
-        createdBy: "Current User",
-        lastUpdated: today,
-        status: "Active",
-        items: items.filter((i) => i.trim() !== ""),
-      };
-      setTemplates((p) => [...p, newT]);
-    } else if (modalMode === "edit" && editingId) {
-      setTemplates((p) =>
-        p.map((t) =>
-          t.id === editingId
-            ? {
-                ...t,
-                templateName: templateName.trim() || "Untitled",
-                carModel: carModel || "All Models",
-                lastUpdated: today,
-                status,
-                items: items.filter((i) => i.trim() !== ""),
-              }
-            : t,
+  const removeTemplate = async (id: string) => {
+    try {
+      setDeletingId(id);
+
+      await api.patch(`/checklists/templates/${id}/status`, {
+        active: false,
+      });
+
+      await loadData();
+
+      toast({
+        title: "Template desativado",
+        description: "O checklist foi marcado como inativo e removido da lista.",
+      });
+    } catch (err) {
+      console.error(err);
+      toast({
+        title: "Erro ao desativar template",
+        description: extractErrorMessage(
+          err,
+          "Não foi possível desativar o checklist.",
         ),
-      );
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingId(null);
     }
-    setModalOpen(false);
   };
 
-  //add/update/remove/drag
+  // salvar (create/edit) 
+
+  const saveTemplate = async () => {
+    const trimmedName = templateName.trim() || "Untitled";
+
+    const effectiveItems = items
+      .map((i) => i.trim())
+      .filter((i) => i.length > 0);
+
+    // limpa erro antes de validar
+    setFormError(null);
+
+    if (!carId) {
+      const msg = "Selecione um carro para vincular o checklist.";
+      setFormError(msg);
+      toast({
+        title: "Selecione um carro",
+        description: msg,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!effectiveItems.length) {
+      const msg = "Adicione pelo menos um item ao checklist.";
+      setFormError(msg);
+      toast({
+        title: "Adicione ao menos um item",
+        description: msg,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const payload = {
+      name: trimmedName,
+      carId,
+      active: status === "Active",
+      items: effectiveItems.map((label, index) => ({
+        label,
+        type: "TEXT" as ChecklistItemType,
+        required: true,
+        order: index,
+        options: null,
+      })),
+    };
+
+    try {
+      setSaving(true);
+
+      if (modalMode === "create") {
+        await api.post<ChecklistTemplate>("/checklists/templates", payload);
+        toast({
+          title: "Checklist criado",
+          description: `Template "${trimmedName}" criado com sucesso.`,
+        });
+      } else if (modalMode === "edit" && editingId) {
+        await api.put<ChecklistTemplate>(
+          `/checklists/templates/${editingId}`,
+          payload,
+        );
+        toast({
+          title: "Checklist atualizado",
+          description: `Template "${trimmedName}" atualizado.`,
+        });
+      }
+
+      await loadData();
+      setModalOpen(false);
+    } catch (err: any) {
+      console.error(err);
+      const statusCode = err?.response?.status as number | undefined;
+      const defaultMessage = extractErrorMessage(
+        err,
+        "Não foi possível salvar o checklist.",
+      );
+
+      if (statusCode === 409) {
+        const msg =
+          "Já existe um checklist vinculado a este carro. Edite o existente ou escolha outro veículo.";
+        setFormError(msg);
+        toast({
+          title: "Carro já possui checklist",
+          description: msg,
+          variant: "destructive",
+        });
+      } else {
+        setFormError(defaultMessage);
+        toast({
+          title: "Erro ao salvar template",
+          description: defaultMessage,
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  //  itens (add/update/remove/drag) 
+
   const addItem = () => setItems((p) => [...p, ""]);
+
   const updateItem = (i: number, v: string) =>
     setItems((p) => p.map((it, ix) => (ix === i ? v : it)));
-  const removeItem = (i: number) =>
+
+  const removeItemAt = (i: number) =>
     setItems((p) => p.filter((_, ix) => ix !== i));
 
   const onDragStart = (i: number) => setDragIndex(i);
+
   const onDragOver = (e: React.DragEvent<HTMLDivElement>) => e.preventDefault();
+
   const onDrop = (i: number) => {
     if (dragIndex === null || dragIndex === i) return;
     setItems((p) => {
@@ -212,6 +329,8 @@ export default function AdminChecklistsPage() {
     });
     setDragIndex(null);
   };
+
+  //  modal JSX 
 
   const ChecklistModal = (
     <Dialog open={modalOpen} onOpenChange={setModalOpen}>
@@ -245,14 +364,14 @@ export default function AdminChecklistsPage() {
             <Label className="text-sm font-medium text-foreground">
               Linked Car Model
             </Label>
-            <Select value={carModel} onValueChange={setCarModel}>
+            <Select value={carId} onValueChange={setCarId}>
               <SelectTrigger className="border-border/50 focus:border-blue-500 focus:ring-blue-500">
                 <SelectValue placeholder="Select a model" />
               </SelectTrigger>
               <SelectContent>
-                {carModels.map((m) => (
-                  <SelectItem key={m} value={m}>
-                    {m}
+                {carOptions.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -288,7 +407,7 @@ export default function AdminChecklistsPage() {
             <div className="space-y-2">
               {items.map((it, i) => (
                 <div
-                  key={`${i}-${it}`}
+                  key={i}
                   className="flex items-center gap-2"
                   draggable
                   onDragStart={() => onDragStart(i)}
@@ -307,7 +426,7 @@ export default function AdminChecklistsPage() {
                       variant="ghost"
                       size="sm"
                       type="button"
-                      onClick={() => removeItem(i)}
+                      onClick={() => removeItemAt(i)}
                       className="text-muted-foreground hover:text-red-500"
                     >
                       <X className="h-4 w-4" />
@@ -329,28 +448,38 @@ export default function AdminChecklistsPage() {
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 pt-4">
-          <Button
-            variant="outline"
-            type="button"
-            onClick={() => setModalOpen(false)}
-            className="border-border/50 text-muted-foreground hover:bg-card bg-transparent"
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            onClick={saveTemplate}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            Save Template
-          </Button>
+        <div className="flex items-center justify-between gap-3 pt-4">
+          <div className="flex-1 min-h-[1.25rem]">
+            {formError && (
+              <p className="text-sm text-red-500">{formError}</p>
+            )}
+          </div>
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() => setModalOpen(false)}
+              className="border-border/50 text-muted-foreground hover:bg-card bg-transparent"
+              disabled={saving}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={saveTemplate}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              disabled={saving}
+            >
+              {saving ? "Saving..." : "Save Template"}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
   );
 
-  // Tabela
+  //  tabela 
+
   return (
     <RoleGuard allowedRoles={["ADMIN"]} requireAuth={false}>
       <div className="space-y-6">
@@ -366,6 +495,7 @@ export default function AdminChecklistsPage() {
           <Button
             onClick={openCreate}
             className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+            disabled={loading}
           >
             <Plus className="h-4 w-4 mr-2" />
             Create Template
@@ -399,52 +529,84 @@ export default function AdminChecklistsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200/50">
-                  {templates.map((t) => (
-                    <tr
-                      key={t.id}
-                      className="hover:bg-card/50 transition-colors"
-                    >
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-foreground">
-                        {t.templateName}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                        {t.carModel}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                        {t.createdBy}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
-                        {t.lastUpdated}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <Badge className={statusChipClasses(t.status)}>
-                          {t.status}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            type="button"
-                            onClick={() => openEdit(t)}
-                            className="border-border/50 text-muted-foreground hover:bg-card hover:border-border"
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            type="button"
-                            onClick={() => removeTemplate(t.id)}
-                            className="border-border/50 text-red-600 hover:bg-red-50 hover:border-red-200"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                  {templates.map((t) => {
+                    const rowStatusLabel = t.active ? "Active" : "Inactive";
+
+                    return (
+                      <tr
+                        key={t.id}
+                        className="hover:bg-card/50 transition-colors"
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-foreground">
+                          {t.name}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
+                          {resolveCarLabel(t)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
+                          {/* backend ainda não retorna "createdBy" */}
+                          -
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-muted-foreground">
+                          {t.updatedAt
+                            ? t.updatedAt.slice(0, 10)
+                            : t.createdAt.slice(0, 10)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <Badge className={statusChipClasses(rowStatusLabel)}>
+                            {rowStatusLabel}
+                          </Badge>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              type="button"
+                              onClick={() => openEdit(t)}
+                              className="border-border/50 text-muted-foreground hover:bg-card hover:border-border"
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              type="button"
+                              onClick={() => removeTemplate(t.id)}
+                              className="border-border/50 text-red-600 hover:bg-red-50 hover:border-red-200"
+                              disabled={deletingId === t.id}
+                            >
+                              {deletingId === t.id ? (
+                                "..."
+                              ) : (
+                                <Trash2 className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {!loading && templates.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={6}
+                        className="px-6 py-8 text-center text-sm text-muted-foreground"
+                      >
+                        No checklist templates found.
                       </td>
                     </tr>
-                  ))}
+                  )}
+                  {loading && (
+                    <tr>
+                      <td
+                        colSpan={6}
+                        className="px-6 py-8 text-center text-sm text-muted-foreground"
+                      >
+                        Loading checklists...
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

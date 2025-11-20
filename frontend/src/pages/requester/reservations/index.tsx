@@ -30,13 +30,17 @@ import {
   listDocumentsByReservation,
   type Document as ApiDocument,
 } from "@/lib/http/documents";
+import {
+  ChecklistsAPI,
+  type ChecklistSubmission,
+} from "@/lib/http/checklists";
 
 type QuickRange = "TODAY" | "7D" | "30D" | "ALL";
 
 // Status agregados de documentos
 type DocStatus = "Pending" | "InValidation" | "PendingDocs" | "Validated";
+type ChecklistDecision = "APPROVED" | "REJECTED" | null;
 
-/* --------------------------- Funções auxiliares ------------------------- */
 
 function normalizeDocStatus(raw: any): "PENDING" | "APPROVED" | "REJECTED" {
   if (raw == null) return "PENDING";
@@ -54,14 +58,9 @@ function normalizeDocStatus(raw: any): "PENDING" | "APPROVED" | "REJECTED" {
   return "PENDING";
 }
 
-/**
- * Mesma lógica da tela de documentos:
- * agrupa por tipo de documento e considera REJECTED apenas se não
- * existe APPROVED daquele tipo.
- */
+
 function docStatusFromDocuments(docs: ApiDocument[]): DocStatus {
   if (!docs.length) {
-    // Reserva aprovada mas ainda sem nenhum upload
     return "Pending";
   }
 
@@ -103,10 +102,14 @@ function docStatusFromDocuments(docs: ApiDocument[]): DocStatus {
   for (const agg of byType.values()) {
     if (agg.hasPending) {
       anyPending = true;
-    } else if (!agg.hasApproved && agg.hasRejected) {
+    }
+    if (agg.hasApproved) {
+      anyApproved = true;
+    }
+    // Só consideramos "rejeitado" se NÃO houver approved para aquele tipo
+    if (!agg.hasApproved && agg.hasRejected) {
       anyRejected = true;
     }
-    if (agg.hasApproved) anyApproved = true;
   }
 
   if (anyPending) return "InValidation";
@@ -120,7 +123,31 @@ function toDateInputValue(d: Date) {
   return z.toISOString().slice(0, 10);
 }
 
-/* --------------------------------- Page --------------------------------- */
+/**
+ * Mesmo normalizador que usamos na tela de My Checklists:
+ * extrai APPROVED / REJECTED de submission + payload.
+ */
+function normalizeChecklistDecision(source: any): ChecklistDecision {
+  if (!source) return null;
+
+  const raw =
+    // campos top-level da submissão
+    source.decision ??
+    source.result ??
+    source.status ??
+    // ou dentro do payload
+    source.payload?.decision ??
+    source.payload?.result ??
+    source.payload?.status ??
+    null;
+
+  if (!raw || typeof raw !== "string") return null;
+  const s = raw.toUpperCase();
+  if (s === "APPROVED" || s === "VALIDATED") return "APPROVED";
+  if (s === "REJECTED") return "REJECTED";
+  return null;
+}
+
 
 export default function RequesterReservationsListPage() {
   const navigate = useNavigate();
@@ -136,6 +163,11 @@ export default function RequesterReservationsListPage() {
   // Mapa reservaId -> status de documentos
   const [docStatusMap, setDocStatusMap] = useState<
     Record<string, DocStatus | undefined>
+  >({});
+
+  // Mapa reservaId -> decisão do checklist (APPROVED / REJECTED)
+  const [checklistDecisionMap, setChecklistDecisionMap] = useState<
+    Record<string, ChecklistDecision | undefined>
   >({});
 
   useEffect(() => {
@@ -177,6 +209,52 @@ export default function RequesterReservationsListPage() {
     };
 
     void loadDocsStatus();
+  }, [myItems]);
+
+  // Carrega decisão do checklist (última validação do approver) por reserva
+  useEffect(() => {
+    const loadChecklistDecisions = async () => {
+      const list = myItems ?? [];
+      if (!list.length) {
+        setChecklistDecisionMap({});
+        return;
+      }
+
+      const entries = await Promise.all(
+        list.map(async (r) => {
+          try {
+            const subs: ChecklistSubmission[] =
+              await ChecklistsAPI.listReservationSubmissions(r.id);
+
+            const validations = subs.filter(
+              (s) => s.kind === "APPROVER_VALIDATION",
+            );
+            if (!validations.length) {
+              return [r.id, null] as const;
+            }
+
+            const latest = validations.reduce((best, curr) => {
+              const tb = new Date(best.createdAt).getTime();
+              const tc = new Date(curr.createdAt).getTime();
+              return tc > tb ? curr : best;
+            });
+
+            const decision = normalizeChecklistDecision(latest as any);
+            return [r.id, decision] as const;
+          } catch {
+            return [r.id, null] as const;
+          }
+        }),
+      );
+
+      const map: Record<string, ChecklistDecision | undefined> = {};
+      for (const [id, dec] of entries) {
+        map[id] = dec;
+      }
+      setChecklistDecisionMap(map);
+    };
+
+    void loadChecklistDecisions();
   }, [myItems]);
 
   const filtered = useMemo(() => {
@@ -228,22 +306,32 @@ export default function RequesterReservationsListPage() {
     navigate(`/requester/reservations/${id}`);
   }
 
-  // Mapeia status de reserva + docs para apresentação
+  // Mapeia status de reserva + docs + (opcional) resultado de validação
   function getStatusPresentation(
     reservationStatus: "PENDING" | "APPROVED" | "CANCELED" | "COMPLETED",
     docStatus?: DocStatus,
+    validationResult?: string | null,
   ): {
     badgeStatus: "pending" | "approved" | "cancelled" | "inactive";
     chipLabel: "Pendente" | "Aprovado" | "Rejeitado";
     text: string;
   } {
-    // Considera concluída se:
-    // - status já é COMPLETED
-    // - OU status está APPROVED e todos docs estão validados
-    if (
-      reservationStatus === "COMPLETED" ||
-      (reservationStatus === "APPROVED" && docStatus === "Validated")
-    ) {
+    const normalizedResult =
+      validationResult && String(validationResult).toUpperCase();
+    const isChecklistRejected = normalizedResult === "CHECKLIST_REJECTED";
+
+    // Caso especial: sempre exibir
+    // "COMPLETED — Checklist rejected"
+    if (isChecklistRejected) {
+      return {
+        badgeStatus: "approved",
+        chipLabel: "Aprovado",
+        text: "COMPLETED — Checklist rejected",
+      };
+    }
+
+    // COMPLETED "normal"
+    if (reservationStatus === "COMPLETED") {
       return {
         badgeStatus: "approved",
         chipLabel: "Aprovado",
@@ -267,9 +355,19 @@ export default function RequesterReservationsListPage() {
       };
     }
 
-    // Reserva APPROVED mas ainda com pendências de documentos
+    // APPROVED
     if (reservationStatus === "APPROVED") {
-      if (docStatus === "InValidation") {
+      // Sem documentos ainda → mostrar APROVADO
+      if (!docStatus) {
+        return {
+          badgeStatus: "approved",
+          chipLabel: "Aprovado",
+          text: "APPROVED",
+        };
+      }
+
+      // Docs enviados / em validação
+      if (docStatus === "Pending" || docStatus === "InValidation") {
         return {
           badgeStatus: "pending",
           chipLabel: "Pendente",
@@ -277,20 +375,23 @@ export default function RequesterReservationsListPage() {
         };
       }
 
+      // Docs rejeitados (algum tipo sem aprovado)
       if (docStatus === "PendingDocs") {
         return {
           badgeStatus: "cancelled",
           chipLabel: "Rejeitado",
-          text: "Pending docs",
+          text: "Documents rejected",
         };
       }
 
-      // APPROVED sem info de documentos (ou apenas Pending)
-      return {
-        badgeStatus: "approved",
-        chipLabel: "Aprovado",
-        text: "APPROVED",
-      };
+      // Docs validados, mas reserva ainda não COMPLETED (aguardando checklist)
+      if (docStatus === "Validated") {
+        return {
+          badgeStatus: "pending",
+          chipLabel: "Pendente",
+          text: "Pending validation",
+        };
+      }
     }
 
     // fallback
@@ -406,8 +507,21 @@ export default function RequesterReservationsListPage() {
                       const docStatus = docStatusMap[r.id];
                       const hasDocs = docStatus !== undefined;
 
+                      const checklistDecision = checklistDecisionMap[r.id];
+
+                      const syntheticValidationResult =
+                        checklistDecision === "REJECTED" &&
+                        (docStatus === "Validated" ||
+                          r.status === "COMPLETED")
+                          ? "CHECKLIST_REJECTED"
+                          : ((r as any).validationResult ?? null);
+
                       const { badgeStatus, chipLabel, text } =
-                        getStatusPresentation(r.status, docStatus);
+                        getStatusPresentation(
+                          r.status,
+                          docStatus,
+                          syntheticValidationResult,
+                        );
 
                       const canConclude =
                         r.status === "APPROVED" && !hasDocs;
@@ -490,3 +604,4 @@ export default function RequesterReservationsListPage() {
     </div>
   );
 }
+

@@ -12,6 +12,7 @@ import { ReservationsModule } from './reservations/reservations.module';
 import { DocumentsModule } from './documents/documents.module';
 import { BranchesModule } from './branches/branches.module';
 import { DepartmentsModule } from './departments/departments.module';
+import { ChecklistsModule } from './checklists/checklists.module';
 
 import { PrismaService } from './infra/prisma.service';
 import { AuditInterceptor } from './infra/audit/audit.interceptor';
@@ -33,6 +34,7 @@ import { MetricsController } from './infra/metrics/metrics.controller';
     DocumentsModule,
     BranchesModule,
     DepartmentsModule,
+    ChecklistsModule,
   ],
   controllers: [
     MetricsController, 

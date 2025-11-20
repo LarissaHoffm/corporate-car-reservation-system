@@ -9,13 +9,10 @@ import { Loader2 } from "lucide-react";
 
 import useReservations from "@/hooks/use-reservations";
 import { useToast } from "@/components/ui/use-toast";
-
-const defaultItems = [
-  { key: "fuel", label: "Fuel level verified" },
-  { key: "photos", label: "Photos taken (exterior / interior)" },
-  { key: "docs", label: "Documents uploaded/verified" },
-  { key: "clean", label: "Car cleanliness checked" },
-];
+import {
+  ChecklistsAPI,
+  type ChecklistTemplate,
+} from "@/lib/http/checklists";
 
 export default function RequesterReservationChecklist() {
   const { id = "" } = useParams<{ id: string }>();
@@ -25,13 +22,21 @@ export default function RequesterReservationChecklist() {
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+
+  const [template, setTemplate] = useState<ChecklistTemplate | null>(null);
   const [items, setItems] = useState<Record<string, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
+
+  const extractErrorMessage = (err: any, fallback: string): string => {
+    const msg = err?.response?.data?.message ?? err?.message;
+    if (Array.isArray(msg) && msg.length) return String(msg[0]);
+    if (typeof msg === "string" && msg.trim().length > 0) return msg;
+    return fallback;
+  };
 
   useEffect(() => {
     let mounted = true;
 
-    // se a rota veio sem id, já falha aqui
     if (!id) {
       setErr("Invalid reservation id.");
       setLoading(false);
@@ -40,24 +45,40 @@ export default function RequesterReservationChecklist() {
 
     (async () => {
       try {
+        // garante que a reserva existe / permissão de acesso
         await getReservation(id);
-        if (mounted) {
-          const start: Record<string, boolean> = {};
-          defaultItems.forEach((i) => {
-            start[i.key] = false;
-          });
-          setItems(start);
-          setLoading(false);
-        }
-      } catch (e: any) {
-        if (mounted) {
+
+        // busca o checklist vinculado ao carro dessa reserva
+        const tpl = await ChecklistsAPI.getTemplateForReservation(id);
+
+        if (!mounted) return;
+
+        if (!tpl) {
           setErr(
-            e?.response?.data?.message ||
-              e?.message ||
-              "Unable to load reservation.",
+            "No checklist is configured for this reservation. Please contact the administrator.",
           );
-          setLoading(false);
+          return;
         }
+
+        setTemplate(tpl);
+
+        const start: Record<string, boolean> = {};
+        [...tpl.items]
+          .sort((a, b) => a.order - b.order)
+          .forEach((item) => {
+            start[item.id] = false;
+          });
+
+        setItems(start);
+      } catch (e: any) {
+        if (!mounted) return;
+        const msg = extractErrorMessage(
+          e,
+          "Unable to load checklist for this reservation.",
+        );
+        setErr(msg);
+      } finally {
+        if (mounted) setLoading(false);
       }
     })();
 
@@ -66,15 +87,17 @@ export default function RequesterReservationChecklist() {
     };
   }, [id, getReservation]);
 
-  const allChecked = defaultItems.every((i) => !!items[i.key]);
+  const allChecked =
+    !!template && template.items.every((item) => !!items[item.id]);
 
-  function handleFinalizeReservation() {
-    if (!id) return;
+  async function handleFinalizeReservation() {
+    if (!id || !template) return;
 
     if (!allChecked) {
       toast({
         title: "Checklist incomplete",
-        description: "Please check all items before finalizing the reservation.",
+        description:
+          "Please check all items before finalizing the reservation.",
         variant: "destructive",
       });
       return;
@@ -82,29 +105,40 @@ export default function RequesterReservationChecklist() {
 
     setSubmitting(true);
 
-    // Marca localmente que o checklist foi concluído para esta reserva.
-    // Isso será usado na tela de lista para esconder o botão "Conclude"
-    // e exibir um label de "Pending validation" apenas na UI.
     try {
-      sessionStorage.setItem(
-        `reservationChecklistCompleted:${id}`,
-        "true",
+      // envia checklist de devolução (USER_RETURN) para o backend
+      await ChecklistsAPI.submitUserReturn(id, template, items);
+
+      // mantém o marcador local que já existia no fluxo antigo
+      try {
+        sessionStorage.setItem(
+          `reservationChecklistCompleted:${id}`,
+          "true",
+        );
+      } catch {
+        // ignore storage errors
+      }
+
+      toast({
+        title: "Checklist completed",
+        description:
+          "Your checklist was submitted and the reservation is now waiting for validation.",
+      });
+
+      navigate("/requester/reservations");
+    } catch (e: any) {
+      const msg = extractErrorMessage(
+        e,
+        "Unable to submit checklist. Please try again.",
       );
-    } catch {
-      // se der erro no storage, não quebramos o fluxo
+      toast({
+        title: "Erro ao enviar checklist",
+        description: msg,
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
     }
-
-    toast({
-      title: "Checklist completed",
-      description: "Your reservation is now waiting for document validation.",
-    });
-
-    // volta para a lista do requester
-    navigate("/requester/reservations");
-
-    // o componente será desmontado na navegação,
-    // mas mantemos por segurança
-    setSubmitting(false);
   }
 
   return (
@@ -136,7 +170,9 @@ export default function RequesterReservationChecklist() {
 
       <Card className="border-border/50 shadow-sm">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Return Checklist</CardTitle>
+          <CardTitle className="text-base">
+            {template?.name ?? "Return Checklist"}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {loading ? (
@@ -145,23 +181,29 @@ export default function RequesterReservationChecklist() {
             </div>
           ) : err ? (
             <p className="text-sm text-red-600">{err}</p>
+          ) : !template ? (
+            <p className="text-sm text-muted-foreground">
+              No checklist is configured for this reservation.
+            </p>
           ) : (
             <>
               <div className="grid grid-cols-1 gap-3">
-                {defaultItems.map((i) => (
-                  <label
-                    key={i.key}
-                    className="flex items-center gap-3 text-sm"
-                  >
-                    <Checkbox
-                      checked={!!items[i.key]}
-                      onCheckedChange={(v) =>
-                        setItems((s) => ({ ...s, [i.key]: !!v }))
-                      }
-                    />
-                    {i.label}
-                  </label>
-                ))}
+                {[...template.items]
+                  .sort((a, b) => a.order - b.order)
+                  .map((item) => (
+                    <label
+                      key={item.id}
+                      className="flex items-center gap-3 text-sm"
+                    >
+                      <Checkbox
+                        checked={!!items[item.id]}
+                        onCheckedChange={(v) =>
+                          setItems((s) => ({ ...s, [item.id]: !!v }))
+                        }
+                      />
+                      {item.label}
+                    </label>
+                  ))}
               </div>
 
               <div className="flex items-center justify-between pt-2">
