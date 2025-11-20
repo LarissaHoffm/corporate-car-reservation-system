@@ -13,7 +13,9 @@ export const api = axios.create({
   baseURL: (import.meta as any)?.env?.VITE_API_BASE_URL ?? "/api",
   withCredentials: true,
   headers: { "Content-Type": "application/json" },
+  timeout: 15000, // timeout padrão para evitar requisições presas
 });
+
 export default api;
 
 function isAxiosHeaders(h: unknown): h is AxiosHeaders {
@@ -39,11 +41,63 @@ function getCookie(name: string): string | null {
   const m = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
   return m ? decodeURIComponent(m[1]) : null;
 }
+
 function getCsrfCookie(): string | null {
   return getCookie("rcsrftoken") || getCookie("csrftoken");
 }
+
 async function ensureCsrf() {
   if (!getCsrfCookie()) await api.get("/auth/csrf");
+}
+
+// ---------- Normalização de erros ----------
+
+function normalizeAxiosError(error: AxiosError) {
+  const status = error.response?.status;
+  const data: any = error.response?.data;
+
+  const apiMessage =
+    (data && (data.message || data.error || data.title)) || null;
+
+  let message = apiMessage || error.message || "Erro inesperado. Tente novamente.";
+
+  if (status === 401) {
+    message =
+      apiMessage ||
+      "Sua sessão expirou. Faça login novamente.";
+  } else if (status === 403) {
+    message =
+      apiMessage ||
+      "Você não tem permissão para executar esta ação.";
+  } else if (!status) {
+    message =
+      "Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.";
+  } else if (status >= 500) {
+    message =
+      apiMessage ||
+      "Ocorreu um erro no servidor. Tente novamente em alguns instantes.";
+  }
+
+  const enhanced: any = error;
+  enhanced.statusCode = status;
+  enhanced.userMessage = message;
+  enhanced.isUnauthorized = status === 401;
+  enhanced.isForbidden = status === 403;
+  enhanced.isClientError = !!status && status >= 400 && status < 500;
+  enhanced.isServerError = !!status && status >= 500;
+  enhanced.isNetworkError = !status;
+
+  enhanced.message = message;
+
+  return enhanced as AxiosError & {
+    statusCode?: number;
+    userMessage?: string;
+    isUnauthorized?: boolean;
+    isForbidden?: boolean;
+    isClientError?: boolean;
+    isServerError?: boolean;
+    isNetworkError?: boolean;
+  };
 }
 
 // interceptors
@@ -81,6 +135,7 @@ api.interceptors.response.use(
         p.includes("/auth/refresh") ||
         p.includes("/auth/logout"));
 
+    // 401 com tentativa de refresh (exceto rotas de auth)
     if (status === 401 && !original?._retry && !isAuthPath(original?.url)) {
       original._retry = true;
 
@@ -105,13 +160,21 @@ api.interceptors.response.use(
           pendingQueue.forEach((cb) => cb(null));
           pendingQueue = [];
           clearAccessToken();
-          return Promise.reject(e);
+          // sessão expirada/refresh falhou → devolve erro normalizado 401
+          return Promise.reject(
+            normalizeAxiosError(
+              (error as AxiosError) ??
+                (e as AxiosError),
+            ),
+          );
         }
       }
 
       return new Promise((resolve, reject) => {
         pendingQueue.push((newToken) => {
-          if (!newToken) return reject(error);
+          if (!newToken) {
+            return reject(normalizeAxiosError(error));
+          }
           // garante Authorization no retry
           if (!original.headers) original.headers = {};
           if (isAxiosHeaders(original.headers)) {
@@ -130,7 +193,8 @@ api.interceptors.response.use(
       });
     }
 
-    return Promise.reject(error);
+    // Outros erros (inclui 401 em rotas de auth, 403, 4xx, 5xx, rede, etc.)
+    return Promise.reject(normalizeAxiosError(error));
   },
 );
 
