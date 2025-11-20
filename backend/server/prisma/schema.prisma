@@ -134,6 +134,7 @@ model Car {
   branch   Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
 
   reservations Reservation[]
+  templates    ChecklistTemplate[]
 
   plate     String
   model     String
@@ -206,11 +207,9 @@ model Reservation {
   // Índices para consultas por dono e por janela de tempo (escopo do tenant)
   @@index([tenantId, userId])
   @@index([tenantId, startAt, endAt])
-
   // Índice composto para checagem/consulta de conflitos por carro e janela de tempo (escopo do tenant)
   @@index([tenantId, carId, startAt, endAt], map: "res_car_time_idx")
 }
-
 
 model Document {
   id            String            @id @default(uuid())
@@ -244,10 +243,15 @@ model ChecklistTemplate {
   createdAt DateTime                @default(now())
   updatedAt DateTime                @updatedAt
 
+  carId String?
+  car   Car?    @relation(fields: [carId], references: [id], onDelete: SetNull)
+
   tenant              Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   ChecklistSubmission ChecklistSubmission[]
 
   @@unique([tenantId, name])
+  @@unique([tenantId, carId])
+  @@index([tenantId, carId])
 }
 
 model ChecklistTemplateItem {

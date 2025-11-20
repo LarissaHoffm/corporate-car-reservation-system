@@ -10,14 +10,17 @@ export function statusChipClasses(s: string) {
     hit("inativo") ||
     hit("indispon") ||
     n === "unavailable";
+
   const isCancelled =
     hit("cancel") || hit("reprov") || hit("rejeit") || n === "denied";
+
   const isPending =
     hit("pend") ||
     n === "pending" ||
     n === "aguardando" ||
     n === "em progresso" ||
     n === "solicitado";
+
   const isActiveBase =
     (hit("active") && !isInactive) ||
     hit("confirm") ||
@@ -30,7 +33,11 @@ export function statusChipClasses(s: string) {
 
   // frota
   const isReserved = hit("reserv");
-  const isMaintenance = hit("manuten") || n === "maintenance" || hit("service");
+  const isMaintenance =
+    hit("manuten") || n === "maintenance" || hit("service");
+
+  // qualquer chip que tenha "complet" no texto → azul (COMPLETED)
+  const isCompleted = hit("complet");
 
   if (isInactive) {
     return "bg-zinc-100 text-zinc-800 border border-zinc-200 dark:bg-zinc-400/15 dark:text-zinc-500 dark:border-zinc-500/20";
@@ -47,10 +54,14 @@ export function statusChipClasses(s: string) {
   if (isReserved) {
     return "bg-blue-100 text-blue-800 border border-blue-200 dark:bg-blue-400/15 dark:text-blue-500 dark:border-blue-500/20";
   }
+  if (isCompleted) {
+    // azul clarinho para COMPLETED
+    return "bg-sky-100 text-sky-800 border border-sky-200 dark:bg-sky-400/15 dark:text-sky-500 dark:border-sky-500/20";
+  }
   if (isActiveBase) {
     return "bg-green-100 text-green-800 border border-green-200 dark:bg-green-400/15 dark:text-green-500 dark:border-green-500/20";
   }
 
-  // fallback
+  // fallback (cinza)
   return "bg-zinc-100 text-zinc-800 border border-zinc-200 dark:bg-zinc-400/15 dark:text-zinc-500 dark:border-zinc-500/20";
 }

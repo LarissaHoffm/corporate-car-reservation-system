@@ -30,7 +30,6 @@ import {
   type DocumentType,
 } from "@/lib/http/documents";
 
-/* ----------------------------- Tipos locais ----------------------------- */
 
 type DocStatus = "Pending" | "InValidation" | "PendingDocs" | "Validated";
 
@@ -63,7 +62,6 @@ type ListMyReservationsResponse = {
   data?: ApiReservation[];
 };
 
-/* --------------------------- Funções auxiliares ------------------------- */
 
 function normalizeDocStatus(raw: any): "PENDING" | "APPROVED" | "REJECTED" {
   if (raw == null) return "PENDING";
@@ -85,14 +83,17 @@ function normalizeDocStatus(raw: any): "PENDING" | "APPROVED" | "REJECTED" {
  * Calcula o status agregado de documentos de uma reserva:
  *
  * - Agrupa por `type`.
- * - Para cada tipo, considera APENAS o documento MAIS RECENTE
- *   (updatedAt/createdAt).
- * - Docs sem `type` só entram na conta se NÃO existir nenhum doc tipado.
+ * - Para cada tipo, considera a combinação de estados:
+ *   - Se existir pelo menos 1 APPROVED → esse tipo é considerado aprovado,
+ *     mesmo que tenha rejeitados antigos.
+ *   - Se NÃO existir aprovado e existir REJECTED → esse tipo conta como
+ *     "rejeitado" (PendingDocs).
+ *   - Se existir PENDING → conta como InValidation.
  *
  * Regras finais:
- * - Se algum tipo estiver PENDING → "InValidation"
- * - Senão, se algum tipo estiver REJECTED → "PendingDocs"
- * - Senão, se algum tipo estiver APPROVED → "Validated"
+ * - Se algum tipo tiver PENDING → "InValidation"
+ * - Senão, se algum tipo tiver apenas REJECTED (sem APPROVED) → "PendingDocs"
+ * - Senão, se algum tipo tiver APPROVED → "Validated"
  * - Senão → "Pending"
  */
 function docStatusFromDocuments(docs: ApiDocument[]): DocStatus {
@@ -100,51 +101,51 @@ function docStatusFromDocuments(docs: ApiDocument[]): DocStatus {
     return "Pending";
   }
 
-  const allDocs = docs as any[];
-  const typed = allDocs.filter((d) => d.type);
-  const source = typed.length > 0 ? typed : allDocs;
-
   type Aggregated = {
-    latestTs: number;
-    status: "PENDING" | "APPROVED" | "REJECTED";
+    hasPending: boolean;
+    hasApproved: boolean;
+    hasRejected: boolean;
   };
 
   const byType = new Map<string, Aggregated>();
 
-  source.forEach((raw: any, index: number) => {
+  for (const raw of docs as any[]) {
     const type = (raw.type as string | undefined) ?? "__NO_TYPE__";
-
-    const rawDate =
-      raw.updatedAt ??
-      raw.createdAt ??
-      raw.created_at ??
-      raw.uploadedAt ??
-      null;
-
-    const ts =
-      rawDate && !Number.isNaN(new Date(rawDate).getTime())
-        ? new Date(rawDate).getTime()
-        : index; // fallback: ordem do array
-
     const normStatus = normalizeDocStatus(raw.status);
 
-    const current = byType.get(type);
-    if (!current || ts >= current.latestTs) {
-      byType.set(type, { latestTs: ts, status: normStatus });
+    const agg =
+      byType.get(type) ??
+      ({
+        hasPending: false,
+        hasApproved: false,
+        hasRejected: false,
+      } as Aggregated);
+
+    if (normStatus === "APPROVED") {
+      agg.hasApproved = true;
+    } else if (normStatus === "REJECTED") {
+      agg.hasRejected = true;
+    } else {
+      agg.hasPending = true;
     }
-  });
+
+    byType.set(type, agg);
+  }
 
   let anyPending = false;
   let anyRejected = false;
   let anyApproved = false;
 
   for (const agg of byType.values()) {
-    if (agg.status === "PENDING") {
+    if (agg.hasPending) {
       anyPending = true;
-    } else if (agg.status === "REJECTED") {
-      anyRejected = true;
-    } else if (agg.status === "APPROVED") {
+    }
+    if (agg.hasApproved) {
       anyApproved = true;
+    }
+    // Só consideramos o tipo "rejeitado" se não houver approved para ele
+    if (!agg.hasApproved && agg.hasRejected) {
+      anyRejected = true;
     }
   }
 
@@ -160,7 +161,6 @@ function docStatusToChip(s: DocStatus): "Pendente" | "Aprovado" | "Rejeitado" {
   return "Pendente"; // Pending / InValidation usam mesma cor "warning"
 }
 
-/* --------------------------------- Page --------------------------------- */
 
 export default function RequesterDocumentsPage() {
   const { toast } = useToast();
@@ -193,7 +193,7 @@ export default function RequesterDocumentsPage() {
   const listRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  /* -------------------- Carregar reservas do usuário -------------------- */
+  //Carregar reservas do usuário
 
   const loadRows = useCallback(async () => {
     setLoadingRows(true);
@@ -262,7 +262,6 @@ export default function RequesterDocumentsPage() {
     void loadRows();
   }, [loadRows]);
 
-  /* ---- Carregar documentos quando a reserva selecionada mudar ---- */
 
   useEffect(() => {
     if (!selectedId) {
@@ -289,7 +288,7 @@ export default function RequesterDocumentsPage() {
     };
   }, [selectedId]);
 
-  /* --------------------------- Filtros em memória --------------------------- */
+  // Filtros em memória
 
   const carOptions = useMemo(() => {
     const set = new Set(rows.map((r) => r.car));
@@ -335,7 +334,6 @@ export default function RequesterDocumentsPage() {
       return status === "APPROVED" || status == null;
     });
 
-  /* --------------------- click-away + Esc para painel --------------------- */
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -363,7 +361,7 @@ export default function RequesterDocumentsPage() {
     };
   }, [selectedId]);
 
-  /* ------------------------ Abrir arquivo (preview/download) ------------------------ */
+  // Abrir arquivo (preview/download) 
 
   const openFile = async (doc: ApiDocument) => {
     try {
@@ -390,7 +388,6 @@ export default function RequesterDocumentsPage() {
     }
   };
 
-  /* -------------------------------- Handlers -------------------------------- */
 
   const handleChooseFile = (type: DocumentType) => {
     if (!selected) return;
@@ -455,7 +452,6 @@ export default function RequesterDocumentsPage() {
     setFiles([]);
   };
 
-  /* --------------------------------- JSX --------------------------------- */
 
   return (
     <RoleGuard allowedRoles={["REQUESTER"]} requireAuth={false}>
@@ -749,9 +745,7 @@ export default function RequesterDocumentsPage() {
                       <div className="space-y-2">
                         {files.map((f) => {
                           const filename =
-                            (f as any).metadata?.filename ??
-                            (f as any).url?.split("/").pop() ??
-                            (f as any).id;
+                            (f as any).metadata?.filename ?? (f as any).url?.split("/").pop() ?? (f as any).id;
                           const isImage = /\.(png|jpg|jpeg)$/i.test(
                             filename ?? "",
                           );

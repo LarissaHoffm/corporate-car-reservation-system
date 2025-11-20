@@ -49,9 +49,7 @@ describe('ReservationsService', () => {
     service = new ReservationsService(prisma);
   });
 
-  // -----------------------------------------------------
   // CREATE
-  // -----------------------------------------------------
   describe('create', () => {
     it('deve lançar BadRequestException se datas forem inválidas', async () => {
       await expect(
@@ -181,9 +179,7 @@ describe('ReservationsService', () => {
     });
   });
 
-  // -----------------------------------------------------
   // GET BY ID
-  // -----------------------------------------------------
   describe('getById', () => {
     it('deve retornar reserva quando tenant estiver correto', async () => {
       prisma.reservation.findUnique.mockResolvedValue({
@@ -208,9 +204,7 @@ describe('ReservationsService', () => {
     });
   });
 
-  // -----------------------------------------------------
   // APPROVE
-  // -----------------------------------------------------
   describe('approve', () => {
     const approver = {
       userId: 'a1',
@@ -350,9 +344,7 @@ describe('ReservationsService', () => {
     });
   });
 
-  // -----------------------------------------------------
   // CANCEL
-  // -----------------------------------------------------
   describe('cancel', () => {
     const requester = {
       userId: 'u1',
@@ -425,9 +417,7 @@ describe('ReservationsService', () => {
     });
   });
 
-  // -----------------------------------------------------
   // COMPLETE
-  // -----------------------------------------------------
   describe('complete', () => {
     it('REQUESTER deve lançar ConflictException com PRECONDITION_REQUIRED', async () => {
       const actor = {
@@ -485,9 +475,8 @@ describe('ReservationsService', () => {
     });
   });
 
-  // -----------------------------------------------------
   // REMOVE
-  // -----------------------------------------------------
+
   describe('remove', () => {
     it('deve remover reserva quando tenant confere', async () => {
       prisma.$transaction.mockImplementation(async (cb: any) => {
