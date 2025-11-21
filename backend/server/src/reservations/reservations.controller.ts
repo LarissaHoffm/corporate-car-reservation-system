@@ -249,6 +249,49 @@ export class ReservationsController {
     );
   }
 
+  @Get(':id/stations-on-route')
+  @Roles('REQUESTER', 'APPROVER', 'ADMIN')
+  @ApiOperation({
+    summary: 'Listar postos no trajeto da reserva',
+    description:
+      'Retorna os postos ativos do mesmo tenant/filial da reserva. REQUESTER só pode acessar reservas próprias.',
+  })
+  @ApiParam({ name: 'id', description: 'UUID da reserva', format: 'uuid' })
+  @ApiOkResponse({
+    description: 'Lista de postos no trajeto.',
+    schema: {
+      example: [
+        {
+          id: '11111111-2222-3333-4444-555555555555',
+          name: 'Posto Matriz',
+          address: 'Rua das Flores, 123 - Centro',
+          branchId: '3b5f8a13-3d0a-4b2a-8bb1-5bb8b7a6c9e1',
+          isActive: true,
+          createdAt: '2025-11-08T12:00:00.000Z',
+          updatedAt: '2025-11-08T12:00:00.000Z',
+        },
+      ],
+    },
+  })
+  @ApiForbiddenResponse({
+    description: 'REQUESTER tentando acessar reserva de outro usuário.',
+  })
+  @ApiNotFoundResponse({ description: 'Reserva não encontrada no tenant.' })
+  stationsOnRoute(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() req: any,
+  ) {
+    return this.reservations.findStationsOnRoute(
+      {
+        userId: req.user.id,
+        tenantId: req.user.tenantId,
+        branchId: req.user.branchId,
+        role: req.user.role,
+      },
+      id,
+    );
+  }
+
   @Get(':id')
   @Roles('REQUESTER', 'APPROVER', 'ADMIN')
   @ApiOperation({

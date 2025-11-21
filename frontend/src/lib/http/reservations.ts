@@ -1,4 +1,5 @@
 import api from "@/lib/http/api";
+import type { Station } from "@/lib/http/stations";
 
 /** Tipos mínimos usados no front */
 export type ReservationStatus =
@@ -92,5 +93,14 @@ export const ReservationsAPI = {
 
   async remove(id: string): Promise<void> {
     await api.delete(`/reservations/${id}`);
+  },
+
+  /** Postos "no trajeto" da reserva (RF19) */
+  async getStationsOnRoute(id: string): Promise<Station[]> {
+    const { data } = await api.get(`/reservations/${id}/stations-on-route`);
+    if (Array.isArray(data)) {
+      return data as Station[];
+    }
+    return [];
   },
 };

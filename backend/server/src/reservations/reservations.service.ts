@@ -290,6 +290,66 @@ export class ReservationsService {
     return r;
   }
 
+  /**
+   * Lista postos "no trajeto" da reserva:
+   *
+   * - Filtra por tenant da reserva
+   * - Se houver branchId na reserva, usa a mesma branch
+   * - Apenas postos ativos (isActive = true)
+   *
+   * RBAC:
+   * - REQUESTER só pode ver reservas próprias
+   * - APPROVER / ADMIN podem ver qualquer reserva do tenant
+   */
+  async findStationsOnRoute(actor: ActorBase, reservationId: string) {
+    const reservation = await this.prisma.reservation.findUnique({
+      where: { id: reservationId },
+      select: {
+        id: true,
+        tenantId: true,
+        branchId: true,
+        userId: true,
+      },
+    });
+
+    if (!reservation || reservation.tenantId !== actor.tenantId) {
+      throw new NotFoundException('Reserva não encontrada.');
+    }
+
+    if (
+      actor.role === 'REQUESTER' &&
+      reservation.userId &&
+      reservation.userId !== actor.userId
+    ) {
+      throw new ForbiddenException(
+        'Você não tem permissão para acessar esta reserva.',
+      );
+    }
+
+    const where: Prisma.StationWhereInput = {
+      tenantId: actor.tenantId,
+      isActive: true,
+      ...(reservation.branchId ? { branchId: reservation.branchId } : {}),
+    };
+
+    const stations = await this.prisma.station.findMany({
+      where,
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        branchId: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    // Simples: retorna apenas a lista de postos.
+    return stations;
+  }
+
   /** Aprovação com vínculo de carro. */
   async approve(
     actor: Pick<ActorBase, 'userId' | 'tenantId' | 'role'>,
@@ -543,7 +603,7 @@ export class ReservationsService {
         userId: actor.userId,
         action: 'reservation.completed.manual',
         entity: 'Reservation',
-        entityId: updated.id,
+        entityId: r.id,
         metadata: {
           statusBefore: r.status,
         },
@@ -678,9 +738,7 @@ export class ReservationsService {
 
     if (!submissions.length) return false;
 
-    const hasUserReturn = submissions.some(
-      (s) => s.kind === 'USER_RETURN',
-    );
+    const hasUserReturn = submissions.some((s) => s.kind === 'USER_RETURN');
     if (!hasUserReturn) return false;
 
     const validations = submissions.filter(
