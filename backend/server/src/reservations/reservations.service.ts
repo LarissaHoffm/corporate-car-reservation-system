@@ -630,7 +630,7 @@ export class ReservationsService {
     return 'PENDING';
   }
 
-  /**
+    /**
    * Agrega o status dos documentos de uma reserva de forma simples:
    *
    * - Se existir QUALQUER documento pendente (null / "PENDING") → "InValidation"
