@@ -290,6 +290,66 @@ export class ReservationsService {
     return r;
   }
 
+  /**
+   * Lista postos "no trajeto" da reserva:
+   *
+   * - Filtra por tenant da reserva
+   * - Se houver branchId na reserva, usa a mesma branch
+   * - Apenas postos ativos (isActive = true)
+   *
+   * RBAC:
+   * - REQUESTER só pode ver reservas próprias
+   * - APPROVER / ADMIN podem ver qualquer reserva do tenant
+   */
+  async findStationsOnRoute(actor: ActorBase, reservationId: string) {
+    const reservation = await this.prisma.reservation.findUnique({
+      where: { id: reservationId },
+      select: {
+        id: true,
+        tenantId: true,
+        branchId: true,
+        userId: true,
+      },
+    });
+
+    if (!reservation || reservation.tenantId !== actor.tenantId) {
+      throw new NotFoundException('Reserva não encontrada.');
+    }
+
+    if (
+      actor.role === 'REQUESTER' &&
+      reservation.userId &&
+      reservation.userId !== actor.userId
+    ) {
+      throw new ForbiddenException(
+        'Você não tem permissão para acessar esta reserva.',
+      );
+    }
+
+    const where: Prisma.StationWhereInput = {
+      tenantId: actor.tenantId,
+      isActive: true,
+      ...(reservation.branchId ? { branchId: reservation.branchId } : {}),
+    };
+
+    const stations = await this.prisma.station.findMany({
+      where,
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        branchId: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    // Simples: retorna apenas a lista de postos.
+    return stations;
+  }
+
   /** Aprovação com vínculo de carro. */
   async approve(
     actor: Pick<ActorBase, 'userId' | 'tenantId' | 'role'>,
@@ -371,10 +431,15 @@ export class ReservationsService {
     });
   }
 
-  /** Cancelamento: solicitante pode cancelar reservas PENDING ou APPROVED. */
+  /**
+   * Cancelamento de reserva:
+   * - REQUESTER: pode cancelar apenas as próprias reservas.
+   * - APPROVER / ADMIN: podem cancelar qualquer reserva do tenant.
+   * - Status permitidos: PENDING e APPROVED.
+   */
   async cancel(actor: ActorBase, id: string) {
     return this.prisma.$transaction(async (tx) => {
-      const r = await this.prisma.reservation.findUnique({
+      const r = await tx.reservation.findUnique({
         where: { id },
         select: {
           id: true,
@@ -388,15 +453,13 @@ export class ReservationsService {
         throw new NotFoundException('Reserva não encontrada.');
       }
 
-      // Apenas o solicitante pode cancelar a própria reserva
-      if (actor.role !== 'REQUESTER') {
+      const isOwner = r.userId === actor.userId;
+      const isAdminOrApprover =
+        actor.role === 'ADMIN' || actor.role === 'APPROVER';
+
+      if (!isOwner && !isAdminOrApprover) {
         throw new ForbiddenException(
-          'Somente o solicitante pode cancelar esta reserva.',
-        );
-      }
-      if (r.userId !== actor.userId) {
-        throw new ForbiddenException(
-          'Sem permissão para cancelar esta reserva.',
+          'Você não tem permissão para cancelar esta reserva.',
         );
       }
 
@@ -540,7 +603,7 @@ export class ReservationsService {
         userId: actor.userId,
         action: 'reservation.completed.manual',
         entity: 'Reservation',
-        entityId: updated.id,
+        entityId: r.id,
         metadata: {
           statusBefore: r.status,
         },
@@ -568,83 +631,49 @@ export class ReservationsService {
   }
 
   /**
-   * Agrega os documentos de uma reserva considerando:
-   * - Agrupa por type
-   * - Para cada tipo, combina estados:
-   *   - Se existir APPROVED → esse tipo é considerado aprovado
-   *   - Se NÃO existir approved e existir REJECTED → tipo "rejeitado"
-   *   - Se existir PENDING → tipo "pendente"
+   * Agrega o status dos documentos de uma reserva de forma simples:
    *
-   * Regras finais:
-   * - Se algum tipo tiver PENDING → "InValidation"
-   * - Senão, se algum tipo tiver apenas REJECTED (sem APPROVED) → "PendingDocs"
-   * - Senão, se algum tipo tiver APPROVED → "Validated"
+   * - Se existir QUALQUER documento pendente (null / "PENDING") → "InValidation"
+   * - Senão, se existir ALGUM aprovado → "Validated"
+   * - Senão, se existir ALGUM rejeitado → "PendingDocs"
    * - Senão → "Pending"
+   *
+   * Isso garante que, se um documento foi rejeitado e o usuário reenviar
+   * outro que seja aprovado, o status passe a ser "Validated" mesmo que
+   * ainda existam rejeitados antigos no histórico.
    */
-  private aggregateDocsStatusForReservation(docs: {
-    type: string | null;
-    status: string | null;
-    createdAt: Date;
-    updatedAt: Date | null;
-  }[]): 'Pending' | 'InValidation' | 'PendingDocs' | 'Validated' {
+  private aggregateDocsStatusForReservation(
+    docs: {
+      type: string | null;
+      status: string | null;
+      createdAt: Date;
+      updatedAt: Date | null;
+    }[],
+  ): 'Pending' | 'InValidation' | 'PendingDocs' | 'Validated' {
     if (!docs.length) {
       return 'Pending';
     }
 
-    const typed = docs.filter((d) => !!d.type);
-    const source = typed.length > 0 ? typed : docs;
+    let anyPending = false;
+    let anyApproved = false;
+    let anyRejected = false;
 
-    type Agg = {
-      hasPending: boolean;
-      hasApproved: boolean;
-      hasRejected: boolean;
-    };
-
-    const byType = new Map<string, Agg>();
-
-    for (const doc of source) {
-      const key = doc.type ?? '__NO_TYPE__';
+    for (const doc of docs) {
       const status = this.normalizeValidationStatus(doc.status);
 
-      const agg =
-        byType.get(key) ??
-        ({
-          hasPending: false,
-          hasApproved: false,
-          hasRejected: false,
-        } as Agg);
-
       if (status === 'APPROVED') {
-        agg.hasApproved = true;
-      } else if (status === 'REJECTED') {
-        agg.hasRejected = true;
-      } else {
-        agg.hasPending = true;
-      }
-
-      byType.set(key, agg);
-    }
-
-    let anyPending = false;
-    let anyRejected = false;
-    let anyApproved = false;
-
-    for (const agg of byType.values()) {
-      if (agg.hasPending) {
-        anyPending = true;
-      }
-      if (agg.hasApproved) {
         anyApproved = true;
-      }
-      // só conta como "rejeitado" se NÃO houver approved para aquele tipo
-      if (!agg.hasApproved && agg.hasRejected) {
+      } else if (status === 'REJECTED') {
         anyRejected = true;
+      } else {
+        // tudo que não for APPROVED / REJECTED tratamos como pendente
+        anyPending = true;
       }
     }
 
     if (anyPending) return 'InValidation';
-    if (anyRejected) return 'PendingDocs';
     if (anyApproved) return 'Validated';
+    if (anyRejected) return 'PendingDocs';
     return 'Pending';
   }
 
@@ -663,13 +692,10 @@ export class ReservationsService {
   }
 
   /**
-   * Verifica se a reserva pode ir para COMPLETED.
-   *
-   * Regra:
+   * Regra para COMPLETED:
    * - Reserva deve estar APPROVED
-   * - Todos os documentos (por tipo) devem estar aprovados no agregado
-   * - Checklist deve ter USER_RETURN e APPROVER_VALIDATION com decisão
-   *   APPROVED ou REJECTED (diferença é mostrada apenas na UI)
+   * - Último doc de cada tipo deve estar APPROVED (aggregate = "Validated")
+   * - Deve existir USER_RETURN e APPROVER_VALIDATION com decisão APPROVED/REJECTED
    */
   private async shouldCompleteReservation(
     reservationId: string,
@@ -682,7 +708,7 @@ export class ReservationsService {
     if (!reservation) return false;
     if (reservation.status !== ReservationStatus.APPROVED) return false;
 
-    //  Docs
+    // 1) Documentos
     const docs = await this.prisma.document.findMany({
       where: { reservationId },
       select: {
@@ -700,7 +726,7 @@ export class ReservationsService {
       return false;
     }
 
-    // Checklists
+    // 2) Checklists
     const submissions = await this.prisma.checklistSubmission.findMany({
       where: { reservationId },
       select: {
@@ -736,7 +762,7 @@ export class ReservationsService {
       this.normalizeChecklistDecision(payload.result) ??
       this.normalizeChecklistDecision(payload.status);
 
-    // tanto APPROVED quanto REJECTED concluem a reserva
+    // Tanto APPROVED quanto REJECTED concluem a reserva (UI diferencia depois)
     return decision === 'APPROVED' || decision === 'REJECTED';
   }
 
@@ -778,15 +804,39 @@ export class ReservationsService {
     });
   }
 
-  async remove(actor: Pick<ActorBase, 'tenantId' | 'userId'>, id: string) {
+  async remove(
+    actor: Pick<ActorBase, 'tenantId' | 'userId' | 'role'>,
+    id: string,
+  ) {
+    if (actor.role !== 'ADMIN') {
+      throw new ForbiddenException(
+        'Apenas administradores podem excluir reservas.',
+      );
+    }
+
     return this.prisma.$transaction(async (tx) => {
-      const r = await this.prisma.reservation.findUnique({
+      const r = await tx.reservation.findUnique({
         where: { id },
-        select: { id: true, tenantId: true },
+        select: {
+          id: true,
+          tenantId: true,
+          status: true,
+          carId: true,
+        },
       });
 
       if (!r || r.tenantId !== actor.tenantId) {
         throw new NotFoundException('Reserva não encontrada.');
+      }
+
+      if (r.status === ReservationStatus.COMPLETED) {
+        throw new BadRequestException(
+          'Não é possível excluir reservas concluídas.',
+        );
+      }
+
+      if (r.carId) {
+        await this.releaseCar(tx, r.carId);
       }
 
       await tx.reservation.delete({ where: { id: r.id } });

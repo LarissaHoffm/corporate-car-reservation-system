@@ -261,6 +261,7 @@ export class DocumentsService {
         reservationId: true,
       },
     });
+
     if (!d || d.tenantId !== actor.tenantId) {
       throw new NotFoundException('Documento não encontrado');
     }

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   Fuel,
   MapPin,
@@ -159,6 +159,11 @@ export default function SharedGasStationsPage() {
     "all" | "Petrol" | "Diesel" | "Electric"
   >("all");
 
+  // seleção de posto para o mapa
+  const [selectedStationId, setSelectedStationId] = useState<string | null>(
+    null,
+  );
+
   // modais
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -193,6 +198,22 @@ export default function SharedGasStationsPage() {
         return byText && byCity && byStatus && byFuel;
       }),
     [stations, search, cityFilter, statusFilter, fuelFilter],
+  );
+
+  // garante um posto selecionado quando a lista muda
+  useEffect(() => {
+    if (!filtered.length) {
+      setSelectedStationId(null);
+      return;
+    }
+    setSelectedStationId((prev) =>
+      prev && filtered.some((s) => s.id === prev) ? prev : filtered[0].id,
+    );
+  }, [filtered]);
+
+  const selectedStation = useMemo(
+    () => filtered.find((s) => s.id === selectedStationId) ?? null,
+    [filtered, selectedStationId],
   );
 
   const kpis = useMemo(() => {
@@ -275,6 +296,55 @@ export default function SharedGasStationsPage() {
         : [...p.fuelTypes, v],
     }));
   const is24h = (b?: boolean) => !!b;
+
+  // ------------------------ Google Maps (embed por posto) ------------------------
+  const mapsApiKey =
+    (import.meta as any)?.env?.VITE_GOOGLE_MAPS_EMBED_KEY ??
+    (import.meta as any)?.env?.VITE_GOOGLE_MAPS_API_KEY ??
+    null;
+
+  const mapQuery = useMemo(() => {
+    if (!selectedStation) return null;
+
+    const parts = [
+      selectedStation.address || "",
+      selectedStation.city || "",
+      selectedStation.city ? DEFAULT_UF : "",
+    ]
+      .map((p) => p.trim())
+      .filter(Boolean);
+
+    if (parts.length === 0) {
+      // fallback mínimo: nome do posto
+      return selectedStation.name;
+    }
+
+    return parts.join(", ");
+  }, [selectedStation]);
+
+  // Se tiver key -> usa embed oficial; se não, usa embed genérico sem key
+  const mapApiSrc =
+    mapsApiKey && mapQuery
+      ? `https://www.google.com/maps/embed/v1/place?key=${mapsApiKey}&q=${encodeURIComponent(
+          mapQuery,
+        )}`
+      : null;
+
+  const mapFallbackSrc = mapQuery
+    ? `https://www.google.com/maps?q=${encodeURIComponent(
+        mapQuery,
+      )}&output=embed`
+    : null;
+
+  const mapSrc = mapApiSrc ?? mapFallbackSrc;
+
+  const handleOpenSelectedInMaps = () => {
+    if (!mapQuery) return;
+    const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+      mapQuery,
+    )}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
 
   return (
     <RoleGuard allowedRoles={["ADMIN", "APPROVER"]} requireAuth={false}>
@@ -429,7 +499,7 @@ export default function SharedGasStationsPage() {
           </CardContent>
         </Card>
 
-        {/* Lista */}
+        {/* Lista + Mapa */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <Card className="lg:col-span-2 border-border/50 shadow-sm">
             <CardHeader className="pb-4">
@@ -478,7 +548,12 @@ export default function SharedGasStationsPage() {
                     {filtered.map((s) => (
                       <tr
                         key={s.id}
-                        className="border-b border-gray-100 hover:bg-card/50"
+                        onClick={() => setSelectedStationId(s.id)}
+                        className={`border-b border-gray-100 hover:bg-card/50 cursor-pointer ${
+                          selectedStationId === s.id
+                            ? "bg-blue-50/60"
+                            : ""
+                        }`}
                       >
                         <td className="py-3 px-4 text-sm font-medium text-foreground">
                           {s.name}
@@ -506,7 +581,10 @@ export default function SharedGasStationsPage() {
                               size="sm"
                               variant="outline"
                               className="border-border/50 bg-transparent"
-                              onClick={() => openEdit(s)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openEdit(s);
+                              }}
                               disabled={loading}
                             >
                               <Pencil className="h-4 w-4 mr-1" />
@@ -516,7 +594,10 @@ export default function SharedGasStationsPage() {
                               size="sm"
                               variant="outline"
                               className="border-red-200 text-red-600 bg-transparent hover:bg-red-50"
-                              onClick={() => askDelete(s)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                askDelete(s);
+                              }}
                               disabled={loading}
                             >
                               <Trash2 className="h-4 w-4 mr-1" />
@@ -542,18 +623,50 @@ export default function SharedGasStationsPage() {
             </CardContent>
           </Card>
 
-          {/* Mapa (placeholder) */}
+          {/* Mapa dinâmico por posto */}
           <Card className="border-border/50 shadow-sm">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-foreground">Map View</CardTitle>
+            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-foreground">Map View</CardTitle>
+                {selectedStation && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Visualizando:{" "}
+                    <span className="font-medium">
+                      {selectedStation.name}
+                    </span>
+                  </p>
+                )}
+              </div>
+              {selectedStation && mapQuery && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-border/50"
+                  onClick={handleOpenSelectedInMaps}
+                >
+                  <MapPin className="h-4 w-4 mr-1" />
+                  Open in Maps
+                </Button>
+              )}
             </CardHeader>
             <CardContent>
               <div className="h-[420px] bg-card rounded-lg overflow-hidden">
-                <img
-                  src="/gas-station.png"
-                  alt="Gas stations map"
-                  className="w-full h-full object-cover"
-                />
+                {mapSrc ? (
+                  <iframe
+                    title="Station map"
+                    className="w-full h-full border-0"
+                    loading="lazy"
+                    allowFullScreen
+                    referrerPolicy="no-referrer-when-downgrade"
+                    src={mapSrc}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center px-4 text-sm text-muted-foreground text-center">
+                    {!selectedStation
+                      ? "Nenhum posto selecionado."
+                      : "Endereço do posto não informado. Preencha o endereço para visualizar o mapa."}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>

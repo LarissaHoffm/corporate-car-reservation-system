@@ -58,57 +58,50 @@ function normalizeDocStatus(raw: any): "PENDING" | "APPROVED" | "REJECTED" {
   return "PENDING";
 }
 
-
+/**
+ * Mesma regra do backend:
+ * - Agrupa por `type`
+ * - Considera SÓ o documento mais recente de cada tipo
+ */
 function docStatusFromDocuments(docs: ApiDocument[]): DocStatus {
   if (!docs.length) {
     return "Pending";
   }
 
-  type Aggregated = {
-    hasPending: boolean;
-    hasApproved: boolean;
-    hasRejected: boolean;
+  type Agg = {
+    latestTs: number;
+    status: "PENDING" | "APPROVED" | "REJECTED";
   };
 
-  const byType = new Map<string, Aggregated>();
+  const byType = new Map<string, Agg>();
 
-  for (const raw of docs as any[]) {
+  docs.forEach((raw, index) => {
     const type = (raw.type as string | undefined) ?? "__NO_TYPE__";
-    const normStatus = normalizeDocStatus(raw.status);
 
-    const agg =
-      byType.get(type) ??
-      ({
-        hasPending: false,
-        hasApproved: false,
-        hasRejected: false,
-      } as Aggregated);
+    const createdAt =
+      (raw as any).updatedAt ?? (raw as any).createdAt ?? null;
+    const ts =
+      createdAt != null ? new Date(createdAt as any).getTime() : index;
 
-    if (normStatus === "APPROVED") {
-      agg.hasApproved = true;
-    } else if (normStatus === "REJECTED") {
-      agg.hasRejected = true;
-    } else {
-      agg.hasPending = true;
+    const status = normalizeDocStatus((raw as any).status);
+
+    const current = byType.get(type);
+    if (!current || ts >= current.latestTs) {
+      byType.set(type, { latestTs: ts, status });
     }
-
-    byType.set(type, agg);
-  }
+  });
 
   let anyPending = false;
   let anyRejected = false;
   let anyApproved = false;
 
   for (const agg of byType.values()) {
-    if (agg.hasPending) {
+    if (agg.status === "PENDING") {
       anyPending = true;
-    }
-    if (agg.hasApproved) {
-      anyApproved = true;
-    }
-    // Só consideramos "rejeitado" se NÃO houver approved para aquele tipo
-    if (!agg.hasApproved && agg.hasRejected) {
+    } else if (agg.status === "REJECTED") {
       anyRejected = true;
+    } else if (agg.status === "APPROVED") {
+      anyApproved = true;
     }
   }
 
@@ -326,7 +319,7 @@ export default function RequesterReservationsListPage() {
       return {
         badgeStatus: "approved",
         chipLabel: "Aprovado",
-        text: "COMPLETED — Checklist rejected",
+        text: "Completed — Checklist rejected",
       };
     }
 
@@ -335,7 +328,7 @@ export default function RequesterReservationsListPage() {
       return {
         badgeStatus: "approved",
         chipLabel: "Aprovado",
-        text: "COMPLETED",
+        text: "Completed",
       };
     }
 
@@ -343,7 +336,7 @@ export default function RequesterReservationsListPage() {
       return {
         badgeStatus: "pending",
         chipLabel: "Pendente",
-        text: "PENDING",
+        text: "Pending",
       };
     }
 
@@ -351,7 +344,7 @@ export default function RequesterReservationsListPage() {
       return {
         badgeStatus: "cancelled",
         chipLabel: "Rejeitado",
-        text: "CANCELED",
+        text: "Canceled",
       };
     }
 
@@ -362,7 +355,7 @@ export default function RequesterReservationsListPage() {
         return {
           badgeStatus: "approved",
           chipLabel: "Aprovado",
-          text: "APPROVED",
+          text: "Approved",
         };
       }
 
