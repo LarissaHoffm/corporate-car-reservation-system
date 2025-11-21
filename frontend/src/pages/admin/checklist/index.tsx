@@ -82,7 +82,7 @@ export default function AdminChecklistsPage() {
   // erro de formulário exibido ao lado dos botões
   const [formError, setFormError] = useState<string | null>(null);
 
-  // helpers 
+  // helpers
 
   const extractErrorMessage = (err: any, fallback: string) => {
     const res = err?.response;
@@ -97,20 +97,29 @@ export default function AdminChecklistsPage() {
       setLoading(true);
 
       const [tplRes, carsRes] = await Promise.all([
+        // AQUI: buscar TODOS os templates (ativos e inativos)
         api.get<ChecklistTemplate[]>("/checklists/templates", {
-          params: { onlyActive: true },
+          params: { onlyActive: false },
         }),
         api.get("/cars"),
       ]);
 
-      const tplData = tplRes.data ?? [];
+      const tplData = (tplRes.data ?? []) as ChecklistTemplate[];
 
       const rawCars = (carsRes.data ?? []) as any;
       const carsData: CarSummary[] = Array.isArray(rawCars)
         ? rawCars
         : (rawCars.items ?? []);
 
-      setTemplates(tplData);
+      // ordenar: ativos primeiro, depois inativos, e por nome
+      const orderedTemplates = [...tplData].sort((a, b) => {
+        if (a.active !== b.active) {
+          return a.active ? -1 : 1;
+        }
+        return a.name.localeCompare(b.name);
+      });
+
+      setTemplates(orderedTemplates);
       setCars(carsData);
     } catch (err) {
       console.error(err);
@@ -145,7 +154,7 @@ export default function AdminChecklistsPage() {
     return `${t.car.plate} • ${t.car.model}`;
   };
 
-  //  modal open/close 
+  //  modal open/close
 
   const openCreate = () => {
     setModalMode("create");
@@ -175,7 +184,7 @@ export default function AdminChecklistsPage() {
     setModalOpen(true);
   };
 
-  //  excluir (desativar) 
+  //  excluir (desativar)
 
   const removeTemplate = async (id: string) => {
     try {
@@ -189,7 +198,8 @@ export default function AdminChecklistsPage() {
 
       toast({
         title: "Template desativado",
-        description: "O checklist foi marcado como inativo e removido da lista.",
+        description:
+          "O checklist foi marcado como inativo, mas permanece na lista.",
       });
     } catch (err) {
       console.error(err);
@@ -206,7 +216,7 @@ export default function AdminChecklistsPage() {
     }
   };
 
-  // salvar (create/edit) 
+  // salvar (create/edit)
 
   const saveTemplate = async () => {
     const trimmedName = templateName.trim() || "Untitled";
@@ -305,7 +315,7 @@ export default function AdminChecklistsPage() {
     }
   };
 
-  //  itens (add/update/remove/drag) 
+  //  itens (add/update/remove/drag)
 
   const addItem = () => setItems((p) => [...p, ""]);
 
@@ -330,7 +340,7 @@ export default function AdminChecklistsPage() {
     setDragIndex(null);
   };
 
-  //  modal JSX 
+  //  modal JSX
 
   const ChecklistModal = (
     <Dialog open={modalOpen} onOpenChange={setModalOpen}>
@@ -478,7 +488,7 @@ export default function AdminChecklistsPage() {
     </Dialog>
   );
 
-  //  tabela 
+  //  tabela
 
   return (
     <RoleGuard allowedRoles={["ADMIN"]} requireAuth={false}>

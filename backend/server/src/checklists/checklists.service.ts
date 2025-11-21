@@ -9,6 +9,7 @@ import {
   ChecklistSubmissionKind,
   Role,
   ReservationStatus,
+  CarStatus,
 } from '@prisma/client';
 import { PrismaService } from '../infra/prisma.service';
 import { CreateChecklistTemplateDto } from './dto/create-checklist-template.dto';
@@ -417,7 +418,7 @@ export class ChecklistsService {
 
     // Se foi uma validação do APPROVER, tenta auto-concluir a reserva
     if (dto.kind === ChecklistSubmissionKind.APPROVER_VALIDATION) {
-      await this.tryCompleteReservation(reservation.id, actor.tenantId);
+      await this.tryCompleteReservation(reservation.id, actor.tenantId, userId);
     }
 
     return submission;
@@ -557,7 +558,6 @@ export class ChecklistsService {
     return 'PENDING';
   }
 
-
   private aggregateDocsStatusForReservation(docs: {
     type: string | null;
     status: string | null;
@@ -624,7 +624,6 @@ export class ChecklistsService {
     }
     return null;
   }
-
 
   private async shouldCompleteReservation(
     reservationId: string,
@@ -701,17 +700,45 @@ export class ChecklistsService {
   private async tryCompleteReservation(
     reservationId: string,
     tenantId: string,
+    userId?: string,
   ): Promise<void> {
     const ok = await this.shouldCompleteReservation(reservationId, tenantId);
     if (!ok) return;
 
-    await this.prisma.reservation.update({
-      where: { id: reservationId },
-      data: { status: ReservationStatus.COMPLETED },
+    await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.reservation.update({
+        where: { id: reservationId },
+        data: { status: ReservationStatus.COMPLETED },
+        select: {
+          id: true,
+          tenantId: true,
+          carId: true,
+        },
+      });
+
+      if (updated.carId) {
+        await tx.car.updateMany({
+          where: { id: updated.carId },
+          data: { status: CarStatus.AVAILABLE },
+        });
+      }
+
+      await tx.auditLog.create({
+        data: {
+          tenantId: updated.tenantId,
+          userId: userId ?? null,
+          action: 'reservation.completed',
+          entity: 'Reservation',
+          entityId: updated.id,
+          metadata: {
+            via: 'checklist',
+          } as any,
+        },
+      });
     });
   }
 
-  // APPROVER: pendências + histórico 
+  // APPROVER: pendências + histórico
 
   async listPendingForApprover(actor: AuthUser) {
     if (actor.role !== Role.APPROVER && actor.role !== Role.ADMIN) {

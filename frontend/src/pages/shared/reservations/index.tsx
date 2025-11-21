@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -18,22 +17,25 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { statusChipClasses } from "@/components/ui/status";
+import { ReservationStatusBadge } from "@/components/reservation-status-badge";
 import {
   Eye,
   RefreshCcw,
   CheckCircle,
   Printer,
-  Filter,
   CalendarCheck,
   Clock,
   XCircle,
   ShieldCheck,
+  Trash2,
 } from "lucide-react";
 
 import useReservations from "@/hooks/use-reservations";
 import type { Reservation } from "@/lib/http/reservations";
+import { useToast } from "@/components/ui/use-toast";
 
 function fmt(dt?: string) {
   if (!dt) return "-";
@@ -43,19 +45,50 @@ function fmt(dt?: string) {
     return dt;
   }
 }
+
 function period(a?: string, b?: string) {
   return `${fmt(a)} → ${fmt(b)}`;
 }
-function chip(status: Reservation["status"]) {
-  return statusChipClasses(
-    status === "PENDING"
-      ? "Warning"
-      : status === "APPROVED"
-        ? "Active"
-        : status === "COMPLETED"
-          ? "Success"
-          : "Inactive",
-  );
+
+type BasicStatus = "PENDING" | "APPROVED" | "CANCELED" | "COMPLETED";
+
+function mapStatusPresentation(
+  status: BasicStatus,
+): {
+  badgeStatus: "pending" | "approved" | "cancelled" | "inactive";
+  chipLabel: "Pendente" | "Aprovado" | "Rejeitado";
+  text: string;
+} {
+  if (status === "PENDING") {
+    return {
+      badgeStatus: "pending",
+      chipLabel: "Pendente",
+      text: "Pending",
+    };
+  }
+
+  if (status === "APPROVED") {
+    return {
+      badgeStatus: "approved",
+      chipLabel: "Aprovado",
+      text: "Approved",
+    };
+  }
+
+  if (status === "CANCELED") {
+    return {
+      badgeStatus: "cancelled",
+      chipLabel: "Rejeitado",
+      text: "Canceled",
+    };
+  }
+
+  // COMPLETED
+  return {
+    badgeStatus: "approved",
+    chipLabel: "Aprovado",
+    text: "Completed",
+  };
 }
 
 export default function AdminApproverReservationsPage() {
@@ -68,8 +101,20 @@ export default function AdminApproverReservationsPage() {
     listAvailableCars,
     approveReservation,
     cancelReservation,
+    removeReservation,
     getReservation,
   } = useReservations();
+
+  const { toast } = useToast();
+
+  // detectar se está na rota de ADMIN (para RF10: excluir)
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const path = window.location.pathname || "";
+      setIsAdmin(path.includes("/admin/"));
+    }
+  }, []);
 
   // carregamento inicial
   useEffect(() => {
@@ -86,7 +131,11 @@ export default function AdminApproverReservationsPage() {
     const term = q.trim().toLowerCase();
     return list
       .filter((r) => {
-        if (status !== "ALL" && r.status !== status) return false;
+        if (status !== "ALL") {
+          const normalizedStatus =
+            r.status === "CANCELLED" ? "CANCELED" : r.status;
+          if (normalizedStatus !== status) return false;
+        }
         if (!term) return true;
         const hay =
           `${r.id} ${r.origin ?? ""} ${r.destination ?? ""} ${r.user?.name ?? ""} ${r.user?.email ?? ""}`.toLowerCase();
@@ -101,7 +150,9 @@ export default function AdminApproverReservationsPage() {
   const total = list.length;
   const pendingCount = list.filter((r) => r.status === "PENDING").length;
   const approvedCount = list.filter((r) => r.status === "APPROVED").length;
-  const canceledCount = list.filter((r) => r.status === "CANCELED").length;
+  const canceledCount = list.filter(
+    (r) => r.status === "CANCELED" || (r.status as any) === "CANCELLED",
+  ).length;
 
   const [viewing, setViewing] = useState<Reservation | null>(null);
 
@@ -120,12 +171,27 @@ export default function AdminApproverReservationsPage() {
   >([]);
   const [selectedCar, setSelectedCar] = useState<string>("");
 
+  // modal de delete no padrão do sistema
+  const [deleteModal, setDeleteModal] = useState<{
+    open: boolean;
+    id: string | null;
+    label?: string;
+  }>({
+    open: false,
+    id: null,
+    label: undefined,
+  });
+
   async function onOpenDetails(id: string) {
     try {
       const data = await getReservation(id);
       setViewing(data);
     } catch {
-      // erro já fica em errors.get via hook
+      toast({
+        variant: "destructive",
+        title: "Erro ao carregar reserva",
+        description: errors.get ?? "Não foi possível carregar os detalhes.",
+      });
     }
   }
 
@@ -139,31 +205,90 @@ export default function AdminApproverReservationsPage() {
       setAvailableCars(list);
     } catch {
       setAvailableCars([]);
+      toast({
+        variant: "destructive",
+        title: "Erro ao listar veículos",
+        description:
+          "Não foi possível carregar os carros disponíveis para esta filial.",
+      });
     }
   }
 
   async function onConfirmApprove() {
     if (!approveModal.id || !selectedCar) return;
-    const ok = await approveReservation(approveModal.id, {
+    const result = await approveReservation(approveModal.id, {
       carId: selectedCar,
     });
-    if (ok.ok) {
+    if (result.ok) {
+      toast({
+        title: "Reserva aprovada",
+        description: "O veículo foi atribuído e a reserva foi aprovada.",
+      });
       setApproveModal({ open: false, id: null, branchId: undefined });
       setSelectedCar("");
       await refreshPending();
       await refresh();
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Não foi possível aprovar",
+        description: result.error ?? errors.approve,
+      });
     }
   }
 
   async function onCancel(id: string) {
-    const ok = await cancelReservation(id);
-    if (ok.ok) {
+    const result = await cancelReservation(id);
+    if (result.ok) {
+      toast({
+        title: "Reserva cancelada",
+        description: "O status da reserva foi atualizado para CANCELED.",
+      });
+      await refreshPending();
       await refresh();
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Não foi possível cancelar",
+        description: result.error ?? errors.cancel,
+      });
+    }
+  }
+
+  async function onConfirmRemove() {
+    if (!deleteModal.id) return;
+
+    // proteção extra: apenas admin deve conseguir chegar aqui
+    if (!isAdmin) {
+      toast({
+        variant: "destructive",
+        title: "Operação não permitida",
+        description: "Apenas administradores podem excluir reservas.",
+      });
+      setDeleteModal({ open: false, id: null, label: undefined });
+      return;
+    }
+
+    const result = await removeReservation(deleteModal.id);
+    if (result.ok) {
+      toast({
+        title: "Reserva excluída",
+        description: "A reserva foi removida definitivamente.",
+      });
+      setDeleteModal({ open: false, id: null, label: undefined });
+      await refreshPending();
+      await refresh();
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Não foi possível excluir",
+        description: result.error ?? errors.remove,
+      });
     }
   }
 
   return (
-    <div className="mx-auto p-6 max-w-[1400px] space-y-6">
+    <div className="space-y-6 px-6 py-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -177,15 +302,15 @@ export default function AdminApproverReservationsPage() {
           onClick={() => refresh()}
           disabled={loading.list}
         >
-          <RefreshCcw className="h-4 w-4 mr-2" />
+          <RefreshCcw className="mr-2 h-4 w-4" />
           Refresh
         </Button>
       </div>
 
       {/* Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
         <Card className="border-border/50 shadow-sm">
-          <CardContent className="p-5 flex items-center justify-between">
+          <CardContent className="flex items-center justify-between p-5">
             <div>
               <p className="text-sm text-muted-foreground">
                 Total Reservations
@@ -197,7 +322,7 @@ export default function AdminApproverReservationsPage() {
         </Card>
 
         <Card className="border-border/50 shadow-sm">
-          <CardContent className="p-5 flex items-center justify-between">
+          <CardContent className="flex items-center justify-between p-5">
             <div>
               <p className="text-sm text-muted-foreground">Pending</p>
               <p className="text-2xl font-bold">{pendingCount}</p>
@@ -207,7 +332,7 @@ export default function AdminApproverReservationsPage() {
         </Card>
 
         <Card className="border-border/50 shadow-sm">
-          <CardContent className="p-5 flex items-center justify-between">
+          <CardContent className="flex items-center justify-between p-5">
             <div>
               <p className="text-sm text-muted-foreground">Approved</p>
               <p className="text-2xl font-bold">{approvedCount}</p>
@@ -217,7 +342,7 @@ export default function AdminApproverReservationsPage() {
         </Card>
 
         <Card className="border-border/50 shadow-sm">
-          <CardContent className="p-5 flex items-center justify-between">
+          <CardContent className="flex items-center justify-between p-5">
             <div>
               <p className="text-sm text-muted-foreground">Canceled</p>
               <p className="text-2xl font-bold">{canceledCount}</p>
@@ -229,16 +354,14 @@ export default function AdminApproverReservationsPage() {
 
       {/* Filtros */}
       <Card className="border-border/50 shadow-sm">
-        <CardContent className="pt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="relative">
+        <CardContent className="grid grid-cols-1 gap-4 pt-6 md:grid-cols-4">
+          <div className="space-y-2 md:col-span-3">
             <Label>Search</Label>
             <Input
               placeholder="Code, user, email, origin or destination…"
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              className="pl-10"
             />
-            <Filter className="h-4 w-4 absolute left-3 top-[38px] text-muted-foreground" />
           </div>
           <div className="space-y-2">
             <Label>Status</Label>
@@ -274,80 +397,131 @@ export default function AdminApproverReservationsPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border/50 text-muted-foreground">
-                    <th className="text-left py-3 px-4">User</th>
-                    <th className="text-left py-3 px-4">Origin</th>
-                    <th className="text-left py-3 px-4">Destination</th>
-                    <th className="text-left py-3 px-4">Period</th>
-                    <th className="text-left py-3 px-4">Status</th>
-                    <th className="text-right py-3 px-4">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((r) => (
-                    <tr
-                      key={r.id}
-                      className="border-b border-border/50 hover:bg-background"
-                    >
-                      <td className="py-3 px-4">
-                        <div className="font-medium">{r.user?.name ?? "—"}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {r.user?.email}
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">{r.origin}</td>
-                      <td className="py-3 px-4">{r.destination}</td>
-                      <td className="py-3 px-4">
-                        {period(r.startAt, r.endAt)}
-                      </td>
-                      <td className="py-3 px-4">
-                        <Badge className={chip(r.status)}>{r.status}</Badge>
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => onOpenDetails(r.id)}
-                          >
-                            <Eye className="h-4 w-4 mr-2" />
-                            Details
-                          </Button>
-
-                          {/* Aprovar apenas se PENDING */}
-                          {r.status === "PENDING" && (
-                            <Button
-                              size="sm"
-                              className="bg-[#1558E9] hover:bg-[#1558E9]/90"
-                              onClick={() => onOpenApprove(r)}
-                            >
-                              <CheckCircle className="h-4 w-4 mr-2" />
-                              Assign & Approve
-                            </Button>
-                          )}
-
-                          {/* Cancelar quando PENDING ou APPROVED */}
-                          {(r.status === "PENDING" ||
-                            r.status === "APPROVED") && (
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => onCancel(r.id)}
-                              disabled={loading.cancel}
-                            >
-                              Cancel
-                            </Button>
-                          )}
-                        </div>
-                      </td>
+              <div className="max-h-[420px] overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border/50 text-muted-foreground">
+                      <th className="py-3 px-4 text-left">User</th>
+                      <th className="py-3 px-4 text-left">Origin</th>
+                      <th className="py-3 px-4 text-left">Destination</th>
+                      <th className="py-3 px-4 text-left">Period</th>
+                      <th className="py-3 px-4 text-left">Status</th>
+                      <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {filtered.map((r) => {
+                      const normalizedStatus = (
+                        r.status === "CANCELLED" ? "CANCELED" : r.status
+                      ) as BasicStatus;
+
+                      const canCancel =
+                        normalizedStatus === "PENDING" ||
+                        normalizedStatus === "APPROVED";
+
+                      // admin pode excluir se não estiver COMPLETED
+                      const canDelete =
+                        isAdmin && normalizedStatus !== "COMPLETED";
+
+                      const deleteLabel =
+                        r.user?.name ??
+                        `${r.origin} → ${r.destination}` ??
+                        r.id;
+
+                      const { badgeStatus, chipLabel, text } =
+                        mapStatusPresentation(normalizedStatus);
+
+                      return (
+                        <tr
+                          key={r.id}
+                          className="border-b border-border/50 hover:bg-background"
+                        >
+                          <td className="py-3 px-4">
+                            <div className="font-medium">
+                              {r.user?.name ?? "—"}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {r.user?.email}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">{r.origin}</td>
+                          <td className="py-3 px-4">{r.destination}</td>
+                          <td className="py-3 px-4">
+                            {period(r.startAt, r.endAt)}
+                          </td>
+                          <td className="py-3 px-4">
+                            <ReservationStatusBadge
+                              status={badgeStatus}
+                              className={statusChipClasses(chipLabel)}
+                            >
+                              {text}
+                            </ReservationStatusBadge>
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => onOpenDetails(r.id)}
+                              >
+                                <Eye className="mr-2 h-4 w-4" />
+                                Details
+                              </Button>
+
+                              {/* Aprovar apenas se PENDING */}
+                              {normalizedStatus === "PENDING" && (
+                                <Button
+                                  size="sm"
+                                  className="bg-[#1558E9] hover:bg-[#1558E9]/90"
+                                  onClick={() => onOpenApprove(r)}
+                                  disabled={loading.approve}
+                                >
+                                  <CheckCircle className="mr-2 h-4 w-4" />
+                                  Assign & Approve
+                                </Button>
+                              )}
+
+                              {/* Cancelar quando PENDING ou APPROVED */}
+                              {canCancel && (
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => onCancel(r.id)}
+                                  disabled={loading.cancel}
+                                >
+                                  Cancel
+                                </Button>
+                              )}
+
+                              {/* Excluir (RF10) — apenas ADMIN, botão só ícone em vermelho */}
+                              {canDelete && (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() =>
+                                    setDeleteModal({
+                                      open: true,
+                                      id: r.id,
+                                      label: deleteLabel,
+                                    })
+                                  }
+                                  disabled={loading.remove}
+                                  className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                                  aria-label="Delete reservation"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
               {errors.list && (
-                <p className="text-xs text-red-600 mt-3">{errors.list}</p>
+                <p className="mt-3 text-xs text-red-600">{errors.list}</p>
               )}
             </div>
           )}
@@ -368,7 +542,7 @@ export default function AdminApproverReservationsPage() {
 
           {viewing && (
             <div className="space-y-5">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
                   <Label className="text-sm text-muted-foreground">User</Label>
                   <div className="mt-1 font-medium">
@@ -383,13 +557,27 @@ export default function AdminApproverReservationsPage() {
                   <Label className="text-sm text-muted-foreground">
                     Status
                   </Label>
-                  <Badge className={chip(viewing.status)}>
-                    {viewing.status}
-                  </Badge>
+                  {(() => {
+                    const normalizedStatus = (
+                      viewing.status === "CANCELLED"
+                        ? "CANCELED"
+                        : viewing.status
+                    ) as BasicStatus;
+                    const { badgeStatus, chipLabel, text } =
+                      mapStatusPresentation(normalizedStatus);
+                    return (
+                      <ReservationStatusBadge
+                        status={badgeStatus}
+                        className={statusChipClasses(chipLabel)}
+                      >
+                        {text}
+                      </ReservationStatusBadge>
+                    );
+                  })()}
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
                   <Label className="text-sm text-muted-foreground">
                     Branch
@@ -408,7 +596,7 @@ export default function AdminApproverReservationsPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div>
                   <Label className="text-sm text-muted-foreground">
                     Origin
@@ -438,7 +626,7 @@ export default function AdminApproverReservationsPage() {
                   onClick={() => window.print()}
                   className="bg-[#1558E9] hover:bg-[#1558E9]/90"
                 >
-                  <Printer className="h-4 w-4 mr-2" />
+                  <Printer className="mr-2 h-4 w-4" />
                   Print
                 </Button>
               </div>
@@ -505,6 +693,48 @@ export default function AdminApproverReservationsPage() {
                 {loading.approve ? "Approving…" : "Approve"}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Remover (padrão igual ao delete-dialog.tsx) */}
+      <Dialog
+        open={deleteModal.open}
+        onOpenChange={(open) =>
+          !loading.remove &&
+          setDeleteModal((prev) => ({
+            ...prev,
+            open,
+          }))
+        }
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remover reserva</DialogTitle>
+            <DialogDescription>
+              Tem certeza que deseja remover{" "}
+              <strong>{deleteModal.label ?? "esta reserva"}</strong>? Esta ação
+              não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-4 flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() =>
+                setDeleteModal({ open: false, id: null, label: undefined })
+              }
+              disabled={loading.remove}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={onConfirmRemove}
+              disabled={loading.remove}
+            >
+              {loading.remove ? "Removendo..." : "Remover"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

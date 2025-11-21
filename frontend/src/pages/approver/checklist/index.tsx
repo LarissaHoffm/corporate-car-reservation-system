@@ -17,11 +17,22 @@ import { statusChipClasses } from "@/components/ui/status";
 import { useToast } from "@/components/ui/use-toast";
 
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+import { RefreshCcw } from "lucide-react";
+
+import {
   ChecklistsAPI,
   type ChecklistSubmissionPayloadItem,
 } from "@/lib/http/checklists";
 
 type Status = "Pendente" | "Aprovado" | "Rejeitado";
+type StatusFilter = "Todos" | Status;
 
 interface ChecklistRow {
   reservationId: string;
@@ -71,16 +82,16 @@ export default function ApproverChecklistsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [readOnlyView, setReadOnlyView] = useState(false);
 
-  // Carregar pendências / histórico do APPROVER 
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("Todos");
 
+  // Carregar pendências / histórico do APPROVER
   const loadRows = useCallback(async () => {
     setLoadingRows(true);
     try {
       const pending = await ChecklistsAPI.listPendingForApprover();
 
       const mapped: ChecklistRow[] = (pending ?? []).map((r) => {
-        const carLabel =
-          r.car?.model ?? (r.car?.plate ? r.car.plate : "—");
+        const carLabel = r.car?.model ?? (r.car?.plate ? r.car.plate : "—");
 
         const pickupDate =
           r.startAt && !Number.isNaN(new Date(r.startAt).getTime())
@@ -120,8 +131,12 @@ export default function ApproverChecklistsPage() {
     void loadRows();
   }, [loadRows]);
 
-  // Carregar checklist enviado pelo requester 
+  const filteredRows = useMemo(() => {
+    if (statusFilter === "Todos") return rows;
+    return rows.filter((row) => row.status === statusFilter);
+  }, [rows, statusFilter]);
 
+  // Carregar checklist enviado pelo requester
   async function loadChecklistForReservation(reservationId: string) {
     setLoadingChecklist(true);
     setUserItems([]);
@@ -133,10 +148,7 @@ export default function ApproverChecklistsPage() {
         reservationId,
       );
 
-      // Checklist enviado pelo usuário (USER_RETURN)
-      const userReturn = submissions.find(
-        (s) => s.kind === "USER_RETURN",
-      );
+      const userReturn = submissions.find((s) => s.kind === "USER_RETURN");
 
       if (!userReturn) {
         toast({
@@ -154,8 +166,6 @@ export default function ApproverChecklistsPage() {
       setUserItems(items);
       setCurrentTemplateId(userReturn.templateId ?? null);
 
-      // Se já existir uma validação anterior (histórico),
-      // carregamos notas/observações, se houver
       const approverValidation = submissions.find(
         (s) => s.kind === "APPROVER_VALIDATION",
       );
@@ -176,7 +186,6 @@ export default function ApproverChecklistsPage() {
   }
 
   // Handlers rows
-
   const handleValidateChecklist = (row: ChecklistRow) => {
     setSelected(row);
     setReadOnlyView(false);
@@ -195,12 +204,10 @@ export default function ApproverChecklistsPage() {
     setSelected(row);
     setRejectReason("");
     setShowRejectModal(true);
-    // Garantir que temos templateId + itens
     void loadChecklistForReservation(row.reservationId);
   };
 
-  //Confirmar aprovação 
-
+  // Confirmar aprovação
   const handleConfirmValidation = async () => {
     if (!selected || !currentTemplateId) {
       toast({
@@ -231,7 +238,6 @@ export default function ApproverChecklistsPage() {
           "A devolução do veículo foi validada com sucesso.",
       });
 
-      // Mantém o item na lista, apenas atualizando o status para "Aprovado"
       setRows((prev) =>
         prev.map((row) =>
           row.reservationId === selected.reservationId
@@ -257,8 +263,7 @@ export default function ApproverChecklistsPage() {
     }
   };
 
-  // Confirmar rejeição 
-
+  // Confirmar rejeição
   const handleSubmitRejection = async () => {
     if (!selected || !currentTemplateId) {
       toast({
@@ -289,7 +294,6 @@ export default function ApproverChecklistsPage() {
           "A devolução foi rejeitada e o solicitante poderá acompanhar o motivo na área de checklists.",
       });
 
-      // Mantém o item na lista, apenas atualizando o status para "Rejeitado"
       setRows((prev) =>
         prev.map((row) =>
           row.reservationId === selected.reservationId
@@ -316,8 +320,7 @@ export default function ApproverChecklistsPage() {
     }
   };
 
-  //Componentes auxiliares
-
+  // Auxiliares
   const headerSubtitle = useMemo(
     () =>
       readOnlyView
@@ -326,35 +329,55 @@ export default function ApproverChecklistsPage() {
     [readOnlyView],
   );
 
-  const hasRows = rows.length > 0;
+  const hasRows = filteredRows.length > 0;
 
   return (
     <RoleGuard allowedRoles={["APPROVER"]} requireAuth={false}>
       <div className="p-6 space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-foreground">
               Checklist Pendentes
             </h1>
             <p className="text-muted-foreground mt-1">
-              Validate the return checklist submitted by users.
+              Valide os checklists de devolução enviados pelos usuários.
             </p>
           </div>
 
-          <Button
-            variant="outline"
-            onClick={() => void loadRows()}
-            disabled={loadingRows}
-          >
-            {loadingRows ? "Loading…" : "Refresh"}
-          </Button>
+          <div className="flex items-center gap-3">
+            <Select
+              value={statusFilter}
+              onValueChange={(value) =>
+                setStatusFilter(value as StatusFilter)
+              }
+            >
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Filtrar por status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Todos">Todos</SelectItem>
+                <SelectItem value="Pendente">Pendente</SelectItem>
+                <SelectItem value="Aprovado">Aprovado</SelectItem>
+                <SelectItem value="Rejeitado">Rejeitado</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Button
+              variant="outline"
+              onClick={() => void loadRows()}
+              disabled={loadingRows}
+            >
+              <RefreshCcw className="w-4 h-4 mr-2" />
+              {loadingRows ? "Carregando…" : "Atualizar"}
+            </Button>
+          </div>
         </div>
 
         {/* Tabela */}
-        <Card className="border-border/50 shadow-sm">
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
+        <Card className="border-border/50 shadow-sm flex flex-col min-h-[420px] max-h-[calc(100vh-260px)]">
+          <CardContent className="p-0 flex-1 flex flex-col">
+            <div className="flex-1 overflow-x-auto overflow-y-auto">
               <table className="w-full">
                 <thead className="bg-card/50 border-b border-border/50">
                   <tr>
@@ -388,7 +411,7 @@ export default function ApproverChecklistsPage() {
                         colSpan={7}
                         className="py-6 px-4 text-sm text-muted-foreground text-center"
                       >
-                        Loading checklists…
+                        Carregando checklists…
                       </td>
                     </tr>
                   ) : !hasRows ? (
@@ -397,15 +420,15 @@ export default function ApproverChecklistsPage() {
                         colSpan={7}
                         className="py-6 px-4 text-sm text-muted-foreground text-center"
                       >
-                        No pending checklists found.
+                        Nenhum checklist encontrado para o filtro atual.
                       </td>
                     </tr>
                   ) : (
-                    rows.map((row, index) => (
+                    filteredRows.map((row, index) => (
                       <tr
                         key={row.reservationId}
                         className={
-                          index !== rows.length - 1
+                          index !== filteredRows.length - 1
                             ? "border-b border-border/50"
                             : ""
                         }
@@ -436,7 +459,9 @@ export default function ApproverChecklistsPage() {
                               <Button
                                 size="sm"
                                 className="bg-green-600 hover:bg-green-700 text-white"
-                                onClick={() => handleValidateChecklist(row)}
+                                onClick={() =>
+                                  handleValidateChecklist(row)
+                                }
                               >
                                 Approve
                               </Button>
@@ -454,7 +479,9 @@ export default function ApproverChecklistsPage() {
                                 size="sm"
                                 variant="outline"
                                 className="border-red-300 text-red-700 hover:bg-red-50"
-                                onClick={() => handleRejectChecklist(row)}
+                                onClick={() =>
+                                  handleRejectChecklist(row)
+                                }
                               >
                                 Reject
                               </Button>
@@ -518,7 +545,6 @@ export default function ApproverChecklistsPage() {
                 </p>
               ) : (
                 <>
-                  {/* Itens do checklist enviados pelo requester */}
                   <div className="space-y-3">
                     {userItems.map((item) => (
                       <div
@@ -537,7 +563,6 @@ export default function ApproverChecklistsPage() {
                     ))}
                   </div>
 
-                  {/* Notas do aprovador (read-only) */}
                   {observations && (
                     <div>
                       <h3 className="text-base font-medium text-foreground mb-2">
@@ -551,7 +576,6 @@ export default function ApproverChecklistsPage() {
                 </>
               )}
 
-              {/* Ações do modal */}
               <div className="flex justify-end gap-3 pt-2">
                 {readOnlyView ? (
                   <Button

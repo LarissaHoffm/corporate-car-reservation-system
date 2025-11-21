@@ -337,16 +337,20 @@ export class ReservationsController {
   }
 
   @Patch(':id/cancel')
-  @Roles('REQUESTER')
+  @Roles('REQUESTER', 'APPROVER', 'ADMIN')
   @Audit('RESERVATION_CANCEL', 'Reservation')
   @ApiOperation({
-    summary: 'Cancelar reserva (REQUESTER)',
-    description: 'Cancela uma reserva PENDING do próprio usuário.',
+    summary: 'Cancelar reserva',
+    description:
+      'Cancela reservas PENDING ou APPROVED. REQUESTER cancela apenas a própria reserva; APPROVER/ADMIN podem cancelar qualquer reserva do tenant.',
   })
   @ApiParam({ name: 'id', description: 'UUID da reserva', format: 'uuid' })
   @ApiOkResponse({ description: 'Reserva cancelada.' })
   @ApiBadRequestResponse({
-    description: 'Apenas reservas PENDING podem ser canceladas.',
+    description: 'Somente reservas PENDING ou APPROVED podem ser canceladas.',
+  })
+  @ApiConflictResponse({
+    description: 'Reserva já finalizada ou cancelada.',
   })
   @ApiNotFoundResponse({ description: 'Reserva não encontrada no tenant.' })
   cancel(
@@ -388,7 +392,8 @@ export class ReservationsController {
   @Audit('RESERVATION_DELETE', 'Reservation')
   @ApiOperation({
     summary: 'Excluir reserva (ADMIN)',
-    description: 'Remove uma reserva do tenant.',
+    description:
+      'Remove uma reserva do tenant (apenas ADMIN). Reservas COMPLETED não podem ser excluídas.',
   })
   @ApiParam({ name: 'id', description: 'UUID da reserva', format: 'uuid' })
   @ApiOkResponse({
@@ -400,13 +405,20 @@ export class ReservationsController {
       },
     },
   })
+  @ApiBadRequestResponse({
+    description: 'Não é possível excluir reservas concluídas.',
+  })
   @ApiNotFoundResponse({ description: 'Reserva não encontrada no tenant.' })
   remove(
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
     @Req() req: any,
   ) {
     return this.reservations.remove(
-      { tenantId: req.user.tenantId, userId: req.user.id },
+      {
+        tenantId: req.user.tenantId,
+        userId: req.user.id,
+        role: req.user.role,
+      },
       id,
     );
   }

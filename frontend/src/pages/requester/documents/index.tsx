@@ -80,80 +80,38 @@ function normalizeDocStatus(raw: any): "PENDING" | "APPROVED" | "REJECTED" {
 }
 
 /**
- * Calcula o status agregado de documentos de uma reserva:
- *
- * - Agrupa por `type`.
- * - Para cada tipo, considera a combinação de estados:
- *   - Se existir pelo menos 1 APPROVED → esse tipo é considerado aprovado,
- *     mesmo que tenha rejeitados antigos.
- *   - Se NÃO existir aprovado e existir REJECTED → esse tipo conta como
- *     "rejeitado" (PendingDocs).
- *   - Se existir PENDING → conta como InValidation.
- *
- * Regras finais:
- * - Se algum tipo tiver PENDING → "InValidation"
- * - Senão, se algum tipo tiver apenas REJECTED (sem APPROVED) → "PendingDocs"
- * - Senão, se algum tipo tiver APPROVED → "Validated"
- * - Senão → "Pending"
+ * Mesma regra do backend:
+ * - Agrupa por `type`
+ * - Considera SÓ o documento mais recente de cada tipo
  */
 function docStatusFromDocuments(docs: ApiDocument[]): DocStatus {
   if (!docs.length) {
     return "Pending";
   }
 
-  type Aggregated = {
-    hasPending: boolean;
-    hasApproved: boolean;
-    hasRejected: boolean;
-  };
-
-  const byType = new Map<string, Aggregated>();
+  let anyPending = false;
+  let anyApproved = false;
+  let anyRejected = false;
 
   for (const raw of docs as any[]) {
-    const type = (raw.type as string | undefined) ?? "__NO_TYPE__";
     const normStatus = normalizeDocStatus(raw.status);
 
-    const agg =
-      byType.get(type) ??
-      ({
-        hasPending: false,
-        hasApproved: false,
-        hasRejected: false,
-      } as Aggregated);
-
     if (normStatus === "APPROVED") {
-      agg.hasApproved = true;
-    } else if (normStatus === "REJECTED") {
-      agg.hasRejected = true;
-    } else {
-      agg.hasPending = true;
-    }
-
-    byType.set(type, agg);
-  }
-
-  let anyPending = false;
-  let anyRejected = false;
-  let anyApproved = false;
-
-  for (const agg of byType.values()) {
-    if (agg.hasPending) {
-      anyPending = true;
-    }
-    if (agg.hasApproved) {
       anyApproved = true;
-    }
-    // Só consideramos o tipo "rejeitado" se não houver approved para ele
-    if (!agg.hasApproved && agg.hasRejected) {
+    } else if (normStatus === "REJECTED") {
       anyRejected = true;
+    } else {
+      // tudo que não for APPROVED / REJECTED tratamos como pendente
+      anyPending = true;
     }
   }
 
   if (anyPending) return "InValidation";
-  if (anyRejected) return "PendingDocs";
   if (anyApproved) return "Validated";
+  if (anyRejected) return "PendingDocs";
   return "Pending";
 }
+
 
 function docStatusToChip(s: DocStatus): "Pendente" | "Aprovado" | "Rejeitado" {
   if (s === "Validated") return "Aprovado";
