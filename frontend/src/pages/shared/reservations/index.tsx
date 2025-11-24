@@ -91,7 +91,7 @@ function mapStatusPresentation(
   };
 }
 
-// código amigável da reserva, igual ao dashboard do approver
+// código amigável da reserva
 function makeFriendlyReservationCode(id: string): string {
   if (!id) return "RES-????????";
   const norm = id.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
