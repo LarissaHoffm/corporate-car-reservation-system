@@ -738,9 +738,7 @@ export class ReservationsService {
 
     if (!submissions.length) return false;
 
-    const hasUserReturn = submissions.some(
-      (s) => s.kind === 'USER_RETURN',
-    );
+    const hasUserReturn = submissions.some((s) => s.kind === 'USER_RETURN');
     if (!hasUserReturn) return false;
 
     const validations = submissions.filter(

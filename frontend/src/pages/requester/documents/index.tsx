@@ -112,6 +112,7 @@ function docStatusFromDocuments(docs: ApiDocument[]): DocStatus {
   return "Pending";
 }
 
+
 function docStatusToChip(s: DocStatus): "Pendente" | "Aprovado" | "Rejeitado" {
   if (s === "Validated") return "Aprovado";
   if (s === "PendingDocs") return "Rejeitado";
