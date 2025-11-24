@@ -45,7 +45,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-    # Migrate + seed; usa build se existir; senão fallback TS com **módulos locais**
     command: >
       sh -lc '
         set -e;
@@ -54,16 +53,18 @@ services:
         npx prisma db seed || true;
         TARGET="$( [ -f dist/main.js ] && echo dist/main.js || ( [ -f dist/src/main.js ] && echo dist/src/main.js ) || find dist -type f -name main.js | head -n1 )";
         if [ -n "$TARGET" ]; then
-          echo "▶️  Executando build: node $TARGET";
+          echo " Executando build: node $TARGET";
           exec node "$TARGET";
         fi;
-        echo "ℹ️  dist não encontrado — iniciando via TS runtime (local modules)";
+        echo " dist não encontrado — iniciando via TS runtime (local modules)";
         exec node -r ./node_modules/ts-node/register -r ./node_modules/tsconfig-paths/register src/main.ts
       '
     restart: unless-stopped
     logging:
       driver: json-file
-      options: { max-size: "10m", max-file: "3" }
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   web:
     build:
@@ -78,7 +79,9 @@ services:
     restart: unless-stopped
     logging:
       driver: json-file
-      options: { max-size: "10m", max-file: "3" }
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   proxy:
     image: caddy:2-alpine
@@ -87,8 +90,9 @@ services:
       api: { condition: service_started }
     ports:
       - "80:80"
+      - "443:443"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./Caddyfile.prod:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     restart: unless-stopped

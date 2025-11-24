@@ -1,0 +1,22 @@
+{
+    # email larissahoffmn@gmail.com
+}
+
+reservcar.app.br {
+    encode gzip
+
+    @api path /api/*
+    handle @api {
+        reverse_proxy api:3000
+    }
+
+    # Qualquer outra rota vai para o frontend
+    handle {
+        reverse_proxy web:5173
+    }
+
+    log {
+        output stdout
+        format console
+    }
+}
