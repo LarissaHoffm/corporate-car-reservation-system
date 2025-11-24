@@ -13,6 +13,7 @@ import { DocumentsModule } from './documents/documents.module';
 import { BranchesModule } from './branches/branches.module';
 import { DepartmentsModule } from './departments/departments.module';
 import { ChecklistsModule } from './checklists/checklists.module';
+import { ReportsModule } from './reports/reports.module';
 
 import { PrismaService } from './infra/prisma.service';
 import { AuditInterceptor } from './infra/audit/audit.interceptor';
@@ -35,6 +36,7 @@ import { MetricsController } from './infra/metrics/metrics.controller';
     BranchesModule,
     DepartmentsModule,
     ChecklistsModule,
+    ReportsModule,
   ],
   controllers: [
     MetricsController, 
