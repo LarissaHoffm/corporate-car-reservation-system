@@ -215,6 +215,7 @@ export interface SessionUser {
   mustChangePassword?: boolean;
 }
 
+
 export interface MeResponse extends SessionUser {}
 export interface LoginResponse {
   accessToken: string;
