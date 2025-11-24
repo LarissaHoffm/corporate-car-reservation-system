@@ -59,16 +59,14 @@ function normalizeAxiosError(error: AxiosError) {
   const apiMessage =
     (data && (data.message || data.error || data.title)) || null;
 
-  let message = apiMessage || error.message || "Erro inesperado. Tente novamente.";
+  let message =
+    apiMessage || error.message || "Erro inesperado. Tente novamente.";
 
   if (status === 401) {
-    message =
-      apiMessage ||
-      "Sua sessão expirou. Faça login novamente.";
+    message = apiMessage || "Sua sessão expirou. Faça login novamente.";
   } else if (status === 403) {
     message =
-      apiMessage ||
-      "Você não tem permissão para executar esta ação.";
+      apiMessage || "Você não tem permissão para executar esta ação.";
   } else if (!status) {
     message =
       "Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.";
@@ -217,7 +215,6 @@ export interface SessionUser {
   mustChangePassword?: boolean;
 }
 
-
 export interface MeResponse extends SessionUser {}
 export interface LoginResponse {
   accessToken: string;
@@ -288,5 +285,145 @@ export const AuthAPI = {
     );
     if (res.data?.accessToken) setAccessToken(res.data.accessToken);
     return res;
+  },
+};
+
+// ============  RELATÓRIOS ===============
+
+export type ReservationStatusType =
+  | "PENDING"
+  | "APPROVED"
+  | "CANCELED"
+  | "COMPLETED"
+  | "REJECTED";
+
+export type ReservationReportGroupBy = "none" | "user" | "car" | "branch";
+
+// Filtros aceitos em /reports/reservations e /reports/my-reservations
+export interface ReservationReportFilters {
+  userId?: string;
+  carId?: string;
+  branchId?: string;
+  status?: ReservationStatusType;
+  startDate?: string; // ISO (yyyy-MM-dd ou yyyy-MM-ddTHH:mm:ss)
+  endDate?: string; // ISO
+  groupBy?: ReservationReportGroupBy;
+  skip?: number;
+  take?: number;
+  top?: number;
+}
+
+// Shape básico da reserva retornada (espelha ReservationWithRelations do backend)
+export interface ReservationReportItem {
+  id: string;
+  tenantId: string;
+  branchId: string | null;
+  userId: string;
+  approverId: string | null;
+  carId: string | null;
+  origin: string;
+  destination: string;
+  startAt: string;
+  endAt: string;
+  status: ReservationStatusType;
+  purpose?: string | null;
+  approvedAt?: string | null;
+  canceledAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+
+  user?: {
+    id: string;
+    name: string | null;
+    email: string;
+  } | null;
+
+  approver?: {
+    id: string;
+    name: string | null;
+    email: string;
+  } | null;
+
+  car?: {
+    id: string;
+    plate: string;
+    model: string;
+  } | null;
+
+  branch?: {
+    id: string;
+    name: string;
+  } | null;
+}
+
+// Summary por usuário
+export interface UserReservationSummaryItem {
+  userId: string;
+  totalReservations: number;
+  user: {
+    id: string;
+    name: string | null;
+    email: string;
+  } | null;
+}
+
+// Summary por carro
+export interface CarReservationSummaryItem {
+  carId: string;
+  totalReservations: number;
+  car: {
+    id: string;
+    plate: string;
+    model: string;
+  } | null;
+}
+
+// Summary por filial
+export interface BranchReservationSummaryItem {
+  branchId: string;
+  totalReservations: number;
+  branch: {
+    id: string;
+    name: string;
+  } | null;
+}
+
+// Union do summary
+export type ReservationReportSummary =
+  | {
+      type: "user";
+      items: UserReservationSummaryItem[];
+    }
+  | {
+      type: "car";
+      items: CarReservationSummaryItem[];
+    }
+  | {
+      type: "branch";
+      items: BranchReservationSummaryItem[];
+    };
+
+// Resposta padrão dos endpoints de relatório
+export interface ReservationReportResponse {
+  total: number;
+  items: ReservationReportItem[];
+  summary: ReservationReportSummary | null;
+}
+
+// API para relatórios globais (ADMIN/APPROVER) e histórico pessoal (qualquer usuário)
+export const ReportsAPI = {
+  // Relatórios globais (ADMIN/APPROVER) → /reports/reservations
+  getReservationsReport: async (params: ReservationReportFilters = {}) => {
+    return api.get<ReservationReportResponse>("/reports/reservations", {
+      params,
+    });
+  },
+
+  // Histórico pessoal (REQUESTER/APPROVER/ADMIN) → /reports/my-reservations
+  getMyReservationsReport: async (params: ReservationReportFilters = {}) => {
+    const { userId: _ignoreUserId, ...rest } = params;
+    return api.get<ReservationReportResponse>("/reports/my-reservations", {
+      params: rest,
+    });
   },
 };

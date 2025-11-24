@@ -3,40 +3,174 @@ import {
   BarChart3,
   Users,
   Car,
-  Building,
   Calendar,
   Download,
 } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatsCard } from "@/components/ui/stats-card";
 import { RoleGuard } from "@/components/role-guard";
+import api from "@/lib/http/api";
+import { useToast } from "@/components/ui/use-toast";
+
+type MySummary = {
+  totalReservations: number;
+  pendingApproval: number;
+  completedTrips: number;
+  canceledReservations: number;
+};
+
+function formatNumber(n: number | null | undefined): string {
+  if (n === null || n === undefined) return "0";
+  return n.toString();
+}
+
+function parseFilenameFromDisposition(disposition?: string): string | null {
+  if (!disposition) return null;
+  const match = /filename="?([^"]+)"?/i.exec(disposition);
+  return match?.[1] ?? null;
+}
 
 export default function RequesterReportsPage() {
+  const { toast } = useToast();
+
+  const [summary, setSummary] = React.useState<MySummary | null>(null);
+  const [loadingSummary, setLoadingSummary] = React.useState<boolean>(true);
+  const [summaryError, setSummaryError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    async function loadSummary() {
+      try {
+        setLoadingSummary(true);
+        setSummaryError(null);
+        const res = await api.get<MySummary>("/reports/my-reservations/summary");
+        if (!cancelled) {
+          setSummary(res.data);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          const msg =
+            err?.userMessage ||
+            err?.message ||
+            "Não foi possível carregar o resumo de relatórios.";
+          setSummaryError(msg);
+        }
+      } finally {
+        if (!cancelled) setLoadingSummary(false);
+      }
+    }
+
+    loadSummary();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const downloadCsv = React.useCallback(
+    async (url: string, defaultName: string) => {
+      try {
+        const res = await api.get(url, {
+          responseType: "blob",
+        });
+
+        const blob = new Blob([res.data], {
+          type: "text/csv;charset=utf-8",
+        });
+
+        const disposition = res.headers["content-disposition"] as
+          | string
+          | undefined;
+        const filename =
+          parseFilenameFromDisposition(disposition) || defaultName;
+
+        const blobUrl = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = blobUrl;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(blobUrl);
+      } catch (err: any) {
+        const userMessage =
+          err?.userMessage ||
+          err?.message ||
+          "Não foi possível gerar o relatório.";
+        toast({
+          variant: "destructive",
+          title: "Erro ao exportar relatório",
+          description: userMessage,
+        });
+      }
+    },
+    [toast],
+  );
+
+  const handleExportRange = React.useCallback(
+    (range: string, defaultName: string) => {
+      void downloadCsv(
+        `/reports/my-reservations/export?range=${encodeURIComponent(range)}`,
+        defaultName,
+      );
+    },
+    [downloadCsv],
+  );
+
+  const handleExportCarUsage = React.useCallback(() => {
+    void downloadCsv(
+      `/reports/my-reservations/by-car/export?range=last-12-months`,
+      "my-car-usage-last-12-months.csv",
+    );
+  }, [downloadCsv]);
+
+  const total = summary?.totalReservations ?? 0;
+  const pending = summary?.pendingApproval ?? 0;
+  const completed = summary?.completedTrips ?? 0;
+  const canceled = summary?.canceledReservations ?? 0;
+
   return (
-    <RoleGuard allowedRoles={["REQUESTER"]} requireAuth={false}>
+    <RoleGuard allowedRoles={["REQUESTER"]} requireAuth>
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Reports</h1>
           <p className="text-muted-foreground">
-            Manage your corporate fleet reservations
+            Analyze your own corporate fleet reservations.
           </p>
+          {summaryError && (
+            <p className="mt-2 text-sm text-red-500">
+              {summaryError}
+            </p>
+          )}
         </div>
 
+        {/* Cards de resumo */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <StatsCard title="Total Reservations" value="32" icon={BarChart3} />
-          <StatsCard title="Active Reservations" value="5" icon={Car} />
-          <StatsCard title="Total Time" value="20h" icon={Calendar} />
-          <StatsCard title="Fleet Utilization" value="68%" icon={BarChart3} />
+          <StatsCard
+            title="Total Reservations"
+            value={loadingSummary ? "…" : formatNumber(total)}
+            icon={BarChart3}
+          />
+          <StatsCard
+            title="Pending Approval"
+            value={loadingSummary ? "…" : formatNumber(pending)}
+            icon={Calendar}
+          />
+          <StatsCard
+            title="Completed Trips"
+            value={loadingSummary ? "…" : formatNumber(completed)}
+            icon={BarChart3}
+          />
+          <StatsCard
+            title="Canceled Reservations"
+            value={loadingSummary ? "…" : formatNumber(canceled)}
+            icon={BarChart3}
+          />
         </div>
 
+        {/* Blocos de relatórios */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Reports by User */}
           <Card className="border-border/50 shadow-sm">
@@ -46,21 +180,94 @@ export default function RequesterReportsPage() {
                 Reports by User
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Analyze user metrics and spend by user.
+                Download your personal reservation history with preset periods.
               </p>
             </CardHeader>
             <CardContent className="space-y-3">
               <Button
                 variant="outline"
                 className="w-full justify-start border-border/50 hover:bg-blue-50 hover:border-blue-200 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 bg-transparent"
+                onClick={() =>
+                  handleExportRange(
+                    "last-30-days",
+                    "my-reservations-last-30-days.csv",
+                  )
+                }
               >
                 <Download className="h-4 w-4 mr-2 text-blue-600" />
-                Reservations by User (Last Quarter)
+                Last 30 Days Reservations
+              </Button>
+
+              <Button
+                variant="outline"
+                className="w-full justify-start border-border/50 hover:bg-blue-50 hover:border-blue-200 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 bg-transparent"
+                onClick={() =>
+                  handleExportRange(
+                    "last-quarter",
+                    "my-reservations-last-quarter.csv",
+                  )
+                }
+              >
+                <Download className="h-4 w-4 mr-2 text-blue-600" />
+                Last Quarter Reservations
+              </Button>
+
+              <Button
+                variant="outline"
+                className="w-full justify-start border-border/50 hover:bg-blue-50 hover:border-blue-200 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 bg-transparent"
+                onClick={() =>
+                  handleExportRange(
+                    "last-6-months",
+                    "my-reservations-last-6-months.csv",
+                  )
+                }
+              >
+                <Download className="h-4 w-4 mr-2 text-blue-600" />
+                Last 6 Months Reservations
+              </Button>
+
+              <Button
+                variant="outline"
+                className="w-full justify-start border-border/50 hover:bg-blue-50 hover:border-blue-200 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 bg-transparent"
+                onClick={() =>
+                  handleExportRange(
+                    "last-12-months",
+                    "my-reservations-last-12-months.csv",
+                  )
+                }
+              >
+                <Download className="h-4 w-4 mr-2 text-blue-600" />
+                Last 12 Months Reservations
+              </Button>
+
+              <Button
+                variant="outline"
+                className="w-full justify-start border-border/50 hover:bg-blue-50 hover:border-blue-200 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 bg-transparent"
+                onClick={() =>
+                  handleExportRange(
+                    "canceled-12-months",
+                    "my-canceled-reservations-last-12-months.csv",
+                  )
+                }
+              >
+                <Download className="h-4 w-4 mr-2 text-blue-600" />
+                Canceled Reservations (Last 12 Months)
+              </Button>
+
+              <Button
+                variant="outline"
+                className="w-full justify-start border-border/50 hover:bg-blue-50 hover:border-blue-200 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 bg-transparent"
+                onClick={() =>
+                  handleExportRange("all", "my-reservations-all.csv")
+                }
+              >
+                <Download className="h-4 w-4 mr-2 text-blue-600" />
+                All-time History (CSV)
               </Button>
             </CardContent>
           </Card>
 
-          {/* Reports by Car */}
+          {/* Reports by Car (uso pessoal) */}
           <Card className="border-border/50 shadow-sm">
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2 text-lg text-foreground">
@@ -68,137 +275,22 @@ export default function RequesterReportsPage() {
                 Reports by Car
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Manage, reservations, and utilization.
+                See how you used each car over the last year.
               </p>
             </CardHeader>
             <CardContent className="space-y-3">
               <Button
                 variant="outline"
                 className="w-full justify-start border-border/50 hover:bg-blue-50 hover:border-blue-200 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 bg-transparent"
+                onClick={handleExportCarUsage}
               >
                 <Download className="h-4 w-4 mr-2 text-blue-600" />
-                Reservations by Car (Last Quarter)
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Reports by Branch */}
-          <Card className="border-border/50 shadow-sm">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-2 text-lg text-foreground">
-                <Building className="h-5 w-5 text-blue-600" />
-                Reports by Branch
-              </CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Compare performance by branch.
-              </p>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Button
-                variant="outline"
-                className="w-full justify-start border-border/50 hover:bg-blue-50 hover:border-blue-200 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 bg-transparent"
-              >
-                <Download className="h-4 w-4 mr-2 text-blue-600" />
-                Reservations by Branch (Monthly)
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full justify-start border-border/50 hover:bg-blue-50 hover:border-blue-200 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 bg-transparent"
-              >
-                <Download className="h-4 w-4 mr-2 text-blue-600" />
-                Reservations by Branch (Quarterly)
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Reports by Period */}
-          <Card className="border-border/50 shadow-sm">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-2 text-lg text-foreground">
-                <Calendar className="h-5 w-5 text-blue-600" />
-                Reports by Period
-              </CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Time-based trends and insights.
-              </p>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <Button
-                variant="outline"
-                className="w-full justify-start border-border/50 hover:bg-card focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 bg-transparent"
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Last 30 Days Reservations
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full justify-start border-border/50 hover:bg-card focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 bg-transparent"
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Quarterly Trend Report
+                Usage by Car (Last 12 Months)
               </Button>
             </CardContent>
           </Card>
         </div>
 
-        <Card className="border-border/50 shadow-sm">
-          <CardContent className="pt-6">
-            <div className="flex flex-wrap items-center gap-4">
-              <Select>
-                <SelectTrigger className="w-[140px] border-border/50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                  <SelectValue placeholder="Car: All" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="bmw">BMW X5</SelectItem>
-                  <SelectItem value="toyota">Toyota Camry</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select>
-                <SelectTrigger className="w-[140px] border-border/50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                  <SelectValue placeholder="Branch: All" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="jlle">JLLE</SelectItem>
-                  <SelectItem value="cwb">CWB</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select>
-                <SelectTrigger className="w-[160px] border-border/50 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                  <SelectValue placeholder="Date Range:" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="30days">Last 30 Days</SelectItem>
-                  <SelectItem value="quarter">Last Quarter</SelectItem>
-                  <SelectItem value="year">Last Year</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <div className="flex gap-2 ml-auto">
-                <Button className="bg-blue-600 hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
-                  Apply Filters
-                </Button>
-                <Button
-                  variant="outline"
-                  className="border-border/50 hover:bg-card focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 bg-transparent"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Export PDF
-                </Button>
-                <Button
-                  variant="outline"
-                  className="border-border/50 hover:bg-card focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 bg-transparent"
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Export Excel
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </RoleGuard>
   );
