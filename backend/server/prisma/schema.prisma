@@ -124,6 +124,7 @@ model User {
   @@index([tenantId, role])
 }
 
+
 model Car {
   id String @id @default(uuid())
 

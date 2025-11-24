@@ -13,6 +13,10 @@ export type User = {
   branchId?: string | null;
   department?: string | null;
   phone?: string | null;
+
+  // Campo opcional retornado pelo backend; usado apenas para exibir avatar quando disponível
+  photoUrl?: string | null;
+
   createdAt?: string;
   updatedAt?: string;
   branch?: { id: string; name: string } | null;
@@ -54,9 +58,10 @@ export async function getUser(id: string) {
   return data;
 }
 
-/** Atualizar usuário (admin) */
+/** Atualizar usuário (admin / perfil) */
 export async function updateUser(
   id: string,
+  // payload aceita campos básicos do usuário (name, email, role, branchId, department, phone, status)
   payload: Partial<Omit<User, "id" | "createdAt" | "updatedAt" | "branch">>,
 ) {
   const { data } = await api.patch<User>(`/users/${id}`, payload);

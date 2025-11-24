@@ -31,17 +31,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogClose,
+  DialogDescription,
 } from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { statusChipClasses } from "@/components/ui/status";
@@ -550,9 +541,7 @@ export default function SharedGasStationsPage() {
                         key={s.id}
                         onClick={() => setSelectedStationId(s.id)}
                         className={`border-b border-gray-100 hover:bg-card/50 cursor-pointer ${
-                          selectedStationId === s.id
-                            ? "bg-blue-50/60"
-                            : ""
+                          selectedStationId === s.id ? "bg-blue-50/60" : ""
                         }`}
                       >
                         <td className="py-3 px-4 text-sm font-medium text-foreground">
@@ -593,7 +582,7 @@ export default function SharedGasStationsPage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              className="border-red-200 text-red-600 bg-transparent hover:bg-red-50"
+                              className="border-border/50 bg-transparent"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 askDelete(s);
@@ -631,9 +620,7 @@ export default function SharedGasStationsPage() {
                 {selectedStation && (
                   <p className="text-xs text-muted-foreground mt-1">
                     Visualizando:{" "}
-                    <span className="font-medium">
-                      {selectedStation.name}
-                    </span>
+                    <span className="font-medium">{selectedStation.name}</span>
                   </p>
                 )}
               </div>
@@ -924,30 +911,39 @@ export default function SharedGasStationsPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Dialog padrão de remoção */}
-        <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Excluir posto?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Esta ação não pode ser desfeita. O posto{" "}
-                <span className="font-medium">{toDelete?.name}</span> será
-                removido permanentemente.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setDeleteOpen(false)}>
-                Cancelar
-              </AlertDialogCancel>
-              <AlertDialogAction
-                onClick={confirmDelete}
-                className="bg-red-600 hover:bg-red-700 text-white"
+        {/* Dialog de remoção no mesmo padrão do DeleteUserDialog */}
+        <Dialog
+          open={deleteOpen}
+          onOpenChange={(o) => !loading && setDeleteOpen(o)}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Remover posto</DialogTitle>
+              <DialogDescription>
+                Tem certeza que deseja remover{" "}
+                <strong>{toDelete?.name ?? "este posto"}</strong>? Esta ação
+                não pode ser desfeita.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="mt-4 flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setDeleteOpen(false)}
+                disabled={!!loading}
               >
-                Excluir
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={confirmDelete}
+                disabled={!!loading}
+              >
+                {loading ? "Removendo..." : "Remover"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </RoleGuard>
   );

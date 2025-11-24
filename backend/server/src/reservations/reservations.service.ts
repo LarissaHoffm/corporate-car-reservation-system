@@ -630,7 +630,7 @@ export class ReservationsService {
     return 'PENDING';
   }
 
-    /**
+  /**
    * Agrega o status dos documentos de uma reserva de forma simples:
    *
    * - Se existir QUALQUER documento pendente (null / "PENDING") → "InValidation"
@@ -801,6 +801,38 @@ export class ReservationsService {
           } as any,
         },
       });
+    });
+  }
+
+  async listByCar(
+    actor: Pick<ActorBase, 'tenantId' | 'role' | 'userId'>,
+    carId: string,
+  ) {
+    if (actor.role === 'REQUESTER') {
+      throw new ForbiddenException(
+        'Apenas aprovadores ou administradores podem listar reservas por carro.',
+      );
+    }
+
+    return this.prisma.reservation.findMany({
+      where: {
+        tenantId: actor.tenantId,
+        carId,
+      },
+      orderBy: [
+        { startAt: 'desc' },
+        { createdAt: 'desc' },
+      ],
+      select: {
+        id: true,
+        origin: true,
+        destination: true,
+        startAt: true,
+        endAt: true,
+        status: true,
+        user: { select: { id: true, name: true, email: true } },
+        car: { select: { id: true, plate: true, model: true } },
+      },
     });
   }
 

@@ -32,22 +32,23 @@ import {
   ReservationsAPI,
   type Reservation,
 } from "@/lib/http/reservations";
+import { makeFriendlyReservationCode } from "@/lib/friendly-reservation-code";
 
-// Tipos locais 
+// Tipos locais
 
 type ChecklistRowStatus = "Pending" | "Validated" | "Rejected";
 
 type ChecklistRow = {
   id: string; // reservation id
   reservationId: string;
-  route: string;
+  displayId: string; // friendly reservation code
   car: string;
   date: string;
   status: ChecklistRowStatus;
 };
 
-
 type ApiReservation = Reservation & {
+  code?: string | null;
   car?: {
     model?: string | null;
     plate?: string | null;
@@ -56,7 +57,7 @@ type ApiReservation = Reservation & {
 
 type StatusFilter = "all" | "pending" | "validated" | "rejected";
 
-// Funções auxiliares 
+// Funções auxiliares
 
 /**
  * Normaliza a decisão de validação a partir de:
@@ -123,7 +124,7 @@ function checklistStatusToChip(
   return "Pendente";
 }
 
-//Page 
+// Page
 
 export default function RequesterChecklistPage() {
   const { toast } = useToast();
@@ -155,8 +156,7 @@ export default function RequesterChecklistPage() {
   const listRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Carregar reservas do usuário 
-
+  // Carregar reservas do usuário
   const loadRows = useCallback(async () => {
     setLoadingRows(true);
     try {
@@ -173,7 +173,7 @@ export default function RequesterChecklistPage() {
         // Não faz sentido mostrar reservas canceladas
         if (r.status === "CANCELED") continue;
 
-        // Só consideramos reservas aprovadas/completadas com carro vinculado,
+        // Só consideramos reservas aprovadas/completadas com carro vinculado
         if (!r.car || (!r.car.model && !r.car.plate)) continue;
 
         let subs: ChecklistSubmission[] = [];
@@ -196,10 +196,15 @@ export default function RequesterChecklistPage() {
           date = d.toLocaleDateString("pt-BR");
         }
 
+        const displayId = makeFriendlyReservationCode({
+          id: r.id,
+          code: r.code ?? null,
+        });
+
         result.push({
           id: r.id,
           reservationId: r.id,
-          route: `${r.origin} -> ${r.destination}`,
+          displayId,
           car: carLabel,
           date,
           status,
@@ -223,8 +228,7 @@ export default function RequesterChecklistPage() {
     void loadRows();
   }, [loadRows]);
 
-  //Carregar submissões quando a reserva selecionada mudar
-
+  // Carregar submissões quando a reserva selecionada mudar
   useEffect(() => {
     if (!selectedId) {
       setItems([]);
@@ -302,7 +306,6 @@ export default function RequesterChecklistPage() {
   }, [selectedId]);
 
   // Filtros em memória
-
   const carOptions = useMemo(() => {
     const set = new Set(rows.map((r) => r.car));
     return ["all", ...Array.from(set)];
@@ -329,13 +332,12 @@ export default function RequesterChecklistPage() {
           {
             id: "__placeholder__",
             reservationId: "—",
-            route: "—",
+            displayId: "—",
             car: "—",
             date: "—",
             status: "Pending",
           },
         ];
-
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -375,7 +377,6 @@ export default function RequesterChecklistPage() {
     setApproverNotes("");
     setPanelError(null);
   };
-
 
   return (
     <RoleGuard allowedRoles={["REQUESTER"]} requireAuth={false}>
@@ -462,7 +463,7 @@ export default function RequesterChecklistPage() {
                   {/* header */}
                   <div className="border-b border-border bg-card px-4 py-3">
                     <div className="grid grid-cols-5 gap-4 text-sm font-medium text-muted-foreground">
-                      <div>Route</div>
+                      <div>Reservation</div>
                       <div>Car</div>
                       <div>Date</div>
                       <div>Status</div>
@@ -488,7 +489,7 @@ export default function RequesterChecklistPage() {
                         >
                           <div className="grid grid-cols-5 items-center gap-4 text-sm">
                             <div className="font-medium text-foreground">
-                              {row.route}
+                              {row.displayId}
                             </div>
                             <div className="text-muted-foreground">
                               {row.car}
@@ -551,7 +552,7 @@ export default function RequesterChecklistPage() {
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <div className="h-3 w-3 rounded-full bg-muted-foreground/60" />
                       <span className="font-medium">
-                        ROUTE: {selected.route}
+                        RESERVATION: {selected.displayId}
                       </span>
                     </div>
                     <Badge

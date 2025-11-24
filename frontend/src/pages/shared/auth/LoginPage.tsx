@@ -159,7 +159,7 @@ export default function LoginPage() {
                   Need Help?
                 </p>
                 <Link
-                  to="/support"
+                  to="mailto:larissahoffds@gmail.com?subject=Suporte ReservCar&body=Olá, estou com problemas para acessar minha conta no ReservCar."
                   className="text-sm text-muted-foreground hover:text-[#1558E9] block focus:ring-2 focus:ring-[#1558E9] focus:ring-offset-2 rounded"
                 >
                   Contact our Support

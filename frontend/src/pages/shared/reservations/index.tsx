@@ -91,6 +91,14 @@ function mapStatusPresentation(
   };
 }
 
+// código amigável da reserva
+function makeFriendlyReservationCode(id: string): string {
+  if (!id) return "RES-????????";
+  const norm = id.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  const suffix = norm.slice(-8).padStart(8, "0");
+  return `RES-${suffix}`;
+}
+
 export default function AdminApproverReservationsPage() {
   const {
     items,
@@ -137,8 +145,13 @@ export default function AdminApproverReservationsPage() {
           if (normalizedStatus !== status) return false;
         }
         if (!term) return true;
+
+        const friendlyCode = makeFriendlyReservationCode(r.id);
+
         const hay =
-          `${r.id} ${r.origin ?? ""} ${r.destination ?? ""} ${r.user?.name ?? ""} ${r.user?.email ?? ""}`.toLowerCase();
+          `${r.id} ${friendlyCode} ${r.origin ?? ""} ${r.destination ?? ""} ${r.user?.name ?? ""} ${
+            r.user?.email ?? ""
+          }`.toLowerCase();
         return hay.includes(term);
       })
       .sort(
@@ -402,6 +415,7 @@ export default function AdminApproverReservationsPage() {
                   <thead>
                     <tr className="border-b border-border/50 text-muted-foreground">
                       <th className="py-3 px-4 text-left">User</th>
+                      <th className="py-3 px-4 text-left">Reservation</th>
                       <th className="py-3 px-4 text-left">Origin</th>
                       <th className="py-3 px-4 text-left">Destination</th>
                       <th className="py-3 px-4 text-left">Period</th>
@@ -443,6 +457,9 @@ export default function AdminApproverReservationsPage() {
                             <div className="text-xs text-muted-foreground">
                               {r.user?.email}
                             </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            {makeFriendlyReservationCode(r.id)}
                           </td>
                           <td className="py-3 px-4">{r.origin}</td>
                           <td className="py-3 px-4">{r.destination}</td>

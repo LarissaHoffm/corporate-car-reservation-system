@@ -21,6 +21,7 @@ export type AuthContextValue = {
     rememberMe?: boolean,
   ) => Promise<void>;
   logout: () => Promise<void>;
+  setUser: (user: SessionUser | null) => void;
 };
 
 const AuthCtx = createContext<AuthContextValue>({
@@ -28,6 +29,7 @@ const AuthCtx = createContext<AuthContextValue>({
   loading: true,
   login: async () => {},
   logout: async () => {},
+  setUser: () => {},
 });
 
 export const AuthProvider: React.FC<React.PropsWithChildren> = ({
@@ -100,7 +102,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({
   };
 
   const value = useMemo<AuthContextValue>(
-    () => ({ user, loading, login, logout }),
+    () => ({ user, loading, login, logout, setUser }),
     [user, loading],
   );
 

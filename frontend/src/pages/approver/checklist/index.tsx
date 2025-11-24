@@ -30,12 +30,14 @@ import {
   ChecklistsAPI,
   type ChecklistSubmissionPayloadItem,
 } from "@/lib/http/checklists";
+import { makeFriendlyReservationCode } from "@/lib/friendly-reservation-code";
 
 type Status = "Pendente" | "Aprovado" | "Rejeitado";
 type StatusFilter = "Todos" | Status;
 
 interface ChecklistRow {
-  reservationId: string;
+  reservationId: string;      // ID real (UUID)
+  reservationCode: string;    // ID amigável (RES-XXXX ou code)
   carModel: string;
   userName: string;
   pickupDate: string;
@@ -105,6 +107,10 @@ export default function ApproverChecklistsPage() {
 
         return {
           reservationId: r.id,
+          reservationCode: makeFriendlyReservationCode({
+            id: r.id,
+            code: (r as any).code ?? null,
+          }),
           carModel: carLabel,
           userName: r.requester?.name ?? r.requester?.email ?? "—",
           pickupDate,
@@ -382,7 +388,7 @@ export default function ApproverChecklistsPage() {
                 <thead className="bg-card/50 border-b border-border/50">
                   <tr>
                     <th className="text-left py-3 px-4 font-medium text-gray-700 text-sm">
-                      RESERVATION ID
+                      RESERVATION
                     </th>
                     <th className="text-left py-3 px-4 font-medium text-gray-700 text-sm">
                       CAR MODEL
@@ -434,7 +440,7 @@ export default function ApproverChecklistsPage() {
                         }
                       >
                         <td className="py-3 px-4 text-foreground font-medium">
-                          {row.reservationId}
+                          {row.reservationCode}
                         </td>
                         <td className="py-3 px-4 text-muted-foreground">
                           {row.carModel}
@@ -524,7 +530,7 @@ export default function ApproverChecklistsPage() {
               {selected && (
                 <div>
                   <h2 className="text-lg font-semibold text-foreground mb-2">
-                    Reservation #{selected.reservationId} —{" "}
+                    Reservation {selected.reservationCode} —{" "}
                     {selected.carModel}
                   </h2>
                   <p className="text-xs text-muted-foreground">

@@ -1,8 +1,6 @@
-// backend/server/prisma/seed.ts
 import {
   PrismaClient,
   Role,
-  CarStatus,
   ChecklistItemType,
   UserStatus,
 } from '@prisma/client';
@@ -10,226 +8,93 @@ import * as argon2 from 'argon2';
 
 const prisma = new PrismaClient();
 
-/* ============================
-   Utilidades p/ seed de Carros
-   ============================ */
-function randOf<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-function genPlate(): string {
-  // Formato Mercosul: ABC1D23
-  const L = () => String.fromCharCode(65 + Math.floor(Math.random() * 26));
-  const D = () => Math.floor(Math.random() * 10).toString();
-  return `${L()}${L()}${L()}${D()}${L()}${D()}${D()}`;
+/* ========== Helpers ========== */
+
+async function ensureTenant(name: string) {
+  return prisma.tenant.upsert({
+    where: { name },
+    update: {},
+    create: { name },
+  });
 }
 
-/* ==========================================
-   Seed de Carros (idempotente, por Branch)
-   - Garante >=2 por branch e >=6 no total
-   - Respeita @@unique([tenantId, plate])
-   - Usa apenas AVAILABLE/IN_USE/MAINTENANCE
-   ========================================== */
-async function seedCars() {
-  const branches = await prisma.branch.findMany({
-    select: { id: true, tenantId: true },
+async function ensureBranch(tenantId: string, name: string) {
+  return prisma.branch.upsert({
+    where: { tenantId_name: { tenantId, name } },
+    update: {},
+    create: { tenantId, name },
   });
-
-  if (branches.length === 0) {
-    console.warn('Nenhuma Branch encontrada. Pular seed de carros.');
-    return;
-  }
-
-  const MODELS = [
-    'Onix',
-    'HB20',
-    'Argo',
-    'Gol',
-    'Cronos',
-    'Corolla',
-    'City',
-    'Kwid',
-  ];
-  const COLORS = ['Prata', 'Branco', 'Preto', 'Cinza', 'Vermelho', 'Azul'];
-  const STATUSES: CarStatus[] = [
-    CarStatus.AVAILABLE,
-    CarStatus.IN_USE,
-    CarStatus.MAINTENANCE,
-  ];
-
-  // Garante ao menos 2 carros por branch
-  for (const br of branches) {
-    const existing = await prisma.car.count({
-      where: { tenantId: br.tenantId, branchId: br.id },
-    });
-    const toCreate = Math.max(0, 2 - existing);
-    if (toCreate === 0) continue;
-
-    const batch = Array.from({ length: toCreate }).map(() => ({
-      tenantId: br.tenantId,
-      branchId: br.id,
-      plate: genPlate(),
-      model: randOf(MODELS),
-      color: randOf(COLORS),
-      mileage: Math.floor(Math.random() * 50000), // 0–50k
-      status: randOf(STATUSES), // evitamos ACTIVE/INACTIVE aqui
-    }));
-
-    await prisma.car.createMany({ data: batch, skipDuplicates: true });
-    console.log(`Branch ${br.id}: +${toCreate} carro(s) criado(s).`);
-  }
-
-  // Garante total >= 6 (somando todas as branches)
-  const totalCars = await prisma.car.count();
-  if (totalCars < 6) {
-    const deficit = 6 - totalCars;
-    const br = branches[0];
-    const extras = Array.from({ length: deficit }).map(() => ({
-      tenantId: br.tenantId,
-      branchId: br.id,
-      plate: genPlate(),
-      model: randOf(MODELS),
-      color: randOf(COLORS),
-      mileage: Math.floor(Math.random() * 50000),
-      status: randOf(STATUSES),
-    }));
-    await prisma.car.createMany({ data: extras, skipDuplicates: true });
-    console.log(`Sistema: +${deficit} carro(s) extra(s) para atingir >= 6.`);
-  }
 }
 
-async function main() {
-  // Tenant
-  const tenant = await prisma.tenant.upsert({
-    where: { name: 'ReservCar' },
-    update: {},
-    create: { name: 'ReservCar' },
+async function ensureDepartment(
+  tenantId: string,
+  code: string,
+  name: string,
+) {
+  const existing = await prisma.department.findFirst({
+    where: { tenantId, code },
   });
 
-  // Branch
-  const branch = await prisma.branch.upsert({
-    where: { tenantId_name: { tenantId: tenant.id, name: 'Matriz' } },
-    update: {},
-    create: { name: 'Matriz', tenantId: tenant.id },
-  });
-
-  // Users
-  const [adminHash, approverHash, requesterHash] = await Promise.all([
-    argon2.hash('Admin123!', { type: argon2.argon2id }),
-    argon2.hash('Approver123!', { type: argon2.argon2id }),
-    argon2.hash('Requester123!', { type: argon2.argon2id }),
-  ]);
-
-  const admin = await prisma.user.upsert({
-    where: { email: 'admin@reservcar.com' },
-    update: {
-      passwordHash: adminHash,
-      role: Role.ADMIN,
-      status: UserStatus.ACTIVE,
-      tenantId: tenant.id,
-      branchId: branch.id,
-    },
-    create: {
-      email: 'admin@reservcar.com',
-      passwordHash: adminHash,
-      role: Role.ADMIN,
-      status: UserStatus.ACTIVE,
-      tenantId: tenant.id,
-      branchId: branch.id,
-      name: 'Admin',
-    },
-  });
-
-  const approver = await prisma.user.upsert({
-    where: { email: 'approver@reservcar.com' },
-    update: {
-      passwordHash: approverHash,
-      role: Role.APPROVER,
-      status: UserStatus.ACTIVE,
-      tenantId: tenant.id,
-      branchId: branch.id,
-    },
-    create: {
-      email: 'approver@reservcar.com',
-      passwordHash: approverHash,
-      role: Role.APPROVER,
-      status: UserStatus.ACTIVE,
-      tenantId: tenant.id,
-      branchId: branch.id,
-      name: 'Approver',
-    },
-  });
-
-  const requester = await prisma.user.upsert({
-    where: { email: 'requester@reservcar.com' },
-    update: {
-      passwordHash: requesterHash,
-      role: Role.REQUESTER,
-      status: UserStatus.ACTIVE,
-      tenantId: tenant.id,
-      branchId: branch.id,
-    },
-    create: {
-      email: 'requester@reservcar.com',
-      passwordHash: requesterHash,
-      role: Role.REQUESTER,
-      status: UserStatus.ACTIVE,
-      tenantId: tenant.id,
-      branchId: branch.id,
-      name: 'Requester',
-    },
-  });
-
-  // Car (fixo para referência)
-  const car = await prisma.car.upsert({
-    where: {
-      car_plate_tenant_unique: {
-        tenantId: tenant.id,
-        plate: 'ABC1D23',
-      },
-    },
-    update: {
-      model: 'Fiat Cronos',
-      color: 'Prata',
-      mileage: 12000,
-      status: CarStatus.AVAILABLE,
-      branchId: branch.id,
-    },
-    create: {
-      plate: 'ABC1D23',
-      model: 'Fiat Cronos',
-      color: 'Prata',
-      mileage: 12000,
-      status: CarStatus.AVAILABLE,
-      tenantId: tenant.id,
-      branchId: branch.id,
-    },
-  });
-
-  // Completa a base de carros (>=2 por branch e >=6 no total)
-  await seedCars();
-
-  // Station
-  let station = await prisma.station.findFirst({
-    where: { tenantId: tenant.id, name: 'Posto Central' },
-  });
-  if (!station) {
-    station = await prisma.station.create({
-      data: {
-        name: 'Posto Central',
-        address: 'Rua Principal, 100 - Centro',
-        tenantId: tenant.id,
-        branchId: branch.id,
-      },
-    });
+  if (existing) {
+    return { created: false, department: existing };
   }
 
-  // Checklist template
-  await prisma.checklistTemplate.upsert({
-    where: { tenantId_name: { tenantId: tenant.id, name: 'Retorno Padrão' } },
-    update: {},
-    create: {
-      tenantId: tenant.id,
-      name: 'Retorno Padrão',
+  const department = await prisma.department.create({
+    data: {
+      tenantId,
+      code,
+      name,
+    },
+  });
+
+  return { created: true, department };
+}
+
+async function ensureUser(opts: {
+  email: string;
+  name: string;
+  role: Role;
+  tenantId: string;
+  branchId: string;
+  password: string;
+}) {
+  const existing = await prisma.user.findUnique({
+    where: { email: opts.email },
+  });
+
+  if (existing) {
+    return { created: false, user: existing };
+  }
+
+  const passwordHash = await argon2.hash(opts.password, {
+    type: argon2.argon2id,
+  });
+
+  const user = await prisma.user.create({
+    data: {
+      email: opts.email,
+      name: opts.name,
+      role: opts.role,
+      status: UserStatus.ACTIVE,
+      tenantId: opts.tenantId,
+      branchId: opts.branchId,
+      passwordHash,
+    },
+  });
+
+  return { created: true, user };
+}
+
+async function ensureChecklistTemplate(tenantId: string, name: string) {
+  const existing = await prisma.checklistTemplate.findUnique({
+    where: { tenantId_name: { tenantId, name } },
+  });
+  if (existing) return { created: false, tpl: existing };
+
+  const tpl = await prisma.checklistTemplate.create({
+    data: {
+      tenantId,
+      name,
       items: {
         create: [
           {
@@ -261,17 +126,160 @@ async function main() {
     },
   });
 
-  console.log('✅ Seed concluído');
-  console.table([
-    { email: admin.email, role: admin.role, status: admin.status },
-    { email: approver.email, role: approver.role, status: approver.status },
-    { email: requester.email, role: requester.role, status: requester.status },
-  ]);
+  return { created: true, tpl };
+}
+
+/* ========== Catálogos (Branches & Departments) ========== */
+
+const BRANCH_NAMES: string[] = [
+  'Matriz',
+  'Rio Branco (AC)',
+  'Maceió (AL)',
+  'Macapá (AP)',
+  'Manaus (AM)',
+  'Salvador (BA)',
+  'Fortaleza (CE)',
+  'Brasília (DF)',
+  'Vitória (ES)',
+  'Goiânia (GO)',
+  'São Luís (MA)',
+  'Cuiabá (MT)',
+  'Campo Grande (MS)',
+  'Belo Horizonte (MG)',
+  'Belém (PA)',
+  'João Pessoa (PB)',
+  'Curitiba (PR)',
+  'Recife (PE)',
+  'Teresina (PI)',
+  'Rio de Janeiro (RJ)',
+  'Natal (RN)',
+  'Porto Alegre (RS)',
+  'Porto Velho (RO)',
+  'Boa Vista (RR)',
+  'Florianópolis (SC)',
+  'São Paulo (SP)',
+  'Aracaju (SE)',
+  'Palmas (TO)',
+];
+
+const DEPARTMENTS: { code: string; name: string }[] = [
+  { code: 'ADM', name: 'Administração' },
+  { code: 'FIN', name: 'Financeiro' },
+  { code: 'RHU', name: 'Recursos Humanos' },
+  { code: 'OPE', name: 'Operações' },
+  { code: 'COM', name: 'Comercial / Vendas' },
+  { code: 'MKT', name: 'Marketing' },
+  { code: 'LOG', name: 'Logística' },
+  { code: 'TEC', name: 'Tecnologia da Informação' },
+  { code: 'JUR', name: 'Jurídico' },
+];
+
+/* ========== Main ========== */
+
+async function main() {
+  const log: any[] = [];
+
+  // Tenant
+  const tenant = await ensureTenant('ReservCar');
+  log.push({ kind: 'tenant', name: tenant.name, action: 'KEEP/CREATE' });
+
+  // Branches
+  let matrizBranch: { id: string; name: string } | null = null;
+
+  for (const name of BRANCH_NAMES) {
+    const branch = await ensureBranch(tenant.id, name);
+    log.push({ kind: 'branch', name: branch.name, action: 'KEEP/CREATE' });
+    if (branch.name === 'Matriz') {
+      matrizBranch = branch;
+    }
+  }
+
+  if (!matrizBranch) {
+    matrizBranch = await ensureBranch(tenant.id, 'Matriz');
+  }
+
+  // Departments
+  for (const dep of DEPARTMENTS) {
+    const { created, department } = await ensureDepartment(
+      tenant.id,
+      dep.code,
+      dep.name,
+    );
+    log.push({
+      kind: 'department',
+      code: department.code,
+      action: created ? 'CREATE' : 'KEEP',
+    });
+  }
+
+  // Users padrão
+  const userSpecs: Array<{
+    email: string;
+    name: string;
+    role: Role;
+    password: string;
+  }> = [
+    {
+      email: 'admin@reservcar.com',
+      name: 'Admin',
+      role: Role.ADMIN,
+      password: 'Admin123!',
+    },
+    {
+      email: 'approver@reservcar.com',
+      name: 'Approver',
+      role: Role.APPROVER,
+      password: 'Approver123!',
+    },
+    {
+      email: 'requester@reservcar.com',
+      name: 'Requester',
+      role: Role.REQUESTER,
+      password: 'Requester123!',
+    },
+  ];
+
+  for (const spec of userSpecs) {
+    const { created, user } = await ensureUser({
+      ...spec,
+      tenantId: tenant.id,
+      branchId: matrizBranch!.id,
+    });
+    log.push({
+      kind: 'user',
+      email: user.email,
+      action: created ? 'CREATE' : 'KEEP',
+    });
+  }
+
+  // Checklist template padrão
+  {
+    const { created, tpl } = await ensureChecklistTemplate(
+      tenant.id,
+      'Retorno Padrão',
+    );
+    log.push({
+      kind: 'checklistTemplate',
+      name: tpl.name,
+      action: created ? 'CREATE' : 'KEEP',
+    });
+  }
+
+  const summary = log.reduce<Record<string, number>>((acc, r) => {
+    const key = `${r.kind}:${r.action}`;
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+
+  // Logs rápidos para debugging
+  console.log('✅ Seed (TS) concluído');
+  console.table(log);
+  console.table([summary]);
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Seed falhou:', e);
+    console.error('❌ Seed (TS) falhou:', e);
     process.exit(1);
   })
   .finally(async () => {

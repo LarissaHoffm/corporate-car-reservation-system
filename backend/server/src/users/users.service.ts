@@ -311,8 +311,53 @@ export class UsersService {
     return updated;
   }
 
+  /**
+   * SELF / ADMIN — atualizar apenas nome + telefone do próprio perfil.
+   * ADMIN pode atualizar qualquer usuário do tenant.
+   */
+  async updateProfile(
+    id: string,
+    dto: { name?: string; phone?: string },
+    ctx?: {
+      tenantId?: string | null;
+      actorId?: string | null;
+      actorRole?: Role | null;
+    },
+  ) {
+    const actorId = ctx?.actorId ?? null;
+    if (!actorId) {
+      throw new ForbiddenException('Sem permissão para atualizar este perfil.');
+    }
+
+    const where: any = { id };
+    if (ctx?.tenantId) where.tenantId = ctx.tenantId;
+
+    const user = await this.prisma.user.findFirst({
+      where,
+      select: { id: true, tenantId: true, role: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado');
+    }
+
+    const isAdmin = ctx?.actorRole === Role.ADMIN;
+    const isSelf = actorId === user.id;
+
+    if (!isAdmin && !isSelf) {
+      throw new ForbiddenException('Sem permissão para atualizar este perfil.');
+    }
+
+    const partial: any = {};
+    if (dto.name !== undefined) partial.name = dto.name;
+    if (dto.phone !== undefined) (partial as any).phone = dto.phone;
+
+    // Reaproveita toda a lógica de normalização do update()
+    return this.update(user.id, partial, { tenantId: user.tenantId });
+  }
+
   async findAll(tenantId?: string) {
-    return this.prisma.user.findMany({
+    const list = await this.prisma.user.findMany({
       where: tenantId ? { tenantId } : undefined,
       select: {
         id: true,
@@ -328,6 +373,8 @@ export class UsersService {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    return list;
   }
 
   async findOne(id: string, ctx?: { tenantId?: string }) {
@@ -348,6 +395,7 @@ export class UsersService {
       },
     });
     if (!u) throw new NotFoundException('Usuário não encontrado');
+
     return u;
   }
 

@@ -4,7 +4,7 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { PrismaService } from '../infra/prisma.service';
+import { PrismaService } from '../infra/prisma.service'; // mantém o caminho original
 import { JwtService } from '@nestjs/jwt';
 import type { Response, Request } from 'express';
 import * as argon2 from 'argon2';
@@ -201,6 +201,12 @@ export class AuthService {
         status: true,
         passwordHash: true,
         mustChangePassword: true,
+        branchId: true,
+        department: true,
+        phone: true,
+        branch: {
+          select: { id: true, name: true },
+        },
       },
     });
 
@@ -241,7 +247,15 @@ export class AuthService {
       role: user.role,
       status: user.status,
       mustChangePassword: user.mustChangePassword ?? false,
+      tenantId: user.tenantId,
+      branchId: user.branchId,
+      department: user.department,
+      phone: user.phone,
+      branch: user.branch
+        ? { id: user.branch.id, name: user.branch.name }
+        : null,
     };
+
     return { accessToken, user: safeUser };
   }
 
@@ -325,9 +339,16 @@ export class AuthService {
         status: true,
         tenantId: true,
         mustChangePassword: true,
+        branchId: true,
+        department: true,
+        phone: true,
+        branch: {
+          select: { id: true, name: true },
+        },
       },
     });
     if (!u) throw new UnauthorizedException();
+
     return u;
   }
 
@@ -358,6 +379,12 @@ export class AuthService {
         status: true,
         passwordHash: true,
         mustChangePassword: true,
+        branchId: true,
+        department: true,
+        phone: true,
+        branch: {
+          select: { id: true, name: true },
+        },
       },
     });
     if (!user) throw new UnauthorizedException('Usuário não encontrado');
@@ -430,6 +457,13 @@ export class AuthService {
       role: user.role,
       status: user.status,
       mustChangePassword: false,
+      tenantId: user.tenantId,
+      branchId: user.branchId,
+      department: user.department,
+      phone: user.phone,
+      branch: user.branch
+        ? { id: user.branch.id, name: user.branch.name }
+        : null,
     };
 
     return { accessToken, user: safeUser };

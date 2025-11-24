@@ -1,4 +1,3 @@
-// src/pages/requester/layout.tsx
 import * as React from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 
@@ -10,7 +9,6 @@ import { Car, Search, Sun, Moon, Bell, LogOut } from "lucide-react";
 import { SidebarNav } from "@/components/sidebar-nav";
 import { NotificationsOverlay } from "@/components/notifications-overlay";
 import { useTheme } from "@/components/providers/theme-provider";
-// ⬇️ troca: usar o hook real (garante re-render e redirect)
 import { useAuth } from "@/lib/auth";
 
 export default function RequesterLayout() {
@@ -45,7 +43,7 @@ export default function RequesterLayout() {
   async function handleLogout() {
     try {
       await logout(); // POST /auth/logout + limpa token em memória
-      clearFunctionalCaches(); // limpa caches funcionais do app (MVP)
+      clearFunctionalCaches();
     } finally {
       navigate("/login", { replace: true });
     }
@@ -125,7 +123,7 @@ export default function RequesterLayout() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={handleLogout} // ⬅️ só esta linha mudou
+              onClick={handleLogout} 
               className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
             >
               <LogOut className="h-4 w-4" />
