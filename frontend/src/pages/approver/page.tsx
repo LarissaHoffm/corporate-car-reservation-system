@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,152 +8,251 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar, FileCheck, Users, Eye } from "lucide-react";
 import { statusChipClasses } from "@/components/ui/status";
 
-type PendingReservation = {
+import useReservations from "@/hooks/use-reservations";
+import {
+  listDocumentsByReservation,
+  type Document as ApiDocument,
+} from "@/lib/http/documents";
+import {
+  ChecklistsAPI,
+  type PendingChecklistReservation,
+} from "@/lib/http/checklists";
+import type { Reservation } from "@/lib/http/reservations";
+import { makeFriendlyReservationCode } from "@/lib/friendly-reservation-code";
+
+type BasicStatus = "PENDING" | "APPROVED" | "CANCELED" | "COMPLETED";
+
+type PendingDocRow = {
   id: string;
-  car: string;
-  user: string;
-  pickupDate: string;
-  status: string;
+  reservationId: string;
+  reservationCode: string;
+  userName: string;
+  documentType: string;
+  uploadedAt?: string;
 };
 
-type PendingDocument = {
-  user: string;
-  documentType: string;
-  uploadedAt: string;
-};
+function normalizeReservationStatus(status: string): BasicStatus {
+  const s = status?.toString().toUpperCase() ?? "";
+  if (s === "PENDING") return "PENDING";
+  if (s === "APPROVED") return "APPROVED";
+  if (s === "COMPLETED") return "COMPLETED";
+  // CANCELED / CANCELLED / qualquer outra variação
+  return "CANCELED";
+}
+
+function normalizeDocStatus(raw: any): "PENDING" | "APPROVED" | "REJECTED" {
+  if (raw == null) return "PENDING";
+
+  const s = String(raw).toUpperCase();
+  if (s === "APPROVED" || s === "VALIDATED" || s === "APPROVE") {
+    return "APPROVED";
+  }
+  if (s === "REJECTED" || s === "REJECT") {
+    return "REJECTED";
+  }
+  return "PENDING";
+}
+
+function fmtDateTime(dt?: string) {
+  if (!dt) return "-";
+  try {
+    return new Date(dt).toLocaleString("pt-BR");
+  } catch {
+    return dt;
+  }
+}
 
 export default function ApproverDashboard() {
   const navigate = useNavigate();
+
+  const { items, loading, errors, refresh } = useReservations();
+
+  // carregar reservas (cards + tabela esquerda)
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const list = items ?? [];
+
+  // --- Pending / Approved (cards + tabela esquerda) ---
+  const pendingReservations: Reservation[] = useMemo(
+    () =>
+      list
+        .filter(
+          (r) => normalizeReservationStatus((r as any).status) === "PENDING",
+        )
+        .sort(
+          (a, b) =>
+            new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
+        ),
+    [list],
+  );
+
+  const approvedReservationsCount = useMemo(
+    () =>
+      list.filter(
+        (r) => normalizeReservationStatus((r as any).status) === "APPROVED",
+      ).length,
+    [list],
+  );
+
+  // --- Documentos aguardando validação (card + tabela direita) ---
+  const [pendingDocs, setPendingDocs] = useState<PendingDocRow[]>([]);
+  const [loadingDocs, setLoadingDocs] = useState(false);
+  const [docsError, setDocsError] = useState<string | undefined>();
+
+  useEffect(() => {
+    async function loadPendingDocs() {
+      if (!list.length) {
+        setPendingDocs([]);
+        return;
+      }
+
+      setLoadingDocs(true);
+      setDocsError(undefined);
+
+      try {
+        const perReservation = await Promise.all(
+          list.map(async (r) => {
+            try {
+              const docs: ApiDocument[] = await listDocumentsByReservation(
+                r.id,
+              );
+
+              const pendingForReservation = docs
+                .filter(
+                  (d) => normalizeDocStatus((d as any).status) === "PENDING",
+                )
+                .map<PendingDocRow>((doc) => {
+                  const uploadedAt =
+                    (doc as any).createdAt ??
+                    (doc as any).updatedAt ??
+                    undefined;
+
+                  return {
+                    id:
+                      (doc as any).id ??
+                      `${r.id}-${(doc as any).type ?? "DOC"}`,
+                    reservationId: r.id,
+                    reservationCode: makeFriendlyReservationCode({
+                      id: r.id,
+                      code: (r as any).code ?? null,
+                    }),
+                    userName: r.user?.name ?? "—",
+                    documentType: (doc as any).type ?? "Document",
+                    uploadedAt: uploadedAt,
+                  };
+                });
+
+              return pendingForReservation;
+            } catch {
+              return [] as PendingDocRow[];
+            }
+          }),
+        );
+
+        setPendingDocs(perReservation.flat());
+      } catch {
+        setDocsError("Não foi possível carregar documentos pendentes.");
+        setPendingDocs([]);
+      } finally {
+        setLoadingDocs(false);
+      }
+    }
+
+    void loadPendingDocs();
+  }, [list]);
+
+  const documentsToValidateCount = pendingDocs.length;
+
+  // --- Checklists pendentes para o approver (card) ---
+  const [pendingChecklists, setPendingChecklists] = useState<
+    PendingChecklistReservation[]
+  >([]);
+  const [loadingChecklists, setLoadingChecklists] = useState(false);
+  const [checklistsError, setChecklistsError] = useState<string | undefined>();
+
+  useEffect(() => {
+    async function loadPendingChecklists() {
+      setLoadingChecklists(true);
+      setChecklistsError(undefined);
+
+      try {
+        const rows = await ChecklistsAPI.listPendingForApprover();
+
+        // Usa o status agregado que o backend retorna hoje:
+        // status: "Pending" | "Validated" | "Rejected"
+        // (e se um dia vier checklistStatus separado, também cobre)
+        const filtered = rows.filter((r) => {
+          const raw =
+            (r as any).checklistStatus != null
+              ? (r as any).checklistStatus
+              : (r as any).status;
+
+          if (!raw) return false;
+          const s = String(raw).toUpperCase();
+          return s === "PENDING";
+        });
+
+        setPendingChecklists(filtered);
+      } catch {
+        setPendingChecklists([]);
+        setChecklistsError(
+          "Não foi possível carregar checklists pendentes para validação.",
+        );
+      } finally {
+        setLoadingChecklists(false);
+      }
+    }
+
+    void loadPendingChecklists();
+  }, []);
+
+  const pendingChecklistsCount = pendingChecklists.length;
 
   // Destinos centralizados
   const goToReservations = () => navigate("/approver/reservations");
   const goToDocuments = () => navigate("/approver/documents");
 
-  // Cards
+  // Cards usando valores reais
   const stats = useMemo(
     () => [
       {
         title: "Pending Reservations",
-        value: "2",
+        value: String(pendingReservations.length),
         icon: Calendar,
         color: "text-blue-600",
         to: "/approver/reservations?status=pending",
       },
       {
         title: "Approved Reservations",
-        value: "45",
+        value: String(approvedReservationsCount),
         icon: Calendar,
         color: "text-blue-600",
         to: "/approver/reservations?status=approved",
       },
       {
         title: "Documents to Validate",
-        value: "34",
+        value: String(documentsToValidateCount),
         icon: Users,
         color: "text-blue-600",
         to: "/approver/documents?status=pending",
       },
       {
-        title: "Ongoing Checklists",
-        value: "8",
+        title: "Checklists to Validate",
+        value: String(pendingChecklistsCount),
         icon: FileCheck,
         color: "text-blue-600",
         to: "/approver/checklist",
       },
     ],
-    [],
+    [
+      pendingReservations.length,
+      approvedReservationsCount,
+      documentsToValidateCount,
+      pendingChecklistsCount,
+    ],
   );
-
-  // Mock data
-  const pendingReservations: PendingReservation[] = [
-    {
-      id: "R2023001",
-      car: "Toyota Camry",
-      user: "Alice Johnson",
-      pickupDate: "2023-10-26",
-      status: "Pendente",
-    },
-    {
-      id: "R2023002",
-      car: "Honda Civic",
-      user: "Bob Williams",
-      pickupDate: "2023-10-27",
-      status: "Pendente",
-    },
-    {
-      id: "R2023003",
-      car: "Ford Focus",
-      user: "Charlie Brown",
-      pickupDate: "2023-10-28",
-      status: "Pendente",
-    },
-    {
-      id: "R2023004",
-      car: "Tesla Model 3",
-      user: "Diana Prince",
-      pickupDate: "2023-10-29",
-      status: "Pendente",
-    },
-    {
-      id: "R2023005",
-      car: "VW Golf",
-      user: "Eve Adams",
-      pickupDate: "2023-10-30",
-      status: "Pendente",
-    },
-    {
-      id: "R2023006",
-      car: "Chevrolet Onix",
-      user: "Peter Parker",
-      pickupDate: "2023-11-01",
-      status: "Pendente",
-    },
-    {
-      id: "R2023007",
-      car: "Renault Kwid",
-      user: "Natasha Romanoff",
-      pickupDate: "2023-11-02",
-      status: "Pendente",
-    },
-  ];
-
-  const documentsToValidate: PendingDocument[] = [
-    {
-      user: "Priya Singh",
-      documentType: "Insurance",
-      uploadedAt: "11 Sep 2025",
-    },
-    {
-      user: "Daniel Park",
-      documentType: "Registration",
-      uploadedAt: "10 Sep 2025",
-    },
-    {
-      user: "Alex Chen",
-      documentType: "Driver License",
-      uploadedAt: "09 Sep 2025",
-    },
-    {
-      user: "Priya Singh",
-      documentType: "Insurance",
-      uploadedAt: "08 Sep 2025",
-    },
-    {
-      user: "Daniel Park",
-      documentType: "Registration",
-      uploadedAt: "07 Sep 2025",
-    },
-    {
-      user: "Alex Chen",
-      documentType: "Driver License",
-      uploadedAt: "06 Sep 2025",
-    },
-    {
-      user: "Daniel Park",
-      documentType: "Registration",
-      uploadedAt: "05 Sep 2025",
-    },
-  ];
 
   return (
     <div className="space-y-6">
@@ -163,7 +262,7 @@ export default function ApproverDashboard() {
       </div>
 
       {/* Cards clicáveis */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
           <Card
             key={stat.title}
@@ -191,7 +290,7 @@ export default function ApproverDashboard() {
       </div>
 
       {/* Duas tabelas */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* LEFT: Pending Reservations */}
         <Card className="border-border/50 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-4">
@@ -202,81 +301,99 @@ export default function ApproverDashboard() {
               variant="outline"
               size="sm"
               className="text-[#1558E9] border-[#1558E9] hover:bg-[#1558E9]/5 bg-transparent"
-              onClick={goToReservations} // ← View All -> /approver/reservations
+              onClick={goToReservations}
             >
-              <Eye className="h-4 w-4 mr-2" />
+              <Eye className="mr-2 h-4 w-4" />
               View All
             </Button>
           </CardHeader>
           <CardContent className="pt-0">
             <div className="min-w-full overflow-x-auto">
-              {/* altura alinhada com a linha do sidebar */}
               <div className="h-[54vh] min-h-[22rem] overflow-y-auto rounded-md">
-                <table className="w-full">
-                  <thead className="sticky top-0 bg-background z-10">
-                    <tr className="border-b border-border/50">
-                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">
-                        RESERVA ID
-                      </th>
-                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">
-                        CAR MODEL
-                      </th>
-                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">
-                        USER
-                      </th>
-                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">
-                        PICK-UP DATE
-                      </th>
-                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">
-                        STATUS
-                      </th>
-                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">
-                        ACTIONS
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pendingReservations.map((r, i) => (
-                      <tr
-                        key={r.id}
-                        className={
-                          i !== pendingReservations.length - 1
-                            ? "border-b border-border/50"
-                            : ""
-                        }
-                      >
-                        <td className="py-3 px-4 text-sm font-medium text-foreground">
-                          {r.id}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-foreground">
-                          {r.car}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-foreground">
-                          {r.user}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-foreground">
-                          {r.pickupDate}
-                        </td>
-                        <td className="py-3 px-4">
-                          <Badge className={statusChipClasses(r.status)}>
-                            {r.status}
-                          </Badge>
-                        </td>
-                        <td className="py-3 px-4">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-border text-gray-700 hover:bg-card bg-transparent px-3 py-1 h-7 text-xs"
-                            onClick={goToReservations} // ← cada "View" vai para /approver/reservations
-                          >
-                            <Eye className="h-3.5 w-3.5 mr-1.5" />
-                            View
-                          </Button>
-                        </td>
+                {loading.list ? (
+                  <div className="px-4 py-6 text-sm text-muted-foreground">
+                    Loading pending reservations…
+                  </div>
+                ) : pendingReservations.length === 0 ? (
+                  <div className="px-4 py-6 text-sm text-muted-foreground">
+                    No pending reservations at the moment.
+                  </div>
+                ) : (
+                  <table className="w-full">
+                    <thead className="sticky top-0 z-10 bg-background">
+                      <tr className="border-b border-border/50">
+                        <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                          RESERVATION
+                        </th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                          CAR MODEL
+                        </th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                          USER
+                        </th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                          PICK-UP DATE
+                        </th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                          STATUS
+                        </th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                          ACTIONS
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {pendingReservations.map((r, i) => (
+                        <tr
+                          key={r.id}
+                          className={
+                            i !== pendingReservations.length - 1
+                              ? "border-b border-border/50"
+                              : ""
+                          }
+                        >
+                          <td className="px-4 py-3 text-sm font-medium text-foreground">
+                            {makeFriendlyReservationCode({
+                              id: r.id,
+                              code: (r as any).code ?? null,
+                            })}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-foreground">
+                            {r.car?.model ?? "—"}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-foreground">
+                            {r.user?.name ?? "—"}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-foreground">
+                            {fmtDateTime(r.startAt)}
+                          </td>
+                          <td className="px-4 py-3">
+                            <Badge className={statusChipClasses("Pendente")}>
+                              Pendente
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-3">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-border text-gray-700 hover:bg-card bg-transparent px-3 py-1 h-7 text-xs"
+                              onClick={goToReservations}
+                            >
+                              <Eye className="mr-1.5 h-3.5 w-3.5" />
+                              View
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {errors.list && !loading.list && (
+                  <p className="px-4 pb-3 pt-1 text-xs text-red-600">
+                    {errors.list}
+                  </p>
+                )}
               </div>
             </div>
           </CardContent>
@@ -292,66 +409,88 @@ export default function ApproverDashboard() {
               variant="outline"
               size="sm"
               className="text-[#1558E9] border-[#1558E9] hover:bg-[#1558E9]/5 bg-transparent"
-              onClick={goToDocuments} // ← View All -> /approver/documents
+              onClick={goToDocuments}
             >
-              <Eye className="h-4 w-4 mr-2" />
+              <Eye className="mr-2 h-4 w-4" />
               View All
             </Button>
           </CardHeader>
           <CardContent className="pt-0">
             <div className="min-w-full overflow-x-auto">
               <div className="h-[54vh] min-h-[22rem] overflow-y-auto rounded-md">
-                <table className="w-full">
-                  <thead className="sticky top-0 bg-background z-10">
-                    <tr className="border-b border-border/50">
-                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">
-                        USER
-                      </th>
-                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">
-                        DOCUMENT
-                      </th>
-                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">
-                        UPLOADED
-                      </th>
-                      <th className="text-left py-3 px-4 font-medium text-muted-foreground text-sm">
-                        ACTIONS
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {documentsToValidate.map((doc, i) => (
-                      <tr
-                        key={`${doc.user}-${i}`}
-                        className={
-                          i !== documentsToValidate.length - 1
-                            ? "border-b border-border/50"
-                            : ""
-                        }
-                      >
-                        <td className="py-3 px-4 text-sm text-foreground">
-                          {doc.user}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-foreground">
-                          {doc.documentType}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-muted-foreground">
-                          {doc.uploadedAt}
-                        </td>
-                        <td className="py-3 px-4">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-border text-gray-700 hover:bg-card bg-transparent px-3 py-1 h-7 text-xs"
-                            onClick={goToDocuments} // ← cada "View" vai para /approver/documents
-                          >
-                            <Eye className="h-3.5 w-3.5 mr-1.5" />
-                            View
-                          </Button>
-                        </td>
+                {loadingDocs ? (
+                  <div className="px-4 py-6 text-sm text-muted-foreground">
+                    Loading documents…
+                  </div>
+                ) : pendingDocs.length === 0 ? (
+                  <div className="px-4 py-6 text-sm text-muted-foreground">
+                    No documents waiting for validation.
+                  </div>
+                ) : (
+                  <table className="w-full">
+                    <thead className="sticky top-0 z-10 bg-background">
+                      <tr className="border-b border-border/50">
+                        <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                          USER
+                        </th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                          DOCUMENT
+                        </th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                          UPLOADED
+                        </th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                          ACTIONS
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {pendingDocs.map((doc, i) => (
+                        <tr
+                          key={doc.id}
+                          className={
+                            i !== pendingDocs.length - 1
+                              ? "border-b border-border/50"
+                              : ""
+                          }
+                        >
+                          <td className="px-4 py-3 text-sm text-foreground">
+                            {doc.userName}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-foreground">
+                            {doc.documentType}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-muted-foreground">
+                            {fmtDateTime(doc.uploadedAt)}
+                          </td>
+                          <td className="px-4 py-3">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-border text-gray-700 hover:bg-card bg-transparent px-3 py-1 h-7 text-xs"
+                              onClick={goToDocuments}
+                            >
+                              <Eye className="mr-1.5 h-3.5 w-3.5" />
+                              View
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+
+                {docsError && !loadingDocs && (
+                  <p className="px-4 pb-3 pt-1 text-xs text-red-600">
+                    {docsError}
+                  </p>
+                )}
+
+                {checklistsError && !loadingChecklists && (
+                  <p className="px-4 pb-3 pt-1 text-xs text-red-600">
+                    {checklistsError}
+                  </p>
+                )}
               </div>
             </div>
           </CardContent>

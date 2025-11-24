@@ -34,10 +34,15 @@ async function bootstrap() {
 
   app.use(correlationId());
 
+  // ---------- UPLOADS (documentos em geral) ----------
   const uploadsDir = join(process.cwd(), process.env.UPLOADS_DIR || 'uploads');
+  // garante a pasta raiz de uploads (documentos, checklists, etc.)
   mkdirSync(uploadsDir, { recursive: true });
+
+  // serve arquivos estáticos em /uploads
   app.use('/uploads', express.static(uploadsDir));
 
+  // ---------- CORS ----------
   const originSet = new Set<string>([
     'http://localhost',
     'http://localhost:5173',

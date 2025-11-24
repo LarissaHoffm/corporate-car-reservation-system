@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { api } from "@/lib/http/api";
+import { makeFriendlyReservationCode } from "@/lib/friendly-reservation-code";
 
 /* ----------------------------- Tipos locais ----------------------------- */
 
@@ -36,6 +37,7 @@ type Doc = {
   status: DocStatus;
   pages: number;
   reservationId: string;
+  reservationCode: string;
   route: string;
 };
 
@@ -55,6 +57,7 @@ type ApiInboxDocument = {
       name: string | null;
       email: string;
     } | null;
+    code?: string | null;
   } | null;
 };
 
@@ -140,6 +143,15 @@ export default function SharedDocumentsPage() {
             ? `${d.reservation.origin} → ${d.reservation.destination}`
             : "—";
 
+          const reservationId = d.reservation?.id ?? "";
+          const reservationCode =
+            reservationId
+              ? makeFriendlyReservationCode({
+                  id: reservationId,
+                  code: d.reservation?.code ?? null,
+                })
+              : "—";
+
           return {
             id: d.id,
             user: userName,
@@ -147,7 +159,8 @@ export default function SharedDocumentsPage() {
             uploadDate,
             status: mapStatusToDocStatus(d.status),
             pages,
-            reservationId: d.reservation?.id ?? "",
+            reservationId,
+            reservationCode,
             route: routeLabel,
           };
         });
@@ -449,7 +462,7 @@ export default function SharedDocumentsPage() {
                           {doc.documentType}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          Route: {doc.route}
+                          Reservation: {doc.reservationCode}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {doc.uploadDate}
@@ -515,7 +528,7 @@ export default function SharedDocumentsPage() {
                         {selectedDocument.documentType}
                       </h3>
                       <p className="text-xs text-muted-foreground">
-                        Route: {selectedDocument.route}
+                        Reservation: {selectedDocument.reservationCode}
                       </p>
                     </div>
                     <Badge
@@ -620,6 +633,17 @@ export default function SharedDocumentsPage() {
               )}
             </Card>
           </div>
+        </div>
+
+        {/* Aviso LGPD em toda a largura, no rodapé da página */}
+        <div className="mt-2 rounded-md border border-border/40 bg-muted/10 px-4 py-3">
+          <p className="text-xs text-muted-foreground text-center">
+            Os documentos exibidos nesta tela contêm informações pessoais de
+            colaboradores e devem ser utilizados apenas para fins de validação
+            de reservas e gestão da frota. Não baixe, compartilhe ou utilize
+            esses arquivos fora deste contexto. Todo acesso é registrado para
+            fins de auditoria.
+          </p>
         </div>
       </div>
     </RoleGuard>

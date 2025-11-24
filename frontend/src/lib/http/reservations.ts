@@ -1,7 +1,6 @@
 import api from "@/lib/http/api";
 import type { Station } from "@/lib/http/stations";
 
-/** Tipos mínimos usados no front */
 export type ReservationStatus =
   | "PENDING"
   | "APPROVED"
@@ -38,14 +37,27 @@ export interface ReservationApproveInput {
   carId: string;
 }
 
-/** Alguns endpoints do back podem retornar array OU { items, total, ... }.
- *  Esta função normaliza para sempre entregar um array de Reservation.
+/**
+ * Alguns endpoints do back podem retornar array OU { items, total, ... }.
+ * Esta função normaliza para sempre entregar um array de Reservation.
  */
 function normalizeList(payload: any): Reservation[] {
   if (Array.isArray(payload)) return payload as Reservation[];
-  if (payload && Array.isArray(payload.items))
+  if (payload && Array.isArray(payload.items)) {
     return payload.items as Reservation[];
+  }
   return [];
+}
+
+/**
+ * Histórico de reservas por carro (usado na tela de detalhes do carro).
+ * Garante que funcione tanto com retorno em array quanto em { items }.
+ */
+export async function listReservationsByCar(
+  carId: string,
+): Promise<Reservation[]> {
+  const { data } = await api.get(`/reservations/car/${carId}`);
+  return normalizeList(data);
 }
 
 export const ReservationsAPI = {
@@ -95,7 +107,7 @@ export const ReservationsAPI = {
     await api.delete(`/reservations/${id}`);
   },
 
-  /** Postos "no trajeto" da reserva (RF19) */
+  /** Postos "no trajeto" da reserva */
   async getStationsOnRoute(id: string): Promise<Station[]> {
     const { data } = await api.get(`/reservations/${id}/stations-on-route`);
     if (Array.isArray(data)) {

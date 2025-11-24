@@ -163,8 +163,7 @@ api.interceptors.response.use(
           // sessão expirada/refresh falhou → devolve erro normalizado 401
           return Promise.reject(
             normalizeAxiosError(
-              (error as AxiosError) ??
-                (e as AxiosError),
+              (error as AxiosError) ?? (e as AxiosError),
             ),
           );
         }
@@ -198,6 +197,8 @@ api.interceptors.response.use(
   },
 );
 
+// ---------- Tipos de usuário / Auth ----------
+
 export type UserRole = "ADMIN" | "APPROVER" | "REQUESTER";
 export type UserStatus = "ACTIVE" | "INACTIVE";
 
@@ -208,8 +209,14 @@ export interface SessionUser {
   role: UserRole;
   status: UserStatus;
   branchId?: string | null;
+  tenantId?: string | null;
+  department?: string | null;
+  phone?: string | null;
+  photoUrl?: string | null;
+  branch?: { id: string; name: string } | null;
   mustChangePassword?: boolean;
 }
+
 
 export interface MeResponse extends SessionUser {}
 export interface LoginResponse {
@@ -218,6 +225,7 @@ export interface LoginResponse {
 }
 
 // ---------- API de Auth ----------
+
 export const AuthAPI = {
   // Seta o cookie de CSRF
   csrf: async () => api.get<void>("/auth/csrf"),

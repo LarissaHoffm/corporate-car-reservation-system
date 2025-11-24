@@ -1,4 +1,3 @@
-// frontend/src/pages/requester/reservations/upload.tsx
 import * as React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
@@ -330,6 +329,14 @@ export default function RequesterReservationUpload() {
           )}
         </CardContent>
       </Card>
+
+      {/* Aviso LGPD em toda a largura, rodapé da página */}
+      <div className="mt-2 rounded-md border border-border/40 bg-muted/10 px-4 py-3">
+        <p className="text-xs text-muted-foreground text-center">
+          Seus documentos são usados apenas para validação da reserva,
+          armazenados com segurança e acessados somente por usuarios autorizados.
+        </p>
+      </div>
     </div>
   );
 }

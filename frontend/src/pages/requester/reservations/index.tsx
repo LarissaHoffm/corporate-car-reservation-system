@@ -34,13 +34,13 @@ import {
   ChecklistsAPI,
   type ChecklistSubmission,
 } from "@/lib/http/checklists";
+import { makeFriendlyReservationCode } from "@/lib/friendly-reservation-code";
 
 type QuickRange = "TODAY" | "7D" | "30D" | "ALL";
 
 // Status agregados de documentos
 type DocStatus = "Pending" | "InValidation" | "PendingDocs" | "Validated";
 type ChecklistDecision = "APPROVED" | "REJECTED" | null;
-
 
 function normalizeDocStatus(raw: any): "PENDING" | "APPROVED" | "REJECTED" {
   if (raw == null) return "PENDING";
@@ -140,7 +140,6 @@ function normalizeChecklistDecision(source: any): ChecklistDecision {
   if (s === "REJECTED") return "REJECTED";
   return null;
 }
-
 
 export default function RequesterReservationsListPage() {
   const navigate = useNavigate();
@@ -488,6 +487,7 @@ export default function RequesterReservationsListPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border/50 text-muted-foreground">
+                      <th className="px-4 py-3 text-left">Reservation</th>
                       <th className="px-4 py-3 text-left">Origin</th>
                       <th className="px-4 py-3 text-left">Destination</th>
                       <th className="px-4 py-3 text-left">Period</th>
@@ -524,6 +524,9 @@ export default function RequesterReservationsListPage() {
                           key={r.id}
                           className="border-b border-border/50 hover:bg-background"
                         >
+                          <td className="px-4 py-3 font-medium">
+                            {makeFriendlyReservationCode(r.id)}
+                          </td>
                           <td className="px-4 py-3">{r.origin}</td>
                           <td className="px-4 py-3">{r.destination}</td>
                           <td className="px-4 py-3">
@@ -597,4 +600,3 @@ export default function RequesterReservationsListPage() {
     </div>
   );
 }
-

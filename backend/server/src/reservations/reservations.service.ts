@@ -806,6 +806,38 @@ export class ReservationsService {
     });
   }
 
+  async listByCar(
+    actor: Pick<ActorBase, 'tenantId' | 'role' | 'userId'>,
+    carId: string,
+  ) {
+    if (actor.role === 'REQUESTER') {
+      throw new ForbiddenException(
+        'Apenas aprovadores ou administradores podem listar reservas por carro.',
+      );
+    }
+
+    return this.prisma.reservation.findMany({
+      where: {
+        tenantId: actor.tenantId,
+        carId,
+      },
+      orderBy: [
+        { startAt: 'desc' },
+        { createdAt: 'desc' },
+      ],
+      select: {
+        id: true,
+        origin: true,
+        destination: true,
+        startAt: true,
+        endAt: true,
+        status: true,
+        user: { select: { id: true, name: true, email: true } },
+        car: { select: { id: true, plate: true, model: true } },
+      },
+    });
+  }
+
   async remove(
     actor: Pick<ActorBase, 'tenantId' | 'userId' | 'role'>,
     id: string,

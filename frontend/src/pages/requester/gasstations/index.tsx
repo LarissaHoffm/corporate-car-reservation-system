@@ -21,6 +21,7 @@ import {
   type Reservation as ApiReservation,
 } from "@/lib/http/reservations";
 import type { Station as ApiStation } from "@/lib/http/stations";
+import { makeFriendlyReservationCode } from "@/lib/friendly-reservation-code";
 
 // ==================== CONSTS / TIPOS ====================
 
@@ -327,8 +328,8 @@ export default function GasStationsPage() {
                   <SelectContent>
                     {reservations.map((r) => (
                       <SelectItem key={r.id} value={r.id}>
-                        #{r.id.slice(0, 8)} — {r.carLabel} — {r.origin} →{" "}
-                        {r.destination}
+                        {makeFriendlyReservationCode(r.id)} — {r.carLabel} —{" "}
+                        {r.origin} → {r.destination}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -337,7 +338,9 @@ export default function GasStationsPage() {
 
               <div className="text-sm font-medium text-blue-600">
                 RESERVATION:{" "}
-                {selectedReservation ? `#${selectedReservation.id}` : "-"}
+                {selectedReservation
+                  ? makeFriendlyReservationCode(selectedReservation.id)
+                  : "-"}
               </div>
             </div>
 

@@ -430,6 +430,31 @@ export class ReservationsController {
     );
   }
 
+  @Get('car/:carId')
+  @Roles('APPROVER', 'ADMIN')
+  @ApiOperation({
+    summary: 'Listar reservas vinculadas a um carro',
+    description:
+      'Retorna todas as reservas (qualquer status) associadas a um carro específico do tenant.',
+  })
+  @ApiParam({ name: 'carId', description: 'UUID do carro', format: 'uuid' })
+  @ApiOkResponse({
+    description: 'Lista de reservas do carro.',
+  })
+  listByCar(
+    @Param('carId', new ParseUUIDPipe({ version: '4' })) carId: string,
+    @Req() req: any,
+  ) {
+    return this.reservations.listByCar(
+      {
+        tenantId: req.user.tenantId,
+        userId: req.user.id,
+        role: req.user.role,
+      },
+      carId,
+    );
+  }
+
   @Delete(':id')
   @Roles('ADMIN')
   @Audit('RESERVATION_DELETE', 'Reservation')

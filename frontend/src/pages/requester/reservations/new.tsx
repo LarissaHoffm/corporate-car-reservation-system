@@ -17,6 +17,12 @@ import {
 import useReservations from "@/hooks/use-reservations";
 import { useToast } from "@/components/ui/use-toast";
 
+// mesma leitura da chave usada em Gas Stations
+const MAPS_API_KEY =
+  (import.meta as any).env?.VITE_GOOGLE_MAPS_EMBED_KEY ||
+  (import.meta as any).env?.VITE_GOOGLE_MAPS_API_KEY ||
+  "";
+
 function toISO(localDateTime: string) {
   return new Date(localDateTime).toISOString();
 }
@@ -61,9 +67,6 @@ export default function NewReservationPage() {
 
   const [passengers, setPassengers] = useState("1");
   const [purpose, setPurpose] = useState("Project");
-  const [prefTransmission, setPrefTransmission] = useState("Automatic");
-  const [prefFuel, setPrefFuel] = useState("Any");
-  const [prefClass, setPrefClass] = useState("Compact");
   const [notes, setNotes] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -135,13 +138,34 @@ export default function NewReservationPage() {
   const pickupReturn =
     origin && destination ? `${origin} → ${destination}` : "—";
 
+  // --------- MAPA (mesma lógica da tela de Gas Stations) ---------
+  const mapsApiKey = MAPS_API_KEY;
+  const hasOrigin = origin.trim().length > 0;
+  const hasDestination = destination.trim().length > 0;
+  const hasRoute = hasOrigin && hasDestination;
+
+  const embedUrl = useMemo(() => {
+    if (!mapsApiKey || !hasRoute) return null;
+    return `https://www.google.com/maps/embed/v1/directions?key=${mapsApiKey}&origin=${encodeURIComponent(
+      origin.trim(),
+    )}&destination=${encodeURIComponent(destination.trim())}`;
+  }, [mapsApiKey, hasRoute, origin, destination]);
+
+  const handleOpenRouteInMaps = () => {
+    if (!hasRoute) return;
+    const url = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(
+      origin.trim(),
+    )}&destination=${encodeURIComponent(destination.trim())}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
   return (
-    <div className="mx-auto p-6 max-w-[1400px]">
+    <div className="mx-auto max-w-[1400px] p-6">
       <form
         onSubmit={onSubmit}
         className="grid grid-cols-1 gap-6 lg:grid-cols-3"
       >
-        <div className="lg:col-span-2 space-y-6">
+        <div className="space-y-6 lg:col-span-2">
           <Card className="border-border/50 shadow-sm">
             <CardHeader>
               <CardTitle>New Reservation</CardTitle>
@@ -152,7 +176,7 @@ export default function NewReservationPage() {
                 <h3 className="text-sm font-medium text-muted-foreground">
                   Trip Details
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Origin</Label>
                     <Input
@@ -232,63 +256,51 @@ export default function NewReservationPage() {
                 </div>
               </section>
 
-              {/* Route Preview */}
+              {/* Route Preview - agora igual ao Gas Stations */}
               <section className="space-y-4">
-                <h3 className="text-sm font-medium text-muted-foreground">
-                  Route Preview
-                </h3>
-                <div className="h-40 rounded-md border border-dashed border-border/50 grid place-items-center text-sm text-muted-foreground">
-                  Route will be displayed here
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium text-muted-foreground">
+                    Route preview (origin/destination da reserva)
+                  </h3>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-3 text-xs"
+                    onClick={handleOpenRouteInMaps}
+                    disabled={!hasRoute}
+                  >
+                    Abrir rota no Google Maps
+                  </Button>
                 </div>
-              </section>
-
-              {/* Vehicle Preferences (visual) */}
-              <section className="space-y-4">
-                <h3 className="text-sm font-medium text-muted-foreground">
-                  Vehicle Preferences
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="space-y-2">
-                    <Label>Transmission</Label>
-                    <Select
-                      value={prefTransmission}
-                      onValueChange={setPrefTransmission}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Automatic">Automatic</SelectItem>
-                        <SelectItem value="Manual">Manual</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Fuel</Label>
-                    <Select value={prefFuel} onValueChange={setPrefFuel}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Diesel">Diesel</SelectItem>
-                        <SelectItem value="Petrol">Petrol</SelectItem>
-                        <SelectItem value="Electric">Electric</SelectItem>
-                        <SelectItem value="Any">Any</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Class</Label>
-                    <Select value={prefClass} onValueChange={setPrefClass}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Sedan">Sedan</SelectItem>
-                        <SelectItem value="Compact">Compact</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div className="relative h-72 overflow-hidden rounded-md border border-border/50 bg-card">
+                  {!hasRoute ? (
+                    <div className="flex h-full items-center justify-center px-4 text-center text-sm text-muted-foreground">
+                      Informe origem e destino para visualizar aqui a prévia da
+                      rota no mapa.
+                    </div>
+                  ) : embedUrl ? (
+                    <iframe
+                      title="Route map"
+                      className="h-full w-full border-0"
+                      loading="lazy"
+                      allowFullScreen
+                      referrerPolicy="no-referrer-when-downgrade"
+                      src={embedUrl}
+                    />
+                  ) : (
+                    <>
+                      <img
+                        src="/gas-station.png"
+                        alt="Route map"
+                        className="h-full w-full object-cover"
+                      />
+                      <div className="absolute left-4 top-4 rounded bg-card p-2 text-xs shadow-sm">
+                        A visualização em mapa requer uma chave válida do
+                        Google Maps.
+                      </div>
+                    </>
+                  )}
                 </div>
               </section>
 
@@ -298,7 +310,7 @@ export default function NewReservationPage() {
                 </p>
               )}
 
-              <div className="pt-2 flex gap-2">
+              <div className="flex gap-2 pt-2">
                 <Button
                   type="submit"
                   disabled={!valid || loading.create || submitting}

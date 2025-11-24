@@ -22,6 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { statusChipClasses } from "@/components/ui/status";
 import { useToast } from "@/components/ui/use-toast";
 
+import { makeFriendlyReservationCode } from "@/lib/friendly-reservation-code";
 import { api } from "@/lib/http/api";
 import {
   uploadDocumentForReservation,
@@ -30,13 +31,12 @@ import {
   type DocumentType,
 } from "@/lib/http/documents";
 
-
 type DocStatus = "Pending" | "InValidation" | "PendingDocs" | "Validated";
 
 type DocRow = {
   id: string; // reservation id
   reservationId: string;
-  route: string; // "ORIGIN -> DESTINATION"
+  displayId: string; // friendly reservation code (RES-XXXXXXX)
   car: string;
   date: string;
   status: DocStatus;
@@ -48,6 +48,7 @@ type ApiReservation = {
   destination: string;
   startAt: string;
   status: string;
+  code?: string | null;
   car?: {
     model?: string | null;
     plate?: string | null;
@@ -61,7 +62,6 @@ type ListMyReservationsResponse = {
   items: ApiReservation[];
   data?: ApiReservation[];
 };
-
 
 function normalizeDocStatus(raw: any): "PENDING" | "APPROVED" | "REJECTED" {
   if (raw == null) return "PENDING";
@@ -112,13 +112,11 @@ function docStatusFromDocuments(docs: ApiDocument[]): DocStatus {
   return "Pending";
 }
 
-
 function docStatusToChip(s: DocStatus): "Pendente" | "Aprovado" | "Rejeitado" {
   if (s === "Validated") return "Aprovado";
   if (s === "PendingDocs") return "Rejeitado";
   return "Pendente"; // Pending / InValidation usam mesma cor "warning"
 }
-
 
 export default function RequesterDocumentsPage() {
   const { toast } = useToast();
@@ -151,8 +149,7 @@ export default function RequesterDocumentsPage() {
   const listRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  //Carregar reservas do usuário
-
+  // Carregar reservas do usuário
   const loadRows = useCallback(async () => {
     setLoadingRows(true);
     try {
@@ -192,10 +189,15 @@ export default function RequesterDocumentsPage() {
 
         const status = docStatusFromDocuments(docs);
 
+        const displayId = makeFriendlyReservationCode({
+          id: r.id,
+          code: r.code ?? null,
+        });
+
         result.push({
           id: r.id,
           reservationId: r.id,
-          route: `${r.origin} -> ${r.destination}`,
+          displayId,
           car: carLabel,
           date,
           status,
@@ -219,7 +221,6 @@ export default function RequesterDocumentsPage() {
   useEffect(() => {
     void loadRows();
   }, [loadRows]);
-
 
   useEffect(() => {
     if (!selectedId) {
@@ -247,7 +248,6 @@ export default function RequesterDocumentsPage() {
   }, [selectedId]);
 
   // Filtros em memória
-
   const carOptions = useMemo(() => {
     const set = new Set(rows.map((r) => r.car));
     return ["all", ...Array.from(set)];
@@ -275,7 +275,7 @@ export default function RequesterDocumentsPage() {
           {
             id: "__placeholder__",
             reservationId: "—",
-            route: "—",
+            displayId: "—",
             car: "—",
             date: "—",
             status: "Pending",
@@ -291,7 +291,6 @@ export default function RequesterDocumentsPage() {
       // "ativo" = pendente (null) ou aprovado; rejeitado não conta
       return status === "APPROVED" || status == null;
     });
-
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -319,8 +318,7 @@ export default function RequesterDocumentsPage() {
     };
   }, [selectedId]);
 
-  // Abrir arquivo (preview/download) 
-
+  // Abrir arquivo (preview/download)
   const openFile = async (doc: ApiDocument) => {
     try {
       const response = await api.get(`/documents/${doc.id}/file`, {
@@ -345,7 +343,6 @@ export default function RequesterDocumentsPage() {
       });
     }
   };
-
 
   const handleChooseFile = (type: DocumentType) => {
     if (!selected) return;
@@ -409,7 +406,6 @@ export default function RequesterDocumentsPage() {
     setSelectedId("");
     setFiles([]);
   };
-
 
   return (
     <RoleGuard allowedRoles={["REQUESTER"]} requireAuth={false}>
@@ -493,7 +489,7 @@ export default function RequesterDocumentsPage() {
                   {/* header */}
                   <div className="border-b border-border bg-card px-4 py-3">
                     <div className="grid grid-cols-5 gap-4 text-sm font-medium text-muted-foreground">
-                      <div>Route</div>
+                      <div>Reservation</div>
                       <div>Car</div>
                       <div>Date</div>
                       <div>Status</div>
@@ -521,7 +517,7 @@ export default function RequesterDocumentsPage() {
                         >
                           <div className="grid grid-cols-5 items-center gap-4 text-sm">
                             <div className="font-medium text-foreground">
-                              {doc.route}
+                              {doc.displayId}
                             </div>
                             <div className="text-muted-foreground">
                               {doc.car}
@@ -591,7 +587,7 @@ export default function RequesterDocumentsPage() {
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <div className="h-3 w-3 rounded-full bg-muted-foreground/60" />
                       <span className="font-medium">
-                        ROUTE: {selected.route}
+                        RESERVATION: {selected.displayId}
                       </span>
                     </div>
                     <Badge
@@ -703,7 +699,9 @@ export default function RequesterDocumentsPage() {
                       <div className="space-y-2">
                         {files.map((f) => {
                           const filename =
-                            (f as any).metadata?.filename ?? (f as any).url?.split("/").pop() ?? (f as any).id;
+                            (f as any).metadata?.filename ??
+                            (f as any).url?.split("/").pop() ??
+                            (f as any).id;
                           const isImage = /\.(png|jpg|jpeg)$/i.test(
                             filename ?? "",
                           );
@@ -760,6 +758,14 @@ export default function RequesterDocumentsPage() {
               )}
             </Card>
           </div>
+        </div>
+
+        {/* Aviso LGPD em toda a largura, rodapé da página */}
+        <div className="mt-2 rounded-md border border-border/40 bg-muted/10 px-4 py-3">
+          <p className="text-xs text-muted-foreground text-center">
+            Seus documentos são usados apenas para validação da reserva,
+            armazenados com segurança e acessados somente por usuarios autorizados.
+          </p>
         </div>
       </div>
     </RoleGuard>

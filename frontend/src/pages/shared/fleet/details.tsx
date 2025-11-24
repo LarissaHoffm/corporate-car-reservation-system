@@ -1,3 +1,4 @@
+// frontend/src/pages/shared/fleet/details.tsx
 import * as React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -22,6 +23,10 @@ import { Car, CarStatus, useCar, useCarMutations } from "@/hooks/use-cars";
 import { useBranchesMap } from "@/hooks/use-branches-map";
 import { toast } from "@/hooks/use-toast";
 
+import type { Reservation } from "@/lib/http/reservations";
+import { listReservationsByCar } from "@/lib/http/reservations";
+import { makeFriendlyReservationCode } from "@/lib/friendly-reservation-code";
+
 const COLORS = [
   "PRETO",
   "CINZA",
@@ -30,8 +35,18 @@ const COLORS = [
   "VERMELHO",
   "OUTRO",
 ] as const;
+
 const UUID_V4 =
   /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
+
+function fmtDate(dt?: string | null) {
+  if (!dt) return "-";
+  try {
+    return new Date(dt).toLocaleDateString("pt-BR");
+  } catch {
+    return dt;
+  }
+}
 
 export default function CarDetailsPage() {
   const navigate = useNavigate();
@@ -91,7 +106,41 @@ export default function CarDetailsPage() {
     });
   }, [car, idToName]);
 
-  const reservationHistory = useMemo(() => [], []);
+  // Histórico de reservas do carro (todas as reservas vinculadas a este veículo)
+  const [history, setHistory] = useState<Reservation[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!car?.id) return;
+
+    let cancelled = false;
+    setHistoryLoading(true);
+    setHistoryError(null);
+
+    listReservationsByCar(car.id)
+      .then((rows) => {
+        if (cancelled) return;
+        setHistory(Array.isArray(rows) ? rows : []);
+      })
+      .catch((err: any) => {
+        console.error(err);
+        if (cancelled) return;
+        setHistory([]);
+        setHistoryError(
+          err?.response?.data?.message ??
+            "Unable to load reservation history for this vehicle.",
+        );
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setHistoryLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [car?.id]);
 
   async function onSave() {
     if (!car) return;
@@ -113,12 +162,10 @@ export default function CarDetailsPage() {
 
       setData(updated as Car);
       setEditing(false);
-      // substitui toast.success(...)
       toast({ title: "Car updated!" });
       await refresh();
     } catch (e: any) {
       const msg = e?.response?.data?.message ?? "Error updating car";
-      // substitui toast.error(...)
       toast({
         title: Array.isArray(msg) ? msg.join("\n") : msg,
         variant: "destructive",
@@ -350,7 +397,7 @@ export default function CarDetailsPage() {
           </CardContent>
         </Card>
 
-        {/* Histórico (placeholder) */}
+        {/* Histórico de reservas do carro */}
         <Card className="border-border/50 shadow-sm">
           <CardContent className="p-6">
             <div className="flex items-center justify-between mb-6">
@@ -358,9 +405,72 @@ export default function CarDetailsPage() {
                 Reservation History
               </h2>
             </div>
-            {reservationHistory.length === 0 ? (
-              <p className="text-muted-foreground">No reservations.</p>
-            ) : null}
+
+            {historyLoading ? (
+              <p className="text-sm text-muted-foreground">
+                Loading reservation history…
+              </p>
+            ) : history.length === 0 ? (
+              <p className="text-muted-foreground text-sm">
+                No reservations for this vehicle.
+              </p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border/50">
+                      <th className="text-left py-2 px-2 text-muted-foreground">
+                        RESERVATION
+                      </th>
+                      <th className="text-left py-2 px-2 text-muted-foreground">
+                        USER
+                      </th>
+                      <th className="text-left py-2 px-2 text-muted-foreground">
+                        START DATE
+                      </th>
+                      <th className="text-left py-2 px-2 text-muted-foreground">
+                        END DATE
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {history
+                      .slice()
+                      .sort(
+                        (a, b) =>
+                          new Date(b.startAt).getTime() -
+                          new Date(a.startAt).getTime(),
+                      )
+                      .map((r) => (
+                        <tr
+                          key={r.id}
+                          className="border-b border-border/30 last:border-0"
+                        >
+                          <td className="py-2 px-2 font-medium text-foreground">
+                            {makeFriendlyReservationCode({
+                              id: r.id,
+                              code: (r as any).code ?? null,
+                            })}
+                          </td>
+                          <td className="py-2 px-2 text-foreground">
+                            {r.user?.name ?? r.user?.email ?? "—"}
+                          </td>
+                          <td className="py-2 px-2 text-muted-foreground">
+                            {fmtDate(r.startAt)}
+                          </td>
+                          <td className="py-2 px-2 text-muted-foreground">
+                            {fmtDate(r.endAt)}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {historyError && !historyLoading && (
+              <p className="mt-3 text-xs text-red-600">{historyError}</p>
+            )}
           </CardContent>
         </Card>
       </div>

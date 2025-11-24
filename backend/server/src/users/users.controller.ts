@@ -24,6 +24,7 @@ import {
   ApiUnauthorizedResponse,
   ApiCreatedResponse,
 } from '@nestjs/swagger';
+
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -96,6 +97,7 @@ export class UsersController {
     return this.usersService.create(dto, { tenantId, actorId });
   }
 
+  // ADMIN: atualizar qualquer usuário
   @Patch(':id')
   @Roles('ADMIN')
   @Audit('USER_UPDATE', 'User')
@@ -111,6 +113,44 @@ export class UsersController {
   ) {
     const tenantId = req?.user?.tenantId;
     return this.usersService.update(id, dto, { tenantId });
+  }
+
+  // SELF: atualizar o próprio perfil (nome/telefone)
+  @Patch(':id/profile')
+  @Audit('USER_PROFILE_UPDATE', 'User')
+  @ApiOperation({
+    summary: 'Atualizar próprio perfil (nome/telefone)',
+    description: 'RBAC: SELF (sempre usa o usuário autenticado).',
+  })
+  @ApiParam({ name: 'id', type: String, format: 'uuid' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', example: 'Admin' },
+        phone: { type: 'string', example: '(47) 99999-9999' },
+      },
+    },
+  })
+  @ApiOkResponse({ description: 'Perfil atualizado.' })
+  @ApiBadRequestResponse({ description: 'Dados inválidos (400)' })
+  @ApiNotFoundResponse({ description: 'Usuário não encontrado (404)' })
+  updateProfile(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) idParam: string,
+    @Body() body: { name?: string; phone?: string },
+    @Req() req: any,
+  ) {
+    const u = req?.user ?? {};
+    const selfId: string | null = (u.id ?? u.sub) ?? null;
+
+    const ctx = {
+      tenantId: u.tenantId ?? null,
+      actorId: selfId,
+      actorRole: u.role ?? null,
+    };
+
+    const targetId = selfId || idParam;
+    return this.usersService.updateProfile(targetId, body, ctx);
   }
 
   @Delete(':id')

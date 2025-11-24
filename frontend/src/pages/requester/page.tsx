@@ -1,5 +1,11 @@
 import * as React from "react";
-import { useEffect, useRef, useState, useCallback } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  useMemo,
+} from "react";
 import { Link } from "react-router-dom";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -16,118 +22,478 @@ import {
   FileText,
   ClipboardCheck,
   Plus,
-  X,
   Eye,
   Printer,
+  ArrowRight,
+  XCircle,
+  Loader2,
 } from "lucide-react";
+
 import { statusChipClasses } from "@/components/ui/status";
+import { ReservationStatusBadge } from "@/components/reservation-status-badge";
+
+import { useAuth } from "@/lib/auth";
+import useReservations from "@/hooks/use-reservations";
+import {
+  listDocumentsByReservation,
+  type Document as ApiDocument,
+} from "@/lib/http/documents";
+import {
+  ChecklistsAPI,
+  type ChecklistSubmission,
+} from "@/lib/http/checklists";
+import { makeFriendlyReservationCode } from "@/lib/friendly-reservation-code";
+
+type ReservationStatus = "PENDING" | "APPROVED" | "CANCELED" | "COMPLETED";
 
 type ReservationRow = {
-  id: string;
+  reservationId: string; // id real da reserva
+  id: string; // código amigável (RES-XXXXXXX ou code do backend)
   user: string;
   filial: string;
   location: string;
-  status: "Active" | "Inactive" | "Cancelled";
+  status: ReservationStatus;
   car: string;
   plate: string;
   department: string;
+  origin: string;
+  destination: string;
+  startAt: string | null;
+  endAt: string | null;
 };
 
-const STORAGE_KEY = "reservcar:requester:upcoming";
+// Status agregados de documentos (mesma lógica da página de reservations)
+type DocStatus = "Pending" | "InValidation" | "PendingDocs" | "Validated";
+type ChecklistDecision = "APPROVED" | "REJECTED" | null;
 
-function readJSON<T>(key: string): T | null {
-  try {
-    const s = localStorage.getItem(key);
-    return s ? (JSON.parse(s) as T) : null;
-  } catch {
-    return null;
+function normalizeDocStatus(raw: any): "PENDING" | "APPROVED" | "REJECTED" {
+  if (raw == null) return "PENDING";
+
+  const s = String(raw).toUpperCase();
+
+  if (s === "APPROVED" || s === "VALIDATED" || s === "APPROVE") {
+    return "APPROVED";
+  }
+
+  if (s === "REJECTED" || s === "REJECT") {
+    return "REJECTED";
+  }
+
+  return "PENDING";
+}
+
+/**
+ * Mesma regra do backend / tela de reservations:
+ * - agrupa por `type`
+ * - considera só o documento mais recente de cada tipo
+ * - retorna um status agregado
+ */
+function docStatusFromDocuments(docs: ApiDocument[]): DocStatus {
+  if (!docs.length) {
+    return "Pending";
+  }
+
+  type Agg = {
+    latestTs: number;
+    status: "PENDING" | "APPROVED" | "REJECTED";
+  };
+
+  const byType = new Map<string, Agg>();
+
+  docs.forEach((raw, index) => {
+    const type = (raw.type as string | undefined) ?? "__NO_TYPE__";
+
+    const createdAt =
+      (raw as any).updatedAt ?? (raw as any).createdAt ?? null;
+    const ts =
+      createdAt != null ? new Date(createdAt as any).getTime() : index;
+
+    const status = normalizeDocStatus((raw as any).status);
+
+    const current = byType.get(type);
+    if (!current || ts >= current.latestTs) {
+      byType.set(type, { latestTs: ts, status });
+    }
+  });
+
+  let anyPending = false;
+  let anyRejected = false;
+  let anyApproved = false;
+
+  for (const agg of byType.values()) {
+    if (agg.status === "PENDING") {
+      anyPending = true;
+    } else if (agg.status === "REJECTED") {
+      anyRejected = true;
+    } else if (agg.status === "APPROVED") {
+      anyApproved = true;
+    }
+  }
+
+  if (anyPending) return "InValidation";
+  if (anyRejected) return "PendingDocs";
+  if (anyApproved) return "Validated";
+  return "Pending";
+}
+
+/**
+ * Mesmo normalizador que usamos na tela de My Checklists:
+ * extrai APPROVED / REJECTED de submission + payload.
+ */
+function normalizeChecklistDecision(source: any): ChecklistDecision {
+  if (!source) return null;
+
+  const raw =
+    // campos top-level da submissão
+    source.decision ??
+    source.result ??
+    source.status ??
+    // ou dentro do payload
+    source.payload?.decision ??
+    source.payload?.result ??
+    source.payload?.status ??
+    null;
+
+  if (!raw || typeof raw !== "string") return null;
+  const s = raw.toUpperCase();
+  if (s === "APPROVED" || s === "VALIDATED") return "APPROVED";
+  if (s === "REJECTED") return "REJECTED";
+  return null;
+}
+
+/**
+ * Mesma função da página de My Reservations:
+ * combina status de reserva + docs + checklist.
+ */
+function getStatusPresentation(
+  reservationStatus: ReservationStatus,
+  docStatus?: DocStatus,
+  validationResult?: string | null,
+): {
+  badgeStatus: "pending" | "approved" | "cancelled" | "inactive";
+  chipLabel: "Pendente" | "Aprovado" | "Rejeitado";
+  text: string;
+} {
+  const normalizedResult =
+    validationResult && String(validationResult).toUpperCase();
+  const isChecklistRejected = normalizedResult === "CHECKLIST_REJECTED";
+
+  // Caso especial: sempre exibir
+  // "COMPLETED — Checklist rejected"
+  if (isChecklistRejected) {
+    return {
+      badgeStatus: "approved",
+      chipLabel: "Aprovado",
+      text: "Completed — Checklist rejected",
+    };
+  }
+
+  // COMPLETED "normal"
+  if (reservationStatus === "COMPLETED") {
+    return {
+      badgeStatus: "approved",
+      chipLabel: "Aprovado",
+      text: "Completed",
+    };
+  }
+
+  if (reservationStatus === "PENDING") {
+    return {
+      badgeStatus: "pending",
+      chipLabel: "Pendente",
+      text: "Pending",
+    };
+  }
+
+  if (reservationStatus === "CANCELED") {
+    return {
+      badgeStatus: "cancelled",
+      chipLabel: "Rejeitado",
+      text: "Canceled",
+    };
+  }
+
+  // APPROVED
+  if (reservationStatus === "APPROVED") {
+    // Sem documentos ainda → mostrar APROVADO
+    if (!docStatus) {
+      return {
+        badgeStatus: "approved",
+        chipLabel: "Aprovado",
+        text: "Approved",
+      };
+    }
+
+    // Docs enviados / em validação
+    if (docStatus === "Pending" || docStatus === "InValidation") {
+      return {
+        badgeStatus: "pending",
+        chipLabel: "Pendente",
+        text: "Pending validation",
+      };
+    }
+
+    // Docs rejeitados (algum tipo sem aprovado)
+    if (docStatus === "PendingDocs") {
+      return {
+        badgeStatus: "cancelled",
+        chipLabel: "Rejeitado",
+        text: "Documents rejected",
+      };
+    }
+
+    // Docs validados, mas reserva ainda não COMPLETED (aguardando checklist)
+    if (docStatus === "Validated") {
+      return {
+        badgeStatus: "pending",
+        chipLabel: "Pendente",
+        text: "Pending validation",
+      };
+    }
+  }
+
+  // fallback
+  return {
+    badgeStatus: "pending",
+    chipLabel: "Pendente",
+    text: reservationStatus,
+  };
+}
+
+// status da reserva para o chip do modal
+function mapToChipStatus(
+  s: ReservationStatus,
+): "Pendente" | "Aprovado" | "Rejeitado" {
+  switch (s) {
+    case "PENDING":
+      return "Pendente";
+    case "APPROVED":
+    case "COMPLETED":
+      return "Aprovado";
+    case "CANCELED":
+      return "Rejeitado";
+    default:
+      return "Pendente";
   }
 }
-function writeJSON<T>(key: string, value: T) {
-  localStorage.setItem(key, JSON.stringify(value));
+
+// converte a reserva "crua" em um objeto usado no dossiê
+function mapReservationToRow(
+  r: any,
+  currentUserName: string,
+): ReservationRow {
+  const carModel =
+    r.assignedCar?.model ??
+    r.car?.model ??
+    r.carModel ??
+    r.assignedCarModel ??
+    r.carName ??
+    "—";
+
+  const carPlate =
+    r.assignedCar?.plate ??
+    r.car?.plate ??
+    r.carPlate ??
+    r.assignedCarPlate ??
+    r.plate ??
+    "—";
+
+  const branch =
+    r.branch?.name ??
+    r.branchName ??
+    r.branch ??
+    "—";
+
+  const department =
+    r.department?.name ??
+    r.departmentName ??
+    r.department ??
+    "—";
+
+  const friendlyCode = makeFriendlyReservationCode(r.id);
+  const backendCode = r.code && String(r.code).trim();
+  const displayCode =
+    backendCode && backendCode.length > 0 ? backendCode : friendlyCode;
+
+  return {
+    reservationId: r.id,
+    id: displayCode,
+    user: currentUserName,
+    filial: branch,
+    location: branch,
+    status: (r.status as ReservationStatus) ?? "PENDING",
+    car: carModel,
+    plate: carPlate,
+    department,
+    origin: r.origin ?? "—",
+    destination: r.destination ?? "—",
+    startAt: r.startAt ?? null,
+    endAt: r.endAt ?? null,
+  };
 }
 
-// seed
-const DEFAULT_ROWS: ReservationRow[] = [
-  {
-    id: "RQ-1001",
-    user: "Alex Morgan",
-    filial: "IT",
-    location: "JLLE",
-    status: "Active",
-    car: "Toyota Corolla",
-    plate: "ABC-1A23",
-    department: "ADM",
-  },
-  {
-    id: "RQ-1002",
-    user: "Alex Morgan",
-    filial: "IT",
-    location: "MGA",
-    status: "Active",
-    car: "Honda Civic",
-    plate: "DEF-4B56",
-    department: "ADM",
-  },
-  {
-    id: "RQ-1003",
-    user: "Alex Morgan",
-    filial: "IT",
-    location: "POA",
-    status: "Active",
-    car: "VW T-Cross",
-    plate: "GHI-7C89",
-    department: "ADM",
-  },
-  {
-    id: "RQ-1004",
-    user: "Alex Morgan",
-    filial: "IT",
-    location: "JLLE",
-    status: "Inactive",
-    car: "Chevrolet Onix",
-    plate: "JKL-0D12",
-    department: "TAX",
-  },
-];
-
-// mapeia status das linhas para os chips já usados no app
-function mapToChipStatus(
-  s: ReservationRow["status"],
-): "Pendente" | "Aprovado" | "Rejeitado" {
-  if (s === "Active") return "Aprovado";
-  if (s === "Cancelled") return "Rejeitado";
-  return "Pendente";
+function formatDateTime(value: string | null): string {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString();
 }
 
 export default function RequesterDashboard() {
-  const [rows, setRows] = useState<ReservationRow[]>(() => {
-    const existing = readJSON<ReservationRow[]>(STORAGE_KEY);
-    if (!existing || !Array.isArray(existing) || existing.length === 0) {
-      writeJSON(STORAGE_KEY, DEFAULT_ROWS);
-      return DEFAULT_ROWS;
-    }
-    return existing;
-  });
-  useEffect(() => writeJSON(STORAGE_KEY, rows), [rows]);
+  const { user } = useAuth();
+
+  const { myItems, loading, errors, refreshMy, cancelReservation } =
+    useReservations();
+
+  // status agregados de documentos por reserva
+  const [docStatusMap, setDocStatusMap] = useState<
+    Record<string, DocStatus | undefined>
+  >({});
+
+  // decisão de checklist por reserva
+  const [checklistDecisionMap, setChecklistDecisionMap] = useState<
+    Record<string, ChecklistDecision | undefined>
+  >({});
 
   // dossiê
   const [showDossier, setShowDossier] = useState(false);
   const [selected, setSelected] = useState<ReservationRow | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
 
-  const openDossier = useCallback((r: ReservationRow) => {
-    setSelected(r);
+  const currentUserName = user?.name ?? "Requester";
+
+  // carrega "minhas reservas" ao montar o dashboard
+  useEffect(() => {
+    refreshMy();
+  }, [refreshMy]);
+
+  // carrega status de documentos (igual página de reservations)
+  useEffect(() => {
+    const loadDocsStatus = async () => {
+      const list = myItems ?? [];
+      if (!list.length) {
+        setDocStatusMap({});
+        return;
+      }
+
+      const entries = await Promise.all(
+        list.map(async (r) => {
+          // só faz sentido checar docs para reservas aprovadas
+          if (r.status !== "APPROVED") {
+            return [r.id, undefined] as const;
+          }
+          try {
+            const docs = await listDocumentsByReservation(r.id);
+            if (!docs.length) {
+              return [r.id, undefined] as const;
+            }
+            return [r.id, docStatusFromDocuments(docs)] as const;
+          } catch {
+            return [r.id, undefined] as const;
+          }
+        }),
+      );
+
+      const map: Record<string, DocStatus | undefined> = {};
+      for (const [id, st] of entries) {
+        map[id] = st;
+      }
+      setDocStatusMap(map);
+    };
+
+    void loadDocsStatus();
+  }, [myItems]);
+
+  // carrega decisões de checklist (igual página de reservations)
+  useEffect(() => {
+    const loadChecklistDecisions = async () => {
+      const list = myItems ?? [];
+      if (!list.length) {
+        setChecklistDecisionMap({});
+        return;
+      }
+
+      const entries = await Promise.all(
+        list.map(async (r) => {
+          try {
+            const subs: ChecklistSubmission[] =
+              await ChecklistsAPI.listReservationSubmissions(r.id);
+
+            const validations = subs.filter(
+              (s) => s.kind === "APPROVER_VALIDATION",
+            );
+            if (!validations.length) {
+              return [r.id, null] as const;
+            }
+
+            const latest = validations.reduce((best, curr) => {
+              const tb = new Date(best.createdAt).getTime();
+              const tc = new Date(curr.createdAt).getTime();
+              return tc > tb ? curr : best;
+            });
+
+            const decision = normalizeChecklistDecision(latest as any);
+            return [r.id, decision] as const;
+          } catch {
+            return [r.id, null] as const;
+          }
+        }),
+      );
+
+      const map: Record<string, ChecklistDecision | undefined> = {};
+      for (const [id, dec] of entries) {
+        map[id] = dec;
+      }
+      setChecklistDecisionMap(map);
+    };
+
+    void loadChecklistDecisions();
+  }, [myItems]);
+
+  // lista filtrada: apenas PENDING, APPROVED e/ou docs rejeitados
+  const filtered = useMemo(() => {
+    const list = myItems ?? [];
+
+    return list
+      .filter((r) => {
+        const status = r.status as ReservationStatus;
+        const docStatus = docStatusMap[r.id];
+
+        const isPendingOrApproved =
+          status === "PENDING" || status === "APPROVED";
+        const hasRejectedDocs = docStatus === "PendingDocs";
+
+        return isPendingOrApproved || hasRejectedDocs;
+      })
+      .sort(
+        (a, b) =>
+          new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
+      )
+      .slice(0, 5);
+  }, [myItems, docStatusMap]);
+
+  const listError = (errors as any)?.list as string | undefined;
+
+  const openDossier = useCallback((row: ReservationRow) => {
+    setSelected(row);
     setShowDossier(true);
   }, []);
 
-  const cancelReservation = useCallback((id: string) => {
-    if (!window.confirm("Do you really want to cancel this reservation?"))
-      return;
-    setRows((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: "Cancelled" } : r)),
-    );
-  }, []);
+  // sem window.confirm: cancela direto usando o hook
+  const handleCancel = useCallback(
+    async (reservationId: string) => {
+      try {
+        await cancelReservation(reservationId);
+        await refreshMy();
+      } catch (err) {
+        console.error(err);
+        window.alert(
+          "Não foi possível cancelar a reserva. Tente novamente mais tarde.",
+        );
+      }
+    },
+    [cancelReservation, refreshMy],
+  );
 
   const printDossier = useCallback(() => {
     const node = printRef.current;
@@ -135,7 +501,6 @@ export default function RequesterDashboard() {
     const win = window.open("", "print");
     if (!win) return;
 
-    // HTML simples para imprimir só o conteúdo do dossiê
     win.document.write(`
       <!doctype html>
       <html>
@@ -166,7 +531,7 @@ export default function RequesterDashboard() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-foreground">
-          Welcome back, Alex
+          Welcome back, {user?.name ?? "Requester"}
         </h1>
       </div>
 
@@ -252,7 +617,7 @@ export default function RequesterDashboard() {
         </Card>
       </div>
 
-      {/* Tabela de próximas reservas */}
+      {/* Tabela de próximas reservas (scroll + status idêntico a My Reservations) */}
       <Card className="border-border/50 shadow-sm">
         <CardContent className="p-6">
           <div className="mb-6 flex items-center justify-between">
@@ -268,96 +633,156 @@ export default function RequesterDashboard() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border/50">
-                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
-                    ID
-                  </th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
-                    USER
-                  </th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
-                    CAR
-                  </th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
-                    PLATE
-                  </th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
-                    DEPARTMENT
-                  </th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
-                    STATUS
-                  </th>
-                  <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
-                    ACTIONS
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((reservation) => (
-                  <tr
-                    key={reservation.id}
-                    className="border-b border-border/50 hover:bg-card/50"
-                  >
-                    <td className="px-4 py-3 text-sm font-medium text-foreground">
-                      {reservation.id}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-foreground">
-                      {reservation.user}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-foreground">
-                      {reservation.car}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-foreground">
-                      {reservation.plate}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-foreground">
-                      {reservation.department}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge
-                        className={statusChipClasses(
-                          mapToChipStatus(reservation.status),
-                        )}
-                      >
-                        {mapToChipStatus(reservation.status)}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3">
-                      {reservation.status === "Active" ? (
-                        <div className="flex items-center gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="border-red-200 bg-transparent text-red-600 hover:bg-red-50"
-                            onClick={() => cancelReservation(reservation.id)}
-                          >
-                            <X className="mr-1 h-4 w-4" />
-                            CANCEL
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => openDossier(reservation)}
-                          >
-                            VIEW
-                          </Button>
-                        </div>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => openDossier(reservation)}
-                        >
-                          VIEW
-                        </Button>
-                      )}
-                    </td>
+            <div className="max-h-[420px] overflow-y-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-border/50">
+                    <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                      ID
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                      Origin
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                      Destination
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                      Period
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-muted-foreground">
+                      Status
+                    </th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-muted-foreground">
+                      Actions
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {loading.my ? (
+                    <tr>
+                      <td
+                        colSpan={6}
+                        className="px-4 py-6 text-sm text-muted-foreground"
+                      >
+                        Loading your upcoming reservations...
+                      </td>
+                    </tr>
+                  ) : listError ? (
+                    <tr>
+                      <td
+                        colSpan={6}
+                        className="px-4 py-6 text-sm text-red-600"
+                      >
+                        {listError}
+                      </td>
+                    </tr>
+                  ) : filtered.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={6}
+                        className="px-4 py-6 text-sm text-muted-foreground"
+                      >
+                        You don&apos;t have upcoming reservations yet.
+                      </td>
+                    </tr>
+                  ) : (
+                    filtered.map((r) => {
+                      const displayRow = mapReservationToRow(
+                        r,
+                        currentUserName,
+                      );
+
+                      const docStatus = docStatusMap[r.id];
+                      const hasDocs = docStatus !== undefined;
+
+                      const checklistDecision = checklistDecisionMap[r.id];
+
+                      const syntheticValidationResult =
+                        checklistDecision === "REJECTED" &&
+                        (docStatus === "Validated" ||
+                          r.status === "COMPLETED")
+                          ? "CHECKLIST_REJECTED"
+                          : ((r as any).validationResult ?? null);
+
+                      const { badgeStatus, chipLabel, text } =
+                        getStatusPresentation(
+                          r.status as ReservationStatus,
+                          docStatus,
+                          syntheticValidationResult,
+                        );
+
+                      const canCancel =
+                        displayRow.status === "PENDING" ||
+                        displayRow.status === "APPROVED";
+
+                      return (
+                        <tr
+                          key={displayRow.reservationId}
+                          className="border-b border-border/50 hover:bg-card/50"
+                        >
+                          <td className="px-4 py-3 text-sm font-medium text-foreground">
+                            {displayRow.id}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-foreground">
+                            {displayRow.origin}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-foreground">
+                            {displayRow.destination}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-foreground">
+                            {displayRow.startAt
+                              ? formatDateTime(displayRow.startAt)
+                              : "—"}{" "}
+                            <ArrowRight className="mx-1 inline h-3 w-3" />
+                            {displayRow.endAt
+                              ? formatDateTime(displayRow.endAt)
+                              : "—"}
+                          </td>
+                          <td className="px-4 py-3">
+                            <ReservationStatusBadge
+                              status={badgeStatus}
+                              className={statusChipClasses(chipLabel)}
+                            >
+                              {text}
+                            </ReservationStatusBadge>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center justify-end gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openDossier(displayRow)}
+                              >
+                                <Eye className="mr-2 h-4 w-4" />
+                                View
+                              </Button>
+
+                              {canCancel && (
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() =>
+                                    handleCancel(displayRow.reservationId)
+                                  }
+                                  disabled={loading.cancel}
+                                >
+                                  {loading.cancel ? (
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <XCircle className="mr-2 h-4 w-4" />
+                                  )}
+                                  Cancel
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -374,9 +799,7 @@ export default function RequesterDashboard() {
           <div ref={printRef} className="space-y-6">
             {/* header com status */}
             <div className="flex items-center justify-between">
-              <div className="text-sm text-muted-foreground">
-                {/* espaço reservado */}
-              </div>
+              <div className="text-sm text-muted-foreground" />
               {selected && (
                 <Badge
                   className={statusChipClasses(
@@ -395,31 +818,33 @@ export default function RequesterDashboard() {
                   {selected?.user}
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  {selected
-                    ? `${selected.user.toLowerCase().replace(/\s+/g, ".")}@reservcar.com`
-                    : "—"}
+                  {user?.email ??
+                    (selected
+                      ? `${selected.user
+                          .toLowerCase()
+                          .replace(/\s+/g, ".")}@reservcar.com`
+                      : "—")}
                 </div>
               </div>
 
               <div>
-                <div className="text-sm text-muted-foreground">Status</div>
-                <div className="mt-1">
-                  {selected && (
-                    <Badge
-                      className={statusChipClasses(
-                        mapToChipStatus(selected.status),
-                      )}
-                    >
-                      {mapToChipStatus(selected.status)}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <div className="text-sm text-muted-foreground">Filial</div>
+                <div className="text-sm text-muted-foreground">Branch</div>
                 <div className="text-base font-medium text-foreground">
-                  {selected?.location}
+                  {selected?.filial}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-sm text-muted-foreground">Origin</div>
+                <div className="text-base font-medium text-foreground">
+                  {selected?.origin}
+                </div>
+              </div>
+
+              <div>
+                <div className="text-sm text-muted-foreground">Destination</div>
+                <div className="text-base font-medium text-foreground">
+                  {selected?.destination}
                 </div>
               </div>
 
@@ -431,25 +856,23 @@ export default function RequesterDashboard() {
               </div>
 
               <div>
-                <div className="text-sm text-muted-foreground">Saída</div>
+                <div className="text-sm text-muted-foreground">Department</div>
                 <div className="text-base font-medium text-foreground">
-                  {/* placeholders para MVP */}
-                  {new Date().toISOString().slice(0, 10)} • 10:00
+                  {selected?.department}
                 </div>
               </div>
 
               <div>
-                <div className="text-sm text-muted-foreground">Pickup time</div>
-                <div className="text-base font-medium text-foreground">—</div>
+                <div className="text-sm text-muted-foreground">Start</div>
+                <div className="text-base font-medium text-foreground">
+                  {formatDateTime(selected?.startAt ?? null)}
+                </div>
               </div>
 
               <div>
-                <div className="text-sm text-muted-foreground">Volta</div>
+                <div className="text-sm text-muted-foreground">End</div>
                 <div className="text-base font-medium text-foreground">
-                  {new Date(Date.now() + 8 * 60 * 60 * 1000)
-                    .toISOString()
-                    .slice(0, 10)}{" "}
-                  • 18:00
+                  {formatDateTime(selected?.endAt ?? null)}
                 </div>
               </div>
             </div>
