@@ -1,0 +1,52 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+
+  push:
+    branches: [ main ]
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "docker/**"
+      - ".github/workflows/deploy-prod.yml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Start SSH agent and add deploy key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.PROD_SSH_KEY }}
+
+      - name: Deploy via SSH to Azure VM
+        env:
+          PROD_SSH_HOST: ${{ secrets.PROD_SSH_HOST }}
+          PROD_SSH_USER: ${{ secrets.PROD_SSH_USER }}
+        run: |
+          set -e
+
+          ssh -o StrictHostKeyChecking=no "$PROD_SSH_USER@$PROD_SSH_HOST" << 'EOF'
+            set -e
+
+            cd /opt/reservcar
+
+            # Garante que estamos na branch main e com o código mais recente
+            git fetch origin main
+            git checkout main
+            git pull origin main
+
+            cd /opt/reservcar/docker
+
+            # Sobe containers de produção com build
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d --build
+
+            # Limpa imagens antigas (opcional, mas bom para TCC / infra)
+            docker image prune -f
+          EOF
