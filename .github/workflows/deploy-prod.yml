@@ -1,18 +1,20 @@
 name: Deploy to Production
 
 on:
+  # Deploy manual (se precisar forçar)
   workflow_dispatch:
 
-  push:
-    branches: [ main ]
-    paths:
-      - "backend/**"
-      - "frontend/**"
-      - "docker/**"
-      - ".github/workflows/deploy-prod.yml"
+  # Deploy automático 
+  workflow_run:
+    workflows: ["CI & SonarCloud"]
+    types:
+      - completed
+    branches:
+      - main
 
 jobs:
   deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
 
     steps:
