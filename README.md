@@ -13,4 +13,9 @@ Este sistema visa otimizar a gestão da frota de veículos corporativos, permiti
 - **Monitoramento**: Prometheus + Grafana
 - **CI/CD**: GitHub Actions
 
+## CI/CD e Qualidade de Código
+
+Este repositório possui esteira de CI/CD configurada com GitHub Actions, SonarCloud e deploy automatizado para a VM na Azure.  
+- **CI & SonarCloud**: executa lint, testes, build e análise estática para backend e frontend.
+- **Deploy to Production**: atualiza a aplicação em produção após o CI e o Quality Gate do SonarCloud estarem verdes.
 
