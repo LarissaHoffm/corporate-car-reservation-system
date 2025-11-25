@@ -1,22 +1,11 @@
-{
-    # email larissahoffmn@gmail.com
-}
+reservcar.app.br, www.reservcar.app.br {
+  encode gzip
 
-reservcar.app.br {
-    encode gzip
+  # API - remove /api do path quando envia pro backend
+  handle_path /api/* {
+    reverse_proxy api:3000
+  }
 
-    @api path /api/*
-    handle @api {
-        reverse_proxy api:3000
-    }
-
-    # Qualquer outra rota vai para o frontend
-    handle {
-        reverse_proxy web:5173
-    }
-
-    log {
-        output stdout
-        format console
-    }
+  # Frontend (Vite preview na porta 5173)
+  reverse_proxy web:5173
 }
