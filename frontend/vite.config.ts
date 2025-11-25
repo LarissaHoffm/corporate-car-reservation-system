@@ -7,6 +7,7 @@ const allowedHosts = [
   "127.0.0.1",
   "reservcar.app.br",
   "www.reservcar.app.br",
+  "web",
 ];
 
 export default defineConfig({
