@@ -43,23 +43,39 @@ async function bootstrap() {
   app.use('/uploads', express.static(uploadsDir));
 
   // ---------- CORS ----------
-  const originSet = new Set<string>([
+  // Origens padrão permitidas (dev + produção)
+  const baseOrigins = [
     'http://localhost',
     'http://localhost:5173',
-  ]);
+    'http://localhost:4173',         // Vite preview 
+    'http://localhost:3000',         // Swagger / API local
+    'https://reservcar.app.br',      // domínio prod
+    'https://www.reservcar.app.br',  // domínio com www
+  ];
+
+  const originSet = new Set<string>(baseOrigins);
+
+  // Permite complementar via env se precisar 
   const envSingle = cfg.get<string>('FRONTEND_URL');
   const envList = cfg.get<string>('FRONTEND_URLS');
+
   if (envSingle) originSet.add(envSingle);
-  if (envList)
+  if (envList) {
     envList
       .split(',')
       .map((s) => s.trim())
       .filter(Boolean)
       .forEach((o) => originSet.add(o));
+  }
 
   app.enableCors({
     origin: (origin, cb) => {
-      if (!origin || originSet.has(origin)) return cb(null, true);
+      // chamadas internas (sem Origin) continuam liberadas
+      if (!origin || originSet.has(origin)) {
+        return cb(null, true);
+      }
+
+      // bloqueia tudo que não estiver listado
       return cb(new Error(`CORS blocked for origin: ${origin}`), false);
     },
     credentials: true,
@@ -72,6 +88,7 @@ async function bootstrap() {
     ],
     exposedHeaders: ['x-correlation-id'],
   });
+
 
   app.useGlobalPipes(
     new ValidationPipe({
