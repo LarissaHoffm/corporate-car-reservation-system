@@ -1,3 +1,5 @@
+# ATENÇÃO: Caddyfile usado em produção (docker proxy)
+
 reservcar.app.br, www.reservcar.app.br {
   encode gzip
 
