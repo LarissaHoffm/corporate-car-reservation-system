@@ -134,7 +134,7 @@ export default function ApproverChecklistsPage() {
   }, [toast]);
 
   useEffect(() => {
-    void loadRows();
+     loadRows();
   }, [loadRows]);
 
   const filteredRows = useMemo(() => {
