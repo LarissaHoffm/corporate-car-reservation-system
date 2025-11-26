@@ -191,7 +191,7 @@ api.interceptors.response.use(
     }
 
     // Outros erros (inclui 401 em rotas de auth, 403, 4xx, 5xx, rede, etc.)
-    return Promise.reject(normalizeAxiosError(error));
+    throw normalizeAxiosError(error);
   },
 );
 
