@@ -31,7 +31,7 @@ export function useCars(initial?: { status?: CarStatus; branchId?: string }) {
   );
 
   React.useEffect(() => {
-    void refresh();
+    refresh();
   }, [refresh]);
 
   return { data, loading, error, refresh, setData };
@@ -53,7 +53,7 @@ export function useCar(id?: string) {
   }, [id]);
 
   React.useEffect(() => {
-    void refresh();
+    refresh();
   }, [refresh]);
 
   return { data, loading, refresh, setData };
