@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -141,6 +141,109 @@ function normalizeChecklistDecision(source: any): ChecklistDecision {
   return null;
 }
 
+// Mapeia status de reserva + docs + (opcional) resultado de validação
+function getStatusPresentation(
+  reservationStatus: "PENDING" | "APPROVED" | "CANCELED" | "COMPLETED",
+  docStatus?: DocStatus,
+  validationResult?: string | null,
+): {
+  badgeStatus: "pending" | "approved" | "cancelled" | "inactive";
+  chipLabel: "Pendente" | "Aprovado" | "Rejeitado";
+  text: string;
+} {
+  const normalizedResult =
+    validationResult && String(validationResult).toUpperCase();
+  const isChecklistRejected = normalizedResult === "CHECKLIST_REJECTED";
+
+  // Caso especial: sempre exibir
+  // "COMPLETED — Checklist rejected"
+  if (isChecklistRejected) {
+    return {
+      badgeStatus: "approved",
+      chipLabel: "Aprovado",
+      text: "Completed — Checklist rejected",
+    };
+  }
+
+  // COMPLETED "normal"
+  if (reservationStatus === "COMPLETED") {
+    return {
+      badgeStatus: "approved",
+      chipLabel: "Aprovado",
+      text: "Completed",
+    };
+  }
+
+  if (reservationStatus === "PENDING") {
+    return {
+      badgeStatus: "pending",
+      chipLabel: "Pendente",
+      text: "Pending",
+    };
+  }
+
+  if (reservationStatus === "CANCELED") {
+    return {
+      badgeStatus: "cancelled",
+      chipLabel: "Rejeitado",
+      text: "Canceled",
+    };
+  }
+
+  if (reservationStatus !== "APPROVED") {
+    // fallback
+    return {
+      badgeStatus: "pending",
+      chipLabel: "Pendente",
+      text: reservationStatus,
+    };
+  }
+
+  // APPROVED
+  if (!docStatus) {
+    // Sem documentos ainda → mostrar APROVADO
+    return {
+      badgeStatus: "approved",
+      chipLabel: "Aprovado",
+      text: "Approved",
+    };
+  }
+
+  // Docs enviados / em validação
+  if (docStatus === "Pending" || docStatus === "InValidation") {
+    return {
+      badgeStatus: "pending",
+      chipLabel: "Pendente",
+      text: "Pending validation",
+    };
+  }
+
+  // Docs rejeitados (algum tipo sem aprovado)
+  if (docStatus === "PendingDocs") {
+    return {
+      badgeStatus: "cancelled",
+      chipLabel: "Rejeitado",
+      text: "Documents rejected",
+    };
+  }
+
+  // Docs validados, mas reserva ainda não COMPLETED (aguardando checklist)
+  if (docStatus === "Validated") {
+    return {
+      badgeStatus: "pending",
+      chipLabel: "Pendente",
+      text: "Pending validation",
+    };
+  }
+
+  // fallback final
+  return {
+    badgeStatus: "pending",
+    chipLabel: "Pendente",
+    text: reservationStatus,
+  };
+}
+
 export default function RequesterReservationsListPage() {
   const navigate = useNavigate();
   const { myItems, loading, errors, refreshMy, cancelReservation } =
@@ -167,87 +270,87 @@ export default function RequesterReservationsListPage() {
   }, [refreshMy]);
 
   // Carrega o status de documentos para as reservas aprovadas
-  useEffect(() => {
-    const loadDocsStatus = async () => {
-      const list = myItems ?? [];
-      if (!list.length) {
-        setDocStatusMap({});
-        return;
-      }
+  const loadDocsStatus = useCallback(async () => {
+    const list = myItems ?? [];
+    if (!list.length) {
+      setDocStatusMap({});
+      return;
+    }
 
-      const entries = await Promise.all(
-        list.map(async (r) => {
-          // só faz sentido checar docs para reservas aprovadas
-          if (r.status !== "APPROVED") {
+    const entries = await Promise.all(
+      list.map(async (r) => {
+        // só faz sentido checar docs para reservas aprovadas
+        if (r.status !== "APPROVED") {
+          return [r.id, undefined] as const;
+        }
+        try {
+          const docs = await listDocumentsByReservation(r.id);
+          if (!docs.length) {
             return [r.id, undefined] as const;
           }
-          try {
-            const docs = await listDocumentsByReservation(r.id);
-            if (!docs.length) {
-              return [r.id, undefined] as const;
-            }
-            return [r.id, docStatusFromDocuments(docs)] as const;
-          } catch {
-            return [r.id, undefined] as const;
-          }
-        }),
-      );
+          return [r.id, docStatusFromDocuments(docs)] as const;
+        } catch {
+          return [r.id, undefined] as const;
+        }
+      }),
+    );
 
-      const map: Record<string, DocStatus | undefined> = {};
-      for (const [id, st] of entries) {
-        map[id] = st;
-      }
-      setDocStatusMap(map);
-    };
-
-    void loadDocsStatus();
+    const map: Record<string, DocStatus | undefined> = {};
+    for (const [id, st] of entries) {
+      map[id] = st;
+    }
+    setDocStatusMap(map);
   }, [myItems]);
+
+  useEffect(() => {
+    loadDocsStatus();
+  }, [loadDocsStatus]);
 
   // Carrega decisão do checklist (última validação do approver) por reserva
-  useEffect(() => {
-    const loadChecklistDecisions = async () => {
-      const list = myItems ?? [];
-      if (!list.length) {
-        setChecklistDecisionMap({});
-        return;
-      }
+  const loadChecklistDecisions = useCallback(async () => {
+    const list = myItems ?? [];
+    if (!list.length) {
+      setChecklistDecisionMap({});
+      return;
+    }
 
-      const entries = await Promise.all(
-        list.map(async (r) => {
-          try {
-            const subs: ChecklistSubmission[] =
-              await ChecklistsAPI.listReservationSubmissions(r.id);
+    const entries = await Promise.all(
+      list.map(async (r) => {
+        try {
+          const subs: ChecklistSubmission[] =
+            await ChecklistsAPI.listReservationSubmissions(r.id);
 
-            const validations = subs.filter(
-              (s) => s.kind === "APPROVER_VALIDATION",
-            );
-            if (!validations.length) {
-              return [r.id, null] as const;
-            }
-
-            const latest = validations.reduce((best, curr) => {
-              const tb = new Date(best.createdAt).getTime();
-              const tc = new Date(curr.createdAt).getTime();
-              return tc > tb ? curr : best;
-            });
-
-            const decision = normalizeChecklistDecision(latest as any);
-            return [r.id, decision] as const;
-          } catch {
+          const validations = subs.filter(
+            (s) => s.kind === "APPROVER_VALIDATION",
+          );
+          if (!validations.length) {
             return [r.id, null] as const;
           }
-        }),
-      );
 
-      const map: Record<string, ChecklistDecision | undefined> = {};
-      for (const [id, dec] of entries) {
-        map[id] = dec;
-      }
-      setChecklistDecisionMap(map);
-    };
+          const latest = validations.reduce((best, curr) => {
+            const tb = new Date(best.createdAt).getTime();
+            const tc = new Date(curr.createdAt).getTime();
+            return tc > tb ? curr : best;
+          });
 
-    void loadChecklistDecisions();
+          const decision = normalizeChecklistDecision(latest as any);
+          return [r.id, decision] as const;
+        } catch {
+          return [r.id, null] as const;
+        }
+      }),
+    );
+
+    const map: Record<string, ChecklistDecision | undefined> = {};
+    for (const [id, dec] of entries) {
+      map[id] = dec;
+    }
+    setChecklistDecisionMap(map);
   }, [myItems]);
+
+  useEffect(() => {
+    loadChecklistDecisions();
+  }, [loadChecklistDecisions]);
 
   const filtered = useMemo(() => {
     const now = new Date();
@@ -296,102 +399,6 @@ export default function RequesterReservationsListPage() {
   function onConclude(id: string) {
     // Fluxo: lista -> detalhes -> upload -> checklist
     navigate(`/requester/reservations/${id}`);
-  }
-
-  // Mapeia status de reserva + docs + (opcional) resultado de validação
-  function getStatusPresentation(
-    reservationStatus: "PENDING" | "APPROVED" | "CANCELED" | "COMPLETED",
-    docStatus?: DocStatus,
-    validationResult?: string | null,
-  ): {
-    badgeStatus: "pending" | "approved" | "cancelled" | "inactive";
-    chipLabel: "Pendente" | "Aprovado" | "Rejeitado";
-    text: string;
-  } {
-    const normalizedResult =
-      validationResult && String(validationResult).toUpperCase();
-    const isChecklistRejected = normalizedResult === "CHECKLIST_REJECTED";
-
-    // Caso especial: sempre exibir
-    // "COMPLETED — Checklist rejected"
-    if (isChecklistRejected) {
-      return {
-        badgeStatus: "approved",
-        chipLabel: "Aprovado",
-        text: "Completed — Checklist rejected",
-      };
-    }
-
-    // COMPLETED "normal"
-    if (reservationStatus === "COMPLETED") {
-      return {
-        badgeStatus: "approved",
-        chipLabel: "Aprovado",
-        text: "Completed",
-      };
-    }
-
-    if (reservationStatus === "PENDING") {
-      return {
-        badgeStatus: "pending",
-        chipLabel: "Pendente",
-        text: "Pending",
-      };
-    }
-
-    if (reservationStatus === "CANCELED") {
-      return {
-        badgeStatus: "cancelled",
-        chipLabel: "Rejeitado",
-        text: "Canceled",
-      };
-    }
-
-    // APPROVED
-    if (reservationStatus === "APPROVED") {
-      // Sem documentos ainda → mostrar APROVADO
-      if (!docStatus) {
-        return {
-          badgeStatus: "approved",
-          chipLabel: "Aprovado",
-          text: "Approved",
-        };
-      }
-
-      // Docs enviados / em validação
-      if (docStatus === "Pending" || docStatus === "InValidation") {
-        return {
-          badgeStatus: "pending",
-          chipLabel: "Pendente",
-          text: "Pending validation",
-        };
-      }
-
-      // Docs rejeitados (algum tipo sem aprovado)
-      if (docStatus === "PendingDocs") {
-        return {
-          badgeStatus: "cancelled",
-          chipLabel: "Rejeitado",
-          text: "Documents rejected",
-        };
-      }
-
-      // Docs validados, mas reserva ainda não COMPLETED (aguardando checklist)
-      if (docStatus === "Validated") {
-        return {
-          badgeStatus: "pending",
-          chipLabel: "Pendente",
-          text: "Pending validation",
-        };
-      }
-    }
-
-    // fallback
-    return {
-      badgeStatus: "pending",
-      chipLabel: "Pendente",
-      text: reservationStatus,
-    };
   }
 
   return (
