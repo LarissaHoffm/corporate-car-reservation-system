@@ -62,6 +62,85 @@ function fmtDateTime(dt?: string) {
   }
 }
 
+/**
+ * Constrói as linhas de documentos pendentes para uma reserva específica.
+ */
+async function fetchPendingDocsForReservation(
+  reservation: Reservation,
+): Promise<PendingDocRow[]> {
+  try {
+    const docs: ApiDocument[] = await listDocumentsByReservation(reservation.id);
+
+    const pendingDocs = docs.filter(
+      (doc) => normalizeDocStatus((doc as any).status) === "PENDING",
+    );
+
+    return pendingDocs.map<PendingDocRow>((doc) => {
+      const uploadedAt =
+        (doc as any).createdAt ?? (doc as any).updatedAt ?? undefined;
+
+      return {
+        id:
+          (doc as any).id ??
+          `${reservation.id}-${(doc as any).type ?? "DOC"}`,
+        reservationId: reservation.id,
+        reservationCode: makeFriendlyReservationCode({
+          id: reservation.id,
+          code: (reservation as any).code ?? null,
+        }),
+        userName: reservation.user?.name ?? "—",
+        documentType: (doc as any).type ?? "Document",
+        uploadedAt,
+      };
+    });
+  } catch {
+    // Falha ao buscar docs de uma reserva específica não deve quebrar o resto
+    return [];
+  }
+}
+
+/**
+ * Busca e agrega todos os documentos pendentes para a lista de reservas.
+ */
+async function loadPendingDocsForReservations(
+  reservations: Reservation[],
+): Promise<PendingDocRow[]> {
+  if (!reservations.length) {
+    return [];
+  }
+
+  const perReservation = await Promise.all(
+    reservations.map((reservation) =>
+      fetchPendingDocsForReservation(reservation),
+    ),
+  );
+
+  return perReservation.flat();
+}
+
+/**
+ * Busca checklists pendentes para o approver e filtra apenas os "PENDING".
+ */
+async function fetchPendingChecklistsForApprover(): Promise<
+  PendingChecklistReservation[]
+> {
+  const rows = await ChecklistsAPI.listPendingForApprover();
+
+  // Usa o status agregado que o backend retorna hoje:
+  // status: "Pending" | "Validated" | "Rejected"
+  // (e se um dia vier checklistStatus separado, também cobre)
+  return rows.filter((r) => {
+    const raw =
+      (r as any).checklistStatus != null
+        ? (r as any).checklistStatus
+        : (r as any).status;
+
+    if (!raw) return false;
+    const s = String(raw).toUpperCase();
+    return s === "PENDING";
+  });
+}
+
 export default function ApproverDashboard() {
   const navigate = useNavigate();
 
@@ -69,7 +148,7 @@ export default function ApproverDashboard() {
 
   // carregar reservas (cards + tabela esquerda)
   useEffect(() => {
-    void refresh();
+    refresh();
   }, [refresh]);
 
   const list = items ?? [];
@@ -102,7 +181,9 @@ export default function ApproverDashboard() {
   const [docsError, setDocsError] = useState<string | undefined>();
 
   useEffect(() => {
-    async function loadPendingDocs() {
+    let cancelled = false;
+
+    const run = async () => {
       if (!list.length) {
         setPendingDocs([]);
         return;
@@ -112,55 +193,27 @@ export default function ApproverDashboard() {
       setDocsError(undefined);
 
       try {
-        const perReservation = await Promise.all(
-          list.map(async (r) => {
-            try {
-              const docs: ApiDocument[] = await listDocumentsByReservation(
-                r.id,
-              );
-
-              const pendingForReservation = docs
-                .filter(
-                  (d) => normalizeDocStatus((d as any).status) === "PENDING",
-                )
-                .map<PendingDocRow>((doc) => {
-                  const uploadedAt =
-                    (doc as any).createdAt ??
-                    (doc as any).updatedAt ??
-                    undefined;
-
-                  return {
-                    id:
-                      (doc as any).id ??
-                      `${r.id}-${(doc as any).type ?? "DOC"}`,
-                    reservationId: r.id,
-                    reservationCode: makeFriendlyReservationCode({
-                      id: r.id,
-                      code: (r as any).code ?? null,
-                    }),
-                    userName: r.user?.name ?? "—",
-                    documentType: (doc as any).type ?? "Document",
-                    uploadedAt: uploadedAt,
-                  };
-                });
-
-              return pendingForReservation;
-            } catch {
-              return [] as PendingDocRow[];
-            }
-          }),
-        );
-
-        setPendingDocs(perReservation.flat());
+        const docs = await loadPendingDocsForReservations(list);
+        if (!cancelled) {
+          setPendingDocs(docs);
+        }
       } catch {
-        setDocsError("Não foi possível carregar documentos pendentes.");
-        setPendingDocs([]);
+        if (!cancelled) {
+          setDocsError("Não foi possível carregar documentos pendentes.");
+          setPendingDocs([]);
+        }
       } finally {
-        setLoadingDocs(false);
+        if (!cancelled) {
+          setLoadingDocs(false);
+        }
       }
-    }
+    };
 
-    void loadPendingDocs();
+    run();
+
+    return () => {
+      cancelled = true;
+    };
   }, [list]);
 
   const documentsToValidateCount = pendingDocs.length;
@@ -173,39 +226,36 @@ export default function ApproverDashboard() {
   const [checklistsError, setChecklistsError] = useState<string | undefined>();
 
   useEffect(() => {
-    async function loadPendingChecklists() {
+    let cancelled = false;
+
+    const run = async () => {
       setLoadingChecklists(true);
       setChecklistsError(undefined);
 
       try {
-        const rows = await ChecklistsAPI.listPendingForApprover();
-
-        // Usa o status agregado que o backend retorna hoje:
-        // status: "Pending" | "Validated" | "Rejected"
-        // (e se um dia vier checklistStatus separado, também cobre)
-        const filtered = rows.filter((r) => {
-          const raw =
-            (r as any).checklistStatus != null
-              ? (r as any).checklistStatus
-              : (r as any).status;
-
-          if (!raw) return false;
-          const s = String(raw).toUpperCase();
-          return s === "PENDING";
-        });
-
-        setPendingChecklists(filtered);
+        const rows = await fetchPendingChecklistsForApprover();
+        if (!cancelled) {
+          setPendingChecklists(rows);
+        }
       } catch {
-        setPendingChecklists([]);
-        setChecklistsError(
-          "Não foi possível carregar checklists pendentes para validação.",
-        );
+        if (!cancelled) {
+          setPendingChecklists([]);
+          setChecklistsError(
+            "Não foi possível carregar checklists pendentes para validação.",
+          );
+        }
       } finally {
-        setLoadingChecklists(false);
+        if (!cancelled) {
+          setLoadingChecklists(false);
+        }
       }
-    }
+    };
 
-    void loadPendingChecklists();
+    run();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const pendingChecklistsCount = pendingChecklists.length;
