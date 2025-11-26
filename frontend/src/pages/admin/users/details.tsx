@@ -104,6 +104,33 @@ function fmtDateTime(dt?: string) {
   }
 }
 
+/** Label amigável para o papel do usuário (tira o ternário aninhado do componente) */
+function getUserRoleLabel(role: UserDetails["role"]): string {
+  if (role === "ADMIN") return "Administrator";
+  if (role === "APPROVER") return "Approver";
+  return "Requester";
+}
+
+/** Label amigável para status do usuário (e reaproveitado no chip) */
+function getUserStatusLabel(status: UserDetails["status"]): "Active" | "Inactive" {
+  return status === "ACTIVE" ? "Active" : "Inactive";
+}
+
+/** Monta a string de veículo para o modal, isolando condicionais do componente principal */
+function formatReservationVehicle(reservation: Reservation): string {
+  const car = (reservation as any).car;
+  if (!car) return "—";
+
+  const plate = car.plate ?? "";
+  const model = car.model ?? "";
+
+  if (plate && model) {
+    return `${plate} — ${model}`;
+  }
+
+  return plate || model || "—";
+}
+
 export default function AdminUserDetailsPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
@@ -134,9 +161,11 @@ export default function AdminUserDetailsPage() {
     refresh,
   } = useReservations();
 
-  // dispara o carregamento das reservas (igual dashboard)
+  // dispara o carregamento das reservas (igual dashboard) – sem usar `void`
   useEffect(() => {
-    void refresh();
+    refresh().catch(() => {
+      // erros já são expostos via `errors.list`
+    });
   }, [refresh]);
 
   const reservations: Reservation[] = useMemo(
@@ -287,6 +316,8 @@ export default function AdminUserDetailsPage() {
     );
   }
 
+  const userStatusLabel = getUserStatusLabel(user.status);
+
   return (
     <>
       <div className="space-y-6">
@@ -385,11 +416,7 @@ export default function AdminUserDetailsPage() {
                     </Select>
                   ) : (
                     <div className="text-foreground">
-                      {user.role === "ADMIN"
-                        ? "Administrator"
-                        : user.role === "APPROVER"
-                          ? "Approver"
-                          : "Requester"}
+                      {getUserRoleLabel(user.role)}
                     </div>
                   )}
                 </div>
@@ -460,11 +487,9 @@ export default function AdminUserDetailsPage() {
                   <Label>Status</Label>
                   <div className="flex items-center gap-3">
                     <Badge
-                      className={userStatusChipClasses(
-                        user.status === "ACTIVE" ? "Active" : "Inactive",
-                      )}
+                      className={userStatusChipClasses(userStatusLabel)}
                     >
-                      {user.status === "ACTIVE" ? "Active" : "Inactive"}
+                      {userStatusLabel}
                     </Badge>
                     <Switch
                       checked={user.status === "ACTIVE"}
@@ -644,15 +669,7 @@ export default function AdminUserDetailsPage() {
                     Vehicle
                   </p>
                   <p className="text-sm text-foreground">
-                    {(() => {
-                      const car = (selectedReservation as any).car;
-                      if (!car) return "—";
-                      const plate = car.plate ?? "";
-                      const model = car.model ?? "";
-                      return plate && model
-                        ? `${plate} — ${model}`
-                        : plate || model || "—";
-                    })()}
+                    {formatReservationVehicle(selectedReservation)}
                   </p>
                 </div>
 
