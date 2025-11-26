@@ -77,6 +77,27 @@ export class CarsService {
     return undefined;
   }
 
+  // helper extraído só para reduzir a complexidade cognitiva do update
+  private async ensureUniquePlateOnUpdate(
+    tenantId: string,
+    id: string,
+    currentPlate: string,
+    dto: UpdateCarDto,
+  ): Promise<void> {
+    if (!dto.plate || dto.plate === currentPlate) {
+      return;
+    }
+
+    const dup = await this.prisma.car.findFirst({
+      where: { tenantId, plate: dto.plate, NOT: { id } },
+      select: { id: true },
+    });
+
+    if (dup) {
+      throw new ConflictException('Plate already registered for this tenant');
+    }
+  }
+
   async create(tenantId: string, dto: CreateCarDto) {
     const exists = await this.prisma.car.findFirst({
       where: { tenantId, plate: dto.plate },
@@ -126,15 +147,7 @@ export class CarsService {
     });
     if (!current) throw new NotFoundException('Car not found');
 
-    // Pré-checagem
-    if (dto.plate && dto.plate !== current.plate) {
-      const dup = await this.prisma.car.findFirst({
-        where: { tenantId, plate: dto.plate, NOT: { id } },
-        select: { id: true },
-      });
-      if (dup)
-        throw new ConflictException('Plate already registered for this tenant');
-    }
+    await this.ensureUniquePlateOnUpdate(tenantId, id, current.plate, dto);
 
     const resolvedBranchId =
       dto.branchId !== undefined || dto.branchName
