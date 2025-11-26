@@ -1,92 +1,159 @@
-// frontend/src/hooks/use-station-cities.ts
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import StationsAPI, {
   StationListResponse,
   StationListParams,
 } from "@/lib/http/stations";
 
 /**
- * Busca e deduplica TODAS as cidades existentes na base de postos do tenant atual,
- * paginando /stations até cobrir o total. Não altera UI por si só.
- *
- * Obs.: depois podemos trocar por um endpoint otimizado (/stations/cities).
+ * Opcional: filtros para busca de cidades.
  */
-export function useStationCities(opts?: {
+type UseStationCitiesOptions = {
   branchId?: string;
   isActive?: boolean;
-}) {
+};
+
+/**
+ * Monta os parâmetros base para paginação de postos.
+ */
+function buildStationListParams(
+  opts?: UseStationCitiesOptions,
+): StationListParams {
+  return {
+    page: 1,
+    pageSize: 50, // página moderada
+    branchId: opts?.branchId || undefined,
+    isActive:
+      typeof opts?.isActive === "boolean" ? opts.isActive : undefined,
+    orderBy: "city",
+    order: "asc",
+  };
+}
+
+/**
+ * Garante que sempre teremos um array de postos.
+ */
+function getStationsFromResponse(res: StationListResponse): any[] {
+  if (Array.isArray(res?.data)) return res.data;
+  return [];
+}
+
+/**
+ * Adiciona as cidades de uma página de postos ao acumulador (set).
+ */
+function collectCities(acc: Set<string>, list: any[]): void {
+  list.forEach((st: any) => {
+    const c = (st?.city || "").toString().trim();
+    if (c) acc.add(c);
+  });
+}
+
+/**
+ * Obtém o total a partir da resposta, com fallback para o tamanho da página.
+ */
+function getTotalFromResponse(
+  res: StationListResponse,
+  listLength: number,
+): number {
+  return typeof res?.total === "number" ? res.total : listLength;
+}
+
+/**
+ * Regras de parada da paginação.
+ */
+function shouldStopPaging(listLength: number, nextPage: number): boolean {
+  const reachedEmptyPage = listLength === 0;
+  const reachedSafetyLimit = nextPage > 200;
+  return reachedEmptyPage || reachedSafetyLimit;
+}
+
+/**
+ * Ordena case-insensitive.
+ */
+function sortCities(acc: Set<string>): string[] {
+  return Array.from(acc).sort((a, b) =>
+    a.localeCompare(b, undefined, { sensitivity: "accent" }),
+  );
+}
+
+/**
+ * Extrai uma mensagem de erro amigável para o usuário.
+ */
+function getErrorMessage(e: any): string {
+  const msg =
+    e?.response?.data?.message ??
+    e?.message ??
+    "Falha ao carregar cidades.";
+  return Array.isArray(msg) ? msg[0] : String(msg);
+}
+
+/**
+ * Busca e deduplica TODAS as cidades existentes na base de postos do tenant atual,
+ * paginando /stations até cobrir o total.
+ */
+async function fetchAllStationCities(
+  paramsBase: StationListParams,
+): Promise<string[]> {
+  const acc = new Set<string>();
+  let page = 1;
+  let fetched = 0;
+  let total = Infinity;
+
+  while (fetched < total) {
+    const res: StationListResponse = await StationsAPI.list({
+      ...paramsBase,
+      page,
+    });
+
+    const list = getStationsFromResponse(res);
+    collectCities(acc, list);
+
+    fetched += list.length;
+    total = getTotalFromResponse(res, list.length);
+
+    const nextPage = page + 1;
+    if (shouldStopPaging(list.length, nextPage)) {
+      break;
+    }
+
+    page = nextPage;
+  }
+
+  return sortCities(acc);
+}
+
+export function useStationCities(opts?: UseStationCitiesOptions) {
   const [cities, setCities] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const mounted = useRef(true);
 
   useEffect(() => {
-    mounted.current = true;
-    (async () => {
+    let cancelled = false;
+    const paramsBase = buildStationListParams(opts);
+
+    const load = async () => {
       setLoading(true);
       setError(null);
 
       try {
-        const paramsBase: StationListParams = {
-          page: 1,
-          pageSize: 50, // pagina moderada
-          branchId: opts?.branchId || undefined,
-          isActive:
-            typeof opts?.isActive === "boolean" ? opts?.isActive : undefined,
-          orderBy: "city",
-          order: "asc",
-        };
-
-        const acc = new Set<string>();
-        let page = 1;
-        let fetched = 0;
-        let total = Infinity;
-
-        while (fetched < total) {
-          const res: StationListResponse = await StationsAPI.list({
-            ...paramsBase,
-            page,
-          });
-          // protege contra respostas inesperadas
-          const list = Array.isArray(res?.data) ? res.data : [];
-          list.forEach((st: any) => {
-            const c = (st?.city || "").toString().trim();
-            if (c) acc.add(c);
-          });
-
-          fetched += list.length;
-          total = typeof res?.total === "number" ? res.total : list.length;
-          page += 1;
-
-          // guarda corpo se desmontar
-          if (!mounted.current) return;
-
-          // break de segurança caso a API esteja sem paginação real
-          if (list.length === 0) break;
-          // limite de páginas para evitar loop infinito em caso de API bugada
-          if (page > 200) break;
+        const sortedCities = await fetchAllStationCities(paramsBase);
+        if (!cancelled) {
+          setCities(sortedCities);
         }
-
-        // ordena case-insensitive
-        const sorted = Array.from(acc).sort((a, b) =>
-          a.localeCompare(b, undefined, { sensitivity: "accent" }),
-        );
-
-        if (mounted.current) setCities(sorted);
       } catch (e: any) {
-        const msg =
-          e?.response?.data?.message ??
-          e?.message ??
-          "Falha ao carregar cidades.";
-        if (mounted.current)
-          setError(Array.isArray(msg) ? msg[0] : String(msg));
+        if (!cancelled) {
+          setError(getErrorMessage(e));
+        }
       } finally {
-        if (mounted.current) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
-    })();
+    };
+
+    void load();
 
     return () => {
-      mounted.current = false;
+      cancelled = true;
     };
   }, [opts?.branchId, opts?.isActive]);
 
