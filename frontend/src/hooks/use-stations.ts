@@ -24,6 +24,28 @@ const defaultQuery: QueryState = {
   order: "asc",
 };
 
+function buildErrorMessage(e: any, fallback: string): string {
+  const status = e?.response?.status;
+  const payload = e?.response?.data?.message;
+  const base = Array.isArray(payload) ? payload.join("\n") : payload;
+
+  if (status === 400) {
+    return (
+      base ||
+      "Dados inválidos. Verifique os campos e tente novamente."
+    );
+  }
+
+  if (status === 403) {
+    return (
+      base ||
+      "Você não tem permissão para executar esta ação."
+    );
+  }
+
+  return base || e?.message || fallback;
+}
+
 export interface UseStationsReturn {
   items: Station[];
   total: number;
@@ -79,28 +101,6 @@ export function useStations(initial?: Partial<QueryState>): UseStationsReturn {
     [query, debouncedQ],
   );
 
-  function buildErrorMessage(e: any, fallback: string): string {
-    const status = e?.response?.status;
-    const payload = e?.response?.data?.message;
-    const base = Array.isArray(payload) ? payload.join("\n") : payload;
-
-    if (status === 400) {
-      return (
-        base ||
-        "Dados inválidos. Verifique os campos e tente novamente."
-      );
-    }
-
-    if (status === 403) {
-      return (
-        base ||
-        "Você não tem permissão para executar esta ação."
-      );
-    }
-
-    return base || e?.message || fallback;
-  }
-
   const fetchList = useCallback(
     async (params: StationListParams) => {
       setLoading(true);
@@ -118,7 +118,7 @@ export function useStations(initial?: Partial<QueryState>): UseStationsReturn {
         if (mounted.current) setLoading(false);
       }
     },
-    [], // buildErrorMessage é estável dentro do hook
+    [], // buildErrorMessage agora está em escopo de módulo e é estável
   );
 
   useEffect(() => {
@@ -155,7 +155,8 @@ export function useStations(initial?: Partial<QueryState>): UseStationsReturn {
     setQuery({ orderBy, order });
 
   const refresh = () => {
-    void fetchList(effectiveParams);
+    // mesma lógica de antes, só sem o "void"
+    fetchList(effectiveParams);
   };
 
   const createStation = async (payload: StationInput) => {
