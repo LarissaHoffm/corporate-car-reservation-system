@@ -35,21 +35,29 @@ export class UsersService {
   }
 
   private generateStrongPassword(): string {
-    const minLen = 12,
-      maxLen = 16;
+    const minLen = 12;
+    const maxLen = 16;
     const len = minLen + randomInt(maxLen - minLen + 1);
+
     const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
     const lower = 'abcdefghijkmnopqrstuvwxyz';
     const digits = '23456789';
     const symbols = '!@#$%^&*()-_=+[]{}<>?';
     const all = upper + lower + digits + symbols;
+
     const pick = (s: string) => s[randomInt(s.length)];
+
     const chars = [pick(upper), pick(lower), pick(digits), pick(symbols)];
-    for (let i = chars.length; i < len; i++) chars.push(pick(all));
+
+    for (let i = chars.length; i < len; i++) {
+      chars.push(pick(all));
+    }
+
     for (let i = chars.length - 1; i > 0; i--) {
       const j = randomInt(i + 1);
       [chars[i], chars[j]] = [chars[j], chars[i]];
     }
+
     return chars.join('');
   }
 
@@ -61,7 +69,9 @@ export class UsersService {
     if (ctx && typeof ctx === 'object') tenantId = ctx.tenantId ?? null;
     tenantId = tenantId ?? (dto as any)?.tenantId ?? null;
 
-    if (!tenantId) throw new ConflictException('Tenant ausente na requisição');
+    if (!tenantId) {
+      throw new ConflictException('Tenant ausente na requisição');
+    }
 
     const email = dto.email.trim().toLowerCase();
 
@@ -69,8 +79,9 @@ export class UsersService {
       where: { email, tenantId },
       select: { id: true },
     });
-    if (exists)
+    if (exists) {
       throw new ConflictException('E-mail já cadastrado para este tenant.');
+    }
 
     let branchIdToPersist: string | null = null;
     if (dto.branchId) {
@@ -164,7 +175,9 @@ export class UsersService {
         mustChangePassword: true,
       },
     });
-    if (!target) throw new NotFoundException('Usuário não encontrado');
+    if (!target) {
+      throw new NotFoundException('Usuário não encontrado');
+    }
 
     const isAdmin = String(actorRole) === 'ADMIN';
     const isSelf = actorId === id;
@@ -177,13 +190,16 @@ export class UsersService {
 
     if (!isAdmin) {
       if (!target.mustChangePassword) {
-        if (!dto.currentPassword)
+        if (!dto.currentPassword) {
           throw new BadRequestException('Informe a senha atual.');
+        }
         const ok = await argon2.verify(
           target.passwordHash,
           dto.currentPassword,
         );
-        if (!ok) throw new BadRequestException('Senha atual inválida.');
+        if (!ok) {
+          throw new BadRequestException('Senha atual inválida.');
+        }
       }
     }
 
@@ -221,7 +237,9 @@ export class UsersService {
       where: { id, ...(tenantId ? { tenantId } : {}) },
       select: { id: true },
     });
-    if (!target) throw new NotFoundException('Usuário não encontrado');
+    if (!target) {
+      throw new NotFoundException('Usuário não encontrado');
+    }
 
     const temporaryPassword = this.generateStrongPassword();
     const passwordHash = await argon2.hash(temporaryPassword);
@@ -239,6 +257,65 @@ export class UsersService {
     return { ok: true, userId: id, temporaryPassword };
   }
 
+  /**
+   * Helpers extraídos apenas para reduzir a complexidade do método update()
+   * sem alterar regras de negócio.
+   */
+  private async resolveBranchIdForUpdate(
+    tenantId: string,
+    dto: UpdateUserDto,
+  ): Promise<string | null | undefined> {
+    if (dto.branchId === undefined) {
+      return undefined;
+    }
+
+    if (dto.branchId === null) {
+      return null;
+    }
+
+    const branch = await this.prisma.branch.findFirst({
+      where: { id: dto.branchId, tenantId },
+      select: { id: true },
+    });
+
+    if (!branch) {
+      throw new BadRequestException(
+        'Filial (branchId) inexistente para este tenant.',
+      );
+    }
+
+    return dto.branchId;
+  }
+
+  private normalizePhoneForUpdate(
+    dto: UpdateUserDto,
+  ): string | null | undefined {
+    const phone = (dto as any).phone;
+    if (phone === undefined) {
+      return undefined;
+    }
+
+    const raw = String(phone ?? '').trim();
+    return raw === '' ? null : raw.replace(/\D/g, '');
+  }
+
+  private async applyAdminPasswordUpdate(
+    dto: UpdateUserDto,
+    data: any,
+  ): Promise<void> {
+    const password = (dto as any).password;
+    if (!password) {
+      return;
+    }
+
+    const raw = String(password).trim();
+    this.assertStrongPassword(raw);
+    const passwordHash = await argon2.hash(raw);
+    data.passwordHash = passwordHash;
+    data.mustChangePassword = false;
+    data.passwordChangedAt = new Date();
+  }
+
   async update(id: string, dto: UpdateUserDto, ctx?: { tenantId?: string }) {
     const tenantId = ctx?.tenantId ?? undefined;
 
@@ -246,50 +323,47 @@ export class UsersService {
       where: { id, ...(tenantId ? { tenantId } : {}) },
       select: { id: true, tenantId: true },
     });
-    if (!current) throw new NotFoundException('Usuário não encontrado');
+    if (!current) {
+      throw new NotFoundException('Usuário não encontrado');
+    }
 
     const data: any = {};
-    if (dto.name !== undefined) data.name = dto.name;
 
-    if (dto.branchId !== undefined) {
-      if (dto.branchId === null) {
-        data.branchId = null;
-      } else {
-        const branch = await this.prisma.branch.findFirst({
-          where: { id: dto.branchId, tenantId: current.tenantId },
-          select: { id: true },
-        });
-        if (!branch)
-          throw new BadRequestException(
-            'Filial (branchId) inexistente para este tenant.',
-          );
-        data.branchId = dto.branchId;
-      }
+    if (dto.name !== undefined) {
+      data.name = dto.name;
     }
 
-    if ((dto as any).phone !== undefined) {
-      const rp = String((dto as any).phone ?? '').trim();
-      data.phone = rp === '' ? null : rp.replace(/\D/g, '');
+    const resolvedBranchId = await this.resolveBranchIdForUpdate(
+      current.tenantId,
+      dto,
+    );
+    if (resolvedBranchId !== undefined) {
+      data.branchId = resolvedBranchId;
     }
 
-    if ((dto as any).role !== undefined) data.role = (dto as any).role as Role;
-    if ((dto as any).status !== undefined)
+    const normalizedPhone = this.normalizePhoneForUpdate(dto);
+    if (normalizedPhone !== undefined) {
+      data.phone = normalizedPhone;
+    }
+
+    if ((dto as any).role !== undefined) {
+      data.role = (dto as any).role as Role;
+    }
+
+    if ((dto as any).status !== undefined) {
       data.status = (dto as any).status as UserStatus;
-    if ((dto as any).email !== undefined)
-      data.email = String((dto as any).email)
-        .trim()
-        .toLowerCase();
-    if (dto.department !== undefined) data.department = dto.department ?? null;
+    }
+
+    if ((dto as any).email !== undefined) {
+      data.email = String((dto as any).email).trim().toLowerCase();
+    }
+
+    if (dto.department !== undefined) {
+      data.department = dto.department ?? null;
+    }
 
     // ADMIN definindo nova senha direto no update
-    if ((dto as any).password) {
-      const raw = String((dto as any).password).trim();
-      this.assertStrongPassword(raw);
-      const passwordHash = await argon2.hash(raw);
-      data.passwordHash = passwordHash;
-      data.mustChangePassword = false;
-      data.passwordChangedAt = new Date();
-    }
+    await this.applyAdminPasswordUpdate(dto, data);
 
     const updated = await this.prisma.user.update({
       where: { id },
@@ -394,7 +468,9 @@ export class UsersService {
         phone: true,
       },
     });
-    if (!u) throw new NotFoundException('Usuário não encontrado');
+    if (!u) {
+      throw new NotFoundException('Usuário não encontrado');
+    }
 
     return u;
   }
@@ -428,7 +504,9 @@ export class UsersService {
       },
       select: { id: true },
     });
-    if (!user) throw new NotFoundException('Usuário não encontrado');
+    if (!user) {
+      throw new NotFoundException('Usuário não encontrado');
+    }
 
     const reservations = await this.prisma.reservation.findMany({
       where: { userId, ...(ctx?.tenantId ? { tenantId: ctx.tenantId } : {}) },
