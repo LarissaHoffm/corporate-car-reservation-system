@@ -110,8 +110,8 @@ export default function RequesterReportsPage() {
   );
 
   const handleExportRange = React.useCallback(
-    (range: string, defaultName: string) => {
-      void downloadCsv(
+    async (range: string, defaultName: string) => {
+      await downloadCsv(
         `/reports/my-reservations/export?range=${encodeURIComponent(range)}`,
         defaultName,
       );
@@ -119,8 +119,8 @@ export default function RequesterReportsPage() {
     [downloadCsv],
   );
 
-  const handleExportCarUsage = React.useCallback(() => {
-    void downloadCsv(
+  const handleExportCarUsage = React.useCallback(async () => {
+    await downloadCsv(
       `/reports/my-reservations/by-car/export?range=last-12-months`,
       "my-car-usage-last-12-months.csv",
     );
@@ -290,7 +290,6 @@ export default function RequesterReportsPage() {
             </CardContent>
           </Card>
         </div>
-
       </div>
     </RoleGuard>
   );
