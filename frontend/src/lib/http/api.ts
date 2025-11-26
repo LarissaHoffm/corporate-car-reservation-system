@@ -159,10 +159,8 @@ api.interceptors.response.use(
           pendingQueue = [];
           clearAccessToken();
           // sessão expirada/refresh falhou → devolve erro normalizado 401
-          return Promise.reject(
-            normalizeAxiosError(
-              (error as AxiosError) ?? (e as AxiosError),
-            ),
+          throw normalizeAxiosError(
+            (error as AxiosError) ?? (e as AxiosError),
           );
         }
       }
