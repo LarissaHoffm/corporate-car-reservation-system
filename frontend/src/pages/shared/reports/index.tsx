@@ -278,6 +278,8 @@ function MultiUserFilter({
 }
 
 // ---------------- Página principal (ADMIN / APPROVER) ----------------
+const alphaSort = (a: string, b: string) =>
+  a.localeCompare(b, "pt-BR", { sensitivity: "base" });
 
 export default function SharedReportsPage() {
   const [reservations, setReservations] = useState<ReservationView[]>([]);
@@ -316,41 +318,42 @@ export default function SharedReportsPage() {
     loadReservations();
   }, [loadReservations]);
 
-  const allUsers = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          reservations
-            .map((r) => r.userName)
-            .filter((n): n is string => !!n && n.trim().length > 0),
-        ),
-      ).sort(),
-    [reservations],
-  );
+const allUsers = useMemo(
+  () =>
+    Array.from(
+      new Set(
+        reservations
+          .map((r) => r.userName)
+          .filter((n): n is string => !!n && n.trim().length > 0),
+      ),
+    ).sort(alphaSort),
+  [reservations],
+);
 
-  const allCars = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          reservations
-            .map((r) => r.carModel)
-            .filter((n): n is string => !!n && n.trim().length > 0),
-        ),
-      ).sort(),
-    [reservations],
-  );
+const allCars = useMemo(
+  () =>
+    Array.from(
+      new Set(
+        reservations
+          .map((r) => r.carModel)
+          .filter((n): n is string => !!n && n.trim().length > 0),
+      ),
+    ).sort(alphaSort),
+  [reservations],
+);
 
-  const allBranches = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          reservations
-            .map((r) => r.branchName)
-            .filter((n): n is string => !!n && n.trim().length > 0),
-        ),
-      ).sort(),
-    [reservations],
-  );
+const allBranches = useMemo(
+  () =>
+    Array.from(
+      new Set(
+        reservations
+          .map((r) => r.branchName)
+          .filter((n): n is string => !!n && n.trim().length > 0),
+      ),
+    ).sort(alphaSort),
+  [reservations],
+);
+
 
   // KPIs globais (não dependem dos filtros, só dos dados carregados)
   const globalStats = useMemo(() => {
