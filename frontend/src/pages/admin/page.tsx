@@ -117,7 +117,7 @@ export default function AdminDashboard() {
 
   // Carrega reservas para o dashboard
   useEffect(() => {
-    void refresh();
+    refresh();
   }, [refresh]);
 
   // Total Fleet
@@ -134,7 +134,7 @@ export default function AdminDashboard() {
       }
     }
 
-    void loadFleet();
+    loadFleet();
   }, []);
 
   // Total Users
@@ -161,7 +161,7 @@ export default function AdminDashboard() {
       }
     }
 
-    void loadUsers();
+    loadUsers();
   }, []);
 
   // Pending Reviews (documentos pendentes de validação)
@@ -197,7 +197,7 @@ export default function AdminDashboard() {
       }
     }
 
-    void loadPendingReviews();
+    loadPendingReviews();
   }, [list]);
 
   // Active Reservations = PENDING + APPROVED
