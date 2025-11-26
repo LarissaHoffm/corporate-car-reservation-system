@@ -238,7 +238,7 @@ export default function SharedGasStationsPage() {
         is24h: !!form.is24h,
         status: form.status,
       });
-    await refresh();
+    refresh();
     setCreateOpen(false);
     setForm(EMPTY_FORM);
   };
@@ -262,7 +262,7 @@ export default function SharedGasStationsPage() {
       is24h: !!form.is24h,
       status: form.status,
     });
-    await refresh();
+    refresh();
     setEditOpen(false);
     setSelected(null);
   };
@@ -274,7 +274,7 @@ export default function SharedGasStationsPage() {
     if (!toDelete) return;
     await removeStation(toDelete.id);
     removeMeta(toDelete.id);
-    await refresh();
+    refresh();
     setDeleteOpen(false);
     setToDelete(null);
   };
