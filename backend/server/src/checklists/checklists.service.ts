@@ -287,6 +287,81 @@ export class ChecklistsService {
   ) {
     const userId = this.getUserId(actor);
 
+    //  Contexto (reserva + template) com validações básicas
+    const { reservation, template } = await this.buildChecklistContext(
+      actor,
+      reservationId,
+      dto,
+    );
+
+    //  Regras de permissão por tipo de submissão
+    this.ensureCanSubmitChecklist(actor, userId, reservation, dto);
+
+    //  Garante que não haja submissão duplicada para o mesmo tipo
+    await this.ensureNoDuplicateChecklist(
+      actor.tenantId,
+      reservation.id,
+      dto.kind,
+    );
+
+    //  Monta o payload final
+    const payload = this.buildChecklistPayload(dto);
+
+    // Persiste submissão
+    const submission = await this.prisma.checklistSubmission.create({
+      data: {
+        kind: dto.kind,
+        payload,
+        tenant: {
+          connect: { id: actor.tenantId },
+        },
+        reservation: {
+          connect: { id: reservation.id },
+        },
+        template: {
+          connect: { id: template.id },
+        },
+        submittedBy: {
+          connect: { id: userId },
+        },
+      },
+    });
+
+    //  Audit log da submissão
+    await this.prisma.auditLog.create({
+      data: {
+        tenantId: actor.tenantId,
+        userId,
+        action: 'CHECKLIST_SUBMITTED',
+        entity: 'ChecklistSubmission',
+        entityId: submission.id,
+        metadata: {
+          reservationId: reservation.id,
+          kind: dto.kind,
+        },
+      },
+    });
+
+    // Se for validação do APPROVER, tenta auto-concluir a reserva
+    if (dto.kind === ChecklistSubmissionKind.APPROVER_VALIDATION) {
+      await this.tryCompleteReservation(reservation.id, actor.tenantId, userId);
+    }
+
+    return submission;
+  }
+
+  /**
+   * Busca reserva + template e faz as validações de consistência
+   * (reserva existe, tem carro, template é ativo do mesmo tenant e do mesmo carro).
+   */
+  private async buildChecklistContext(
+    actor: AuthUser,
+    reservationId: string,
+    dto: SubmitChecklistDto,
+  ): Promise<{
+    reservation: any;
+    template: any;
+  }> {
     const reservation = await this.prisma.reservation.findFirst({
       where: {
         id: reservationId,
@@ -328,13 +403,26 @@ export class ChecklistsService {
       );
     }
 
-    // Regras de quem pode enviar qual tipo de checklist
+    return { reservation, template };
+  }
+
+  /**
+   * Regras de quem pode enviar qual tipo de checklist
+   * (REQUESTER x APPROVER/ADMIN + vínculo do aprovador na reserva).
+   */
+  private ensureCanSubmitChecklist(
+    actor: AuthUser,
+    userId: string,
+    reservation: { approverId?: string | null },
+    dto: SubmitChecklistDto,
+  ): void {
     if (dto.kind === ChecklistSubmissionKind.USER_RETURN) {
       if (actor.role !== Role.REQUESTER) {
         throw new ForbiddenException(
           'Somente usuários com perfil REQUESTER podem enviar checklist de devolução.',
         );
       }
+      return;
     }
 
     if (dto.kind === ChecklistSubmissionKind.APPROVER_VALIDATION) {
@@ -343,6 +431,7 @@ export class ChecklistsService {
           'Somente aprovadores podem validar devoluções',
         );
       }
+
       if (
         reservation.approverId &&
         reservation.approverId !== userId &&
@@ -351,13 +440,21 @@ export class ChecklistsService {
         throw new ForbiddenException('Você não é o aprovador desta reserva');
       }
     }
+  }
 
-    // Garante que não haja submissão duplicada para o mesmo kind
+  /**
+   * Garante que não existe submissão prévia para a mesma reserva + tipo.
+   */
+  private async ensureNoDuplicateChecklist(
+    tenantId: string,
+    reservationId: string,
+    kind: ChecklistSubmissionKind,
+  ): Promise<void> {
     const existing = await this.prisma.checklistSubmission.findFirst({
       where: {
-        tenantId: actor.tenantId,
-        reservationId: reservation.id,
-        kind: dto.kind,
+        tenantId,
+        reservationId,
+        kind,
       },
     });
 
@@ -366,7 +463,12 @@ export class ChecklistsService {
         'Já existe um checklist enviado para esta reserva e tipo',
       );
     }
+  }
 
+  /**
+   * Normaliza o payload enviado no DTO para o formato persistido.
+   */
+  private buildChecklistPayload(dto: SubmitChecklistDto): any {
     const rawPayload = dto.payload ?? {};
     let payload: any =
       typeof rawPayload === 'object' && rawPayload !== null
@@ -383,45 +485,7 @@ export class ChecklistsService {
       };
     }
 
-    const submission = await this.prisma.checklistSubmission.create({
-      data: {
-        kind: dto.kind,
-        payload,
-        tenant: {
-          connect: { id: actor.tenantId },
-        },
-        reservation: {
-          connect: { id: reservation.id },
-        },
-        template: {
-          connect: { id: template.id },
-        },
-        submittedBy: {
-          connect: { id: userId },
-        },
-      },
-    });
-
-    await this.prisma.auditLog.create({
-      data: {
-        tenantId: actor.tenantId,
-        userId,
-        action: 'CHECKLIST_SUBMITTED',
-        entity: 'ChecklistSubmission',
-        entityId: submission.id,
-        metadata: {
-          reservationId: reservation.id,
-          kind: dto.kind,
-        },
-      },
-    });
-
-    // Se foi uma validação do APPROVER, tenta auto-concluir a reserva
-    if (dto.kind === ChecklistSubmissionKind.APPROVER_VALIDATION) {
-      await this.tryCompleteReservation(reservation.id, actor.tenantId, userId);
-    }
-
-    return submission;
+    return payload;
   }
 
   async getReservationChecklists(actor: AuthUser, reservationId: string) {
