@@ -1,6 +1,5 @@
-// frontend/src/pages/shared/fleet/details.tsx
 import * as React from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -48,50 +47,102 @@ function fmtDate(dt?: string | null) {
   }
 }
 
-export default function CarDetailsPage() {
-  const navigate = useNavigate();
-  const { id } = useParams<{ id: string }>();
-  const { data: car, refresh, setData } = useCar(id);
-  const { update } = useCarMutations();
+function getStatusChipKeyFromStatus(status: CarStatus): string {
+  if (status === "AVAILABLE") return "Available";
+  if (status === "IN_USE") return "Reserved";
+  if (status === "MAINTENANCE") return "Maintenance";
+  return "Unavailable";
+}
 
-  // useBranchesMap atualmente expõe { map, ... }. Derivamos utilitários locais.
-  const { map } = useBranchesMap();
-  const idToName = useMemo(
-    () =>
-      Object.fromEntries(
-        Object.entries(map).map(([bid, b]: [string, any]) => [
-          bid,
-          (b?.name as string) ?? "",
-        ]),
-      ) as Record<string, string>,
-    [map],
-  );
-  const names = useMemo(
-    () =>
-      Object.values(map)
-        .map((b: any) => b?.name)
-        .filter(Boolean) as string[],
-    [map],
-  );
-  const nameToId = useMemo(
-    () =>
-      Object.fromEntries(
-        Object.values(map).map((b: any) => [
-          (b?.name as string) ?? "",
-          (b?.id as string) ?? "",
-        ]),
-      ) as Record<string, string>,
-    [map],
-  );
+// ---------- Histórico de reservas (hook) ----------
 
+function useCarHistory(carId?: string) {
+  const [history, setHistory] = useState<Reservation[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!carId) {
+      setHistory([]);
+      setHistoryError(null);
+      setHistoryLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchHistory = async () => {
+      setHistoryLoading(true);
+      setHistoryError(null);
+
+      try {
+        const rows = await listReservationsByCar(carId);
+        if (cancelled) return;
+
+        const safeRows = Array.isArray(rows) ? rows : [];
+        setHistory(safeRows);
+      } catch (err: any) {
+        if (cancelled) return;
+        console.error(err);
+        const msg =
+          err?.response?.data?.message ??
+          "Unable to load reservation history for this vehicle.";
+        setHistory([]);
+        setHistoryError(msg);
+            } finally {
+        if (!cancelled) {
+          setHistoryLoading(false);
+        }
+      }
+
+    };
+
+    void fetchHistory();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [carId]);
+
+  return { history, historyLoading, historyError };
+}
+
+// ---------- Formulário do carro (hook) ----------
+
+type CarFormState = {
+  model: string;
+  plate: string;
+  color: string;
+  mileage: number;
+  status: CarStatus;
+  branchName: string;
+};
+
+interface UseCarFormArgs {
+  car: Car | null | undefined;
+  idToName: Record<string, string>;
+  nameToId: Record<string, string>;
+  update: (id: string, payload: any) => Promise<Car>;
+  refresh: () => Promise<void>;
+  setData: (car: Car) => void;
+}
+
+function useCarForm({
+  car,
+  idToName,
+  nameToId,
+  update,
+  refresh,
+  setData,
+}: UseCarFormArgs) {
   const [isEditing, setEditing] = useState(false);
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<CarFormState>({
     model: "",
     plate: "",
     color: "",
     mileage: 0,
-    status: "AVAILABLE" as CarStatus,
-    branchName: "" as string,
+    status: "AVAILABLE",
+    branchName: "",
   });
 
   useEffect(() => {
@@ -106,44 +157,14 @@ export default function CarDetailsPage() {
     });
   }, [car, idToName]);
 
-  // Histórico de reservas do carro (todas as reservas vinculadas a este veículo)
-  const [history, setHistory] = useState<Reservation[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyError, setHistoryError] = useState<string | null>(null);
+  const cancelEditing = useCallback(() => {
+    setEditing(false);
+    void refresh();
+  }, [refresh]);
 
-  useEffect(() => {
-    if (!car?.id) return;
-
-    let cancelled = false;
-    setHistoryLoading(true);
-    setHistoryError(null);
-
-    listReservationsByCar(car.id)
-      .then((rows) => {
-        if (cancelled) return;
-        setHistory(Array.isArray(rows) ? rows : []);
-      })
-      .catch((err: any) => {
-        console.error(err);
-        if (cancelled) return;
-        setHistory([]);
-        setHistoryError(
-          err?.response?.data?.message ??
-            "Unable to load reservation history for this vehicle.",
-        );
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setHistoryLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [car?.id]);
-
-  async function onSave() {
+  const save = useCallback(async () => {
     if (!car) return;
+
     try {
       const branchName = form.branchName || undefined;
       const candidateId = branchName ? nameToId[branchName] : undefined;
@@ -157,7 +178,7 @@ export default function CarDetailsPage() {
         mileage: Number.isFinite(form.mileage) ? form.mileage : 0,
         status: form.status,
         branchName,
-        ...(branchId ? { branchId } : {}), // só envia se for UUID válido
+        ...(branchId ? { branchId } : {}),
       });
 
       setData(updated as Car);
@@ -171,7 +192,350 @@ export default function CarDetailsPage() {
         variant: "destructive",
       });
     }
-  }
+  }, [car, form, nameToId, update, setData, refresh]);
+
+  const startEditing = useCallback(() => {
+    setEditing(true);
+  }, []);
+
+  return {
+    isEditing,
+    form,
+    setForm,
+    startEditing,
+    cancelEditing,
+    save,
+  };
+}
+
+// ---------- Subcomponentes de UI ----------
+
+interface CarInfoFormProps {
+  form: CarFormState;
+  setForm: React.Dispatch<React.SetStateAction<CarFormState>>;
+  names: string[];
+}
+
+function CarInfoForm({ form, setForm, names }: CarInfoFormProps) {
+  return (
+    <Card className="border-border/50 shadow-sm">
+      <CardContent className="p-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="space-y-6">
+            <div>
+              <Label>Model</Label>
+              <Input
+                value={form.model}
+                onChange={(e) => setForm((prev) => ({ ...prev, model: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label>Plate</Label>
+              <Input
+                value={form.plate}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    plate: e.target.value.toUpperCase().slice(0, 7),
+                  }))
+                }
+              />
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <div>
+              <Label>Color</Label>
+              <Select
+                value={form.color || undefined}
+                onValueChange={(v) =>
+                  setForm((prev) => ({ ...prev, color: v }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select color" />
+                </SelectTrigger>
+                <SelectContent>
+                  {COLORS.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Mileage (km)</Label>
+              <Input
+                value={String(form.mileage)}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/\D+/g, "");
+                  setForm((prev) => ({
+                    ...prev,
+                    mileage: raw ? parseInt(raw, 10) : 0,
+                  }));
+                }}
+                inputMode="numeric"
+                pattern="[0-9]*"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <div>
+              <Label>Status</Label>
+              <Select
+                value={form.status}
+                onValueChange={(v: CarStatus) =>
+                  setForm((prev) => ({ ...prev, status: v }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="AVAILABLE">AVAILABLE</SelectItem>
+                  <SelectItem value="IN_USE">IN_USE</SelectItem>
+                  <SelectItem value="MAINTENANCE">MAINTENANCE</SelectItem>
+                  <SelectItem value="INACTIVE">INACTIVE</SelectItem>
+                  <SelectItem value="ACTIVE">ACTIVE</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Branch (by name)</Label>
+              <Select
+                value={form.branchName || undefined}
+                onValueChange={(v) =>
+                  setForm((prev) => ({ ...prev, branchName: v }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select branch" />
+                </SelectTrigger>
+                <SelectContent>
+                  {names.map((n) => (
+                    <SelectItem key={n} value={n}>
+                      {n}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+interface CarInfoViewProps {
+  car: Car;
+  idToName: Record<string, string>;
+}
+
+function CarInfoView({ car, idToName }: CarInfoViewProps) {
+  return (
+    <Card className="border-border/50 shadow-sm">
+      <CardContent className="p-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="space-y-6">
+            <div>
+              <Label>Model</Label>
+              <p className="text-foreground font-medium">{car.model}</p>
+            </div>
+            <div>
+              <Label>Plate</Label>
+              <p className="text-foreground">{car.plate}</p>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <div>
+              <Label>Color</Label>
+              <p className="text-foreground">{car.color ?? "-"}</p>
+            </div>
+            <div>
+              <Label>Mileage (km)</Label>
+              <p className="text-foreground">
+                {car.mileage.toLocaleString()}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <div>
+              <Label>Status</Label>
+              <Badge
+                className={statusChipClasses(
+                  getStatusChipKeyFromStatus(car.status),
+                )}
+              >
+                {car.status}
+              </Badge>
+            </div>
+
+            <div>
+              <Label>Branch (by name)</Label>
+              <p className="text-foreground">
+                {idToName[car.branchId ?? ""] ?? "-"}
+              </p>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+interface CarHistoryCardProps {
+  history: Reservation[];
+  historyLoading: boolean;
+  historyError: string | null;
+}
+
+function CarHistoryCard({
+  history,
+  historyLoading,
+  historyError,
+}: CarHistoryCardProps) {
+  return (
+    <Card className="border-border/50 shadow-sm">
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-lg font-semibold text-[#1558E9]">
+            Reservation History
+          </h2>
+        </div>
+
+        {historyLoading ? (
+          <p className="text-sm text-muted-foreground">
+            Loading reservation history…
+          </p>
+        ) : history.length === 0 ? (
+          <p className="text-muted-foreground text-sm">
+            No reservations for this vehicle.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border/50">
+                  <th className="text-left py-2 px-2 text-muted-foreground">
+                    RESERVATION
+                  </th>
+                  <th className="text-left py-2 px-2 text-muted-foreground">
+                    USER
+                  </th>
+                  <th className="text-left py-2 px-2 text-muted-foreground">
+                    START DATE
+                  </th>
+                  <th className="text-left py-2 px-2 text-muted-foreground">
+                    END DATE
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {history
+                  .slice()
+                  .sort(
+                    (a, b) =>
+                      new Date(b.startAt).getTime() -
+                      new Date(a.startAt).getTime(),
+                  )
+                  .map((r) => (
+                    <tr
+                      key={r.id}
+                      className="border-b border-border/30 last:border-0"
+                    >
+                      <td className="py-2 px-2 font-medium text-foreground">
+                        {makeFriendlyReservationCode({
+                          id: r.id,
+                          code: (r as any).code ?? null,
+                        })}
+                      </td>
+                      <td className="py-2 px-2 text-foreground">
+                        {r.user?.name ?? r.user?.email ?? "—"}
+                      </td>
+                      <td className="py-2 px-2 text-muted-foreground">
+                        {fmtDate(r.startAt)}
+                      </td>
+                      <td className="py-2 px-2 text-muted-foreground">
+                        {fmtDate(r.endAt)}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {historyError && !historyLoading && (
+          <p className="mt-3 text-xs text-red-600">{historyError}</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------- Página principal ----------
+
+export default function CarDetailsPage() {
+  const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
+  const { data: car, refresh, setData } = useCar(id);
+  const { update } = useCarMutations();
+
+  const { map } = useBranchesMap();
+
+  const idToName = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(map).map(([bid, b]: [string, any]) => [
+          bid,
+          (b?.name as string) ?? "",
+        ]),
+      ) as Record<string, string>,
+    [map],
+  );
+
+  const names = useMemo(
+    () =>
+      Object.values(map)
+        .map((b: any) => b?.name)
+        .filter(Boolean) as string[],
+    [map],
+  );
+
+  const nameToId = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.values(map).map((b: any) => [
+          (b?.name as string) ?? "",
+          (b?.id as string) ?? "",
+        ]),
+      ) as Record<string, string>,
+    [map],
+  );
+
+  const {
+    isEditing,
+    form,
+    setForm,
+    startEditing,
+    cancelEditing,
+    save,
+  } = useCarForm({
+    car,
+    idToName,
+    nameToId,
+    update,
+    refresh,
+    setData,
+  });
+
+  const { history, historyLoading, historyError } = useCarHistory(car?.id);
 
   if (!car) {
     return (
@@ -220,7 +584,7 @@ export default function CarDetailsPage() {
             {!isEditing ? (
               <Button
                 variant="outline"
-                onClick={() => setEditing(true)}
+                onClick={startEditing}
                 className="border-border/50"
               >
                 Edit
@@ -229,17 +593,14 @@ export default function CarDetailsPage() {
               <div className="flex gap-2">
                 <Button
                   variant="outline"
-                  onClick={() => {
-                    setEditing(false);
-                    refresh();
-                  }}
+                  onClick={cancelEditing}
                   className="border-border/50"
                 >
                   Cancel
                 </Button>
                 <Button
                   className="bg-[#1558E9] hover:bg-[#1558E9]/90"
-                  onClick={onSave}
+                  onClick={save}
                 >
                   Save
                 </Button>
@@ -249,230 +610,18 @@ export default function CarDetailsPage() {
         </div>
 
         {/* Info */}
-        <Card className="border-border/50 shadow-sm">
-          <CardContent className="p-8">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <div className="space-y-6">
-                <div>
-                  <Label>Model</Label>
-                  {isEditing ? (
-                    <Input
-                      value={form.model}
-                      onChange={(e) =>
-                        setForm({ ...form, model: e.target.value })
-                      }
-                    />
-                  ) : (
-                    <p className="text-foreground font-medium">{car.model}</p>
-                  )}
-                </div>
-                <div>
-                  <Label>Plate</Label>
-                  {isEditing ? (
-                    <Input
-                      value={form.plate}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          plate: e.target.value.toUpperCase().slice(0, 7),
-                        })
-                      }
-                    />
-                  ) : (
-                    <p className="text-foreground">{car.plate}</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-6">
-                <div>
-                  <Label>Color</Label>
-                  {isEditing ? (
-                    <Select
-                      value={form.color || undefined}
-                      onValueChange={(v) => setForm({ ...form, color: v })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select color" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {COLORS.map((c) => (
-                          <SelectItem key={c} value={c}>
-                            {c}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <p className="text-foreground">{car.color ?? "-"}</p>
-                  )}
-                </div>
-                <div>
-                  <Label>Mileage (km)</Label>
-                  {isEditing ? (
-                    <Input
-                      value={String(form.mileage)}
-                      onChange={(e) => {
-                        const raw = e.target.value.replace(/\D+/g, "");
-                        setForm({
-                          ...form,
-                          mileage: raw ? parseInt(raw, 10) : 0,
-                        });
-                      }}
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                    />
-                  ) : (
-                    <p className="text-foreground">
-                      {car.mileage.toLocaleString()}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-6">
-                <div>
-                  <Label>Status</Label>
-                  {isEditing ? (
-                    <Select
-                      value={form.status}
-                      onValueChange={(v: CarStatus) =>
-                        setForm({ ...form, status: v })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="AVAILABLE">AVAILABLE</SelectItem>
-                        <SelectItem value="IN_USE">IN_USE</SelectItem>
-                        <SelectItem value="MAINTENANCE">MAINTENANCE</SelectItem>
-                        <SelectItem value="INACTIVE">INACTIVE</SelectItem>
-                        <SelectItem value="ACTIVE">ACTIVE</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Badge
-                      className={statusChipClasses(
-                        car.status === "AVAILABLE"
-                          ? "Available"
-                          : car.status === "IN_USE"
-                            ? "Reserved"
-                            : car.status === "MAINTENANCE"
-                              ? "Maintenance"
-                              : "Unavailable",
-                      )}
-                    >
-                      {car.status}
-                    </Badge>
-                  )}
-                </div>
-
-                <div>
-                  <Label>Branch (by name)</Label>
-                  {isEditing ? (
-                    <Select
-                      value={form.branchName || undefined}
-                      onValueChange={(v) => setForm({ ...form, branchName: v })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select branch" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {names.map((n) => (
-                          <SelectItem key={n} value={n}>
-                            {n}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <p className="text-foreground">
-                      {idToName[car.branchId ?? ""] ?? "-"}
-                    </p>
-                  )}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {isEditing ? (
+          <CarInfoForm form={form} setForm={setForm} names={names} />
+        ) : (
+          <CarInfoView car={car} idToName={idToName} />
+        )}
 
         {/* Histórico de reservas do carro */}
-        <Card className="border-border/50 shadow-sm">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold text-[#1558E9]">
-                Reservation History
-              </h2>
-            </div>
-
-            {historyLoading ? (
-              <p className="text-sm text-muted-foreground">
-                Loading reservation history…
-              </p>
-            ) : history.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
-                No reservations for this vehicle.
-              </p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border/50">
-                      <th className="text-left py-2 px-2 text-muted-foreground">
-                        RESERVATION
-                      </th>
-                      <th className="text-left py-2 px-2 text-muted-foreground">
-                        USER
-                      </th>
-                      <th className="text-left py-2 px-2 text-muted-foreground">
-                        START DATE
-                      </th>
-                      <th className="text-left py-2 px-2 text-muted-foreground">
-                        END DATE
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {history
-                      .slice()
-                      .sort(
-                        (a, b) =>
-                          new Date(b.startAt).getTime() -
-                          new Date(a.startAt).getTime(),
-                      )
-                      .map((r) => (
-                        <tr
-                          key={r.id}
-                          className="border-b border-border/30 last:border-0"
-                        >
-                          <td className="py-2 px-2 font-medium text-foreground">
-                            {makeFriendlyReservationCode({
-                              id: r.id,
-                              code: (r as any).code ?? null,
-                            })}
-                          </td>
-                          <td className="py-2 px-2 text-foreground">
-                            {r.user?.name ?? r.user?.email ?? "—"}
-                          </td>
-                          <td className="py-2 px-2 text-muted-foreground">
-                            {fmtDate(r.startAt)}
-                          </td>
-                          <td className="py-2 px-2 text-muted-foreground">
-                            {fmtDate(r.endAt)}
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            {historyError && !historyLoading && (
-              <p className="mt-3 text-xs text-red-600">{historyError}</p>
-            )}
-          </CardContent>
-        </Card>
+        <CarHistoryCard
+          history={history}
+          historyLoading={historyLoading}
+          historyError={historyError}
+        />
       </div>
     </RoleGuard>
   );
