@@ -1,12 +1,27 @@
 import {
   PrismaClient,
   Role,
-  ChecklistItemType,
   UserStatus,
 } from '@prisma/client';
 import * as argon2 from 'argon2';
 
 const prisma = new PrismaClient();
+
+// ===== Senhas via variáveis de ambiente (evita hard-coded) =====
+const rawAdminPassword = process.env.SEED_ADMIN_PASSWORD;
+const rawApproverPassword = process.env.SEED_APPROVER_PASSWORD;
+const rawRequesterPassword = process.env.SEED_REQUESTER_PASSWORD;
+
+if (!rawAdminPassword || !rawApproverPassword || !rawRequesterPassword) {
+  throw new Error(
+    'Seed passwords must be provided via SEED_ADMIN_PASSWORD, ' +
+      'SEED_APPROVER_PASSWORD and SEED_REQUESTER_PASSWORD environment variables.',
+  );
+}
+
+const adminPassword = rawAdminPassword;
+const approverPassword = rawApproverPassword;
+const requesterPassword = rawRequesterPassword;
 
 /* ========== Helpers ========== */
 
@@ -83,50 +98,6 @@ async function ensureUser(opts: {
   });
 
   return { created: true, user };
-}
-
-async function ensureChecklistTemplate(tenantId: string, name: string) {
-  const existing = await prisma.checklistTemplate.findUnique({
-    where: { tenantId_name: { tenantId, name } },
-  });
-  if (existing) return { created: false, tpl: existing };
-
-  const tpl = await prisma.checklistTemplate.create({
-    data: {
-      tenantId,
-      name,
-      items: {
-        create: [
-          {
-            label: 'Nível de combustível (%)',
-            type: ChecklistItemType.NUMBER,
-            required: true,
-            order: 1,
-          },
-          {
-            label: 'Quilometragem (km)',
-            type: ChecklistItemType.NUMBER,
-            required: true,
-            order: 2,
-          },
-          {
-            label: 'Há avarias aparentes?',
-            type: ChecklistItemType.BOOLEAN,
-            required: true,
-            order: 3,
-          },
-          {
-            label: 'Observações',
-            type: ChecklistItemType.TEXT,
-            required: false,
-            order: 4,
-          },
-        ],
-      },
-    },
-  });
-
-  return { created: true, tpl };
 }
 
 /* ========== Catálogos (Branches & Departments) ========== */
@@ -212,7 +183,7 @@ async function main() {
     });
   }
 
-  // Users padrão
+  // Users padrão (senhas vindas do ambiente)
   const userSpecs: Array<{
     email: string;
     name: string;
@@ -223,19 +194,19 @@ async function main() {
       email: 'admin@reservcar.com',
       name: 'Admin',
       role: Role.ADMIN,
-      password: 'Admin123!',
+      password: adminPassword,
     },
     {
       email: 'approver@reservcar.com',
       name: 'Approver',
       role: Role.APPROVER,
-      password: 'Approver123!',
+      password: approverPassword,
     },
     {
       email: 'requester@reservcar.com',
       name: 'Requester',
       role: Role.REQUESTER,
-      password: 'Requester123!',
+      password: requesterPassword,
     },
   ];
 
@@ -248,19 +219,6 @@ async function main() {
     log.push({
       kind: 'user',
       email: user.email,
-      action: created ? 'CREATE' : 'KEEP',
-    });
-  }
-
-  // Checklist template padrão
-  {
-    const { created, tpl } = await ensureChecklistTemplate(
-      tenant.id,
-      'Retorno Padrão',
-    );
-    log.push({
-      kind: 'checklistTemplate',
-      name: tpl.name,
       action: created ? 'CREATE' : 'KEEP',
     });
   }

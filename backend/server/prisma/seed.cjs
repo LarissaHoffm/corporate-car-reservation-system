@@ -1,12 +1,23 @@
 const {
   PrismaClient,
   Role,
-  ChecklistItemType,
   UserStatus,
 } = require('@prisma/client');
 const argon2 = require('argon2');
 
 const prisma = new PrismaClient();
+
+// ===== Senhas via variáveis de ambiente (evita hard-coded) =====
+const adminPassword = process.env.SEED_ADMIN_PASSWORD;
+const approverPassword = process.env.SEED_APPROVER_PASSWORD;
+const requesterPassword = process.env.SEED_REQUESTER_PASSWORD;
+
+if (!adminPassword || !approverPassword || !requesterPassword) {
+  throw new Error(
+    'Seed passwords must be provided via SEED_ADMIN_PASSWORD, ' +
+      'SEED_APPROVER_PASSWORD and SEED_REQUESTER_PASSWORD environment variables.',
+  );
+}
 
 /**
  * Tenant único do sistema
@@ -54,7 +65,7 @@ async function ensureDepartment(tenantId, code, name) {
 }
 
 /**
- * Usuários seed 
+ * Usuários seed
  */
 async function ensureUser({ email, name, role, tenantId, branchId, password }) {
   const existing = await prisma.user.findUnique({ where: { email } });
@@ -74,52 +85,6 @@ async function ensureUser({ email, name, role, tenantId, branchId, password }) {
     },
   });
   return { created: true, user };
-}
-
-/**
- * Checklist Template padrão (Retorno Padrão)
- */
-async function ensureChecklistTemplate({ tenantId, name }) {
-  const existing = await prisma.checklistTemplate.findUnique({
-    where: { tenantId_name: { tenantId, name } },
-  });
-  if (existing) return { created: false, tpl: existing };
-
-  const tpl = await prisma.checklistTemplate.create({
-    data: {
-      tenantId,
-      name,
-      items: {
-        create: [
-          {
-            label: 'Nível de combustível (%)',
-            type: ChecklistItemType.NUMBER,
-            required: true,
-            order: 1,
-          },
-          {
-            label: 'Quilometragem (km)',
-            type: ChecklistItemType.NUMBER,
-            required: true,
-            order: 2,
-          },
-          {
-            label: 'Há avarias aparentes?',
-            type: ChecklistItemType.BOOLEAN,
-            required: true,
-            order: 3,
-          },
-          {
-            label: 'Observações',
-            type: ChecklistItemType.TEXT,
-            required: false,
-            order: 4,
-          },
-        ],
-      },
-    },
-  });
-  return { created: true, tpl };
 }
 
 /**
@@ -158,7 +123,7 @@ const BRANCH_NAMES = [
 ];
 
 /**
- * Departamentos padrão 
+ * Departamentos padrão
  */
 const DEPARTMENTS = [
   { code: 'ADM', name: 'Administração' },
@@ -213,19 +178,19 @@ async function main() {
       email: 'admin@reservcar.com',
       name: 'Admin',
       role: Role.ADMIN,
-      password: 'Admin123!',
+      password: adminPassword,
     },
     {
       email: 'approver@reservcar.com',
       name: 'Approver',
       role: Role.APPROVER,
-      password: 'Approver123!',
+      password: approverPassword,
     },
     {
       email: 'requester@reservcar.com',
       name: 'Requester',
       role: Role.REQUESTER,
-      password: 'Requester123!',
+      password: requesterPassword,
     },
   ]) {
     const { created, user } = await ensureUser({
@@ -240,26 +205,13 @@ async function main() {
     });
   }
 
-  // ===== Checklist Template padrão =====
-  {
-    const { created, tpl } = await ensureChecklistTemplate({
-      tenantId: tenant.id,
-      name: 'Retorno Padrão',
-    });
-    log.push({
-      kind: 'checklistTemplate',
-      name: tpl.name,
-      action: created ? 'CREATE' : 'KEEP',
-    });
-  }
-
   const summary = log.reduce((acc, r) => {
     const key = `${r.kind}:${r.action}`;
     acc[key] = (acc[key] || 0) + 1;
     return acc;
   }, {});
 
-  console.log('✅ Seed concluído (tenant, branches, departments, users, checklist)');
+  console.log('✅ Seed concluído (tenant, branches, departments, users)');
   console.table(log);
   console.table([summary]);
 }
