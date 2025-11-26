@@ -339,6 +339,81 @@ function formatDateTime(value: string | null): string {
   return d.toLocaleString();
 }
 
+/**
+ * Helpers extras para reduzir o nível de aninhamento de funções
+ * (evitar o alerta typescript:S2004 no Sonar).
+ */
+
+function getLatestValidation(
+  validations: ChecklistSubmission[],
+): ChecklistSubmission {
+  return validations.reduce((best, curr) => {
+    const tb = new Date(best.createdAt).getTime();
+    const tc = new Date(curr.createdAt).getTime();
+    return tc > tb ? curr : best;
+  });
+}
+
+async function buildDocsStatusMapForReservations(
+  reservations: any[],
+): Promise<Record<string, DocStatus | undefined>> {
+  const entries = await Promise.all(
+    reservations.map(async (r) => {
+      // só faz sentido checar docs para reservas aprovadas
+      if (r.status !== "APPROVED") {
+        return [r.id, undefined] as const;
+      }
+      try {
+        const docs = await listDocumentsByReservation(r.id);
+        if (!docs.length) {
+          return [r.id, undefined] as const;
+        }
+        return [r.id, docStatusFromDocuments(docs)] as const;
+      } catch {
+        return [r.id, undefined] as const;
+      }
+    }),
+  );
+
+  const map: Record<string, DocStatus | undefined> = {};
+  for (const [id, st] of entries) {
+    map[id] = st;
+  }
+  return map;
+}
+
+async function buildChecklistDecisionMapForReservations(
+  reservations: any[],
+): Promise<Record<string, ChecklistDecision | undefined>> {
+  const entries = await Promise.all(
+    reservations.map(async (r) => {
+      try {
+        const subs: ChecklistSubmission[] =
+          await ChecklistsAPI.listReservationSubmissions(r.id);
+
+        const validations = subs.filter(
+          (s) => s.kind === "APPROVER_VALIDATION",
+        );
+        if (!validations.length) {
+          return [r.id, null] as const;
+        }
+
+        const latest = getLatestValidation(validations);
+        const decision = normalizeChecklistDecision(latest as any);
+        return [r.id, decision] as const;
+      } catch {
+        return [r.id, null] as const;
+      }
+    }),
+  );
+
+  const map: Record<string, ChecklistDecision | undefined> = {};
+  for (const [id, dec] of entries) {
+    map[id] = dec;
+  }
+  return map;
+}
+
 export default function RequesterDashboard() {
   const { user } = useAuth();
 
@@ -369,85 +444,32 @@ export default function RequesterDashboard() {
 
   // carrega status de documentos (igual página de reservations)
   useEffect(() => {
-    const loadDocsStatus = async () => {
-      const list = myItems ?? [];
-      if (!list.length) {
+    const list = myItems ?? [];
+    if (!list.length) {
+      setDocStatusMap({});
+      return;
+    }
+
+    buildDocsStatusMapForReservations(list)
+      .then(setDocStatusMap)
+      .catch(() => {
         setDocStatusMap({});
-        return;
-      }
-
-      const entries = await Promise.all(
-        list.map(async (r) => {
-          // só faz sentido checar docs para reservas aprovadas
-          if (r.status !== "APPROVED") {
-            return [r.id, undefined] as const;
-          }
-          try {
-            const docs = await listDocumentsByReservation(r.id);
-            if (!docs.length) {
-              return [r.id, undefined] as const;
-            }
-            return [r.id, docStatusFromDocuments(docs)] as const;
-          } catch {
-            return [r.id, undefined] as const;
-          }
-        }),
-      );
-
-      const map: Record<string, DocStatus | undefined> = {};
-      for (const [id, st] of entries) {
-        map[id] = st;
-      }
-      setDocStatusMap(map);
-    };
-
-    void loadDocsStatus();
+      });
   }, [myItems]);
 
   // carrega decisões de checklist (igual página de reservations)
   useEffect(() => {
-    const loadChecklistDecisions = async () => {
-      const list = myItems ?? [];
-      if (!list.length) {
+    const list = myItems ?? [];
+    if (!list.length) {
+      setChecklistDecisionMap({});
+      return;
+    }
+
+    buildChecklistDecisionMapForReservations(list)
+      .then(setChecklistDecisionMap)
+      .catch(() => {
         setChecklistDecisionMap({});
-        return;
-      }
-
-      const entries = await Promise.all(
-        list.map(async (r) => {
-          try {
-            const subs: ChecklistSubmission[] =
-              await ChecklistsAPI.listReservationSubmissions(r.id);
-
-            const validations = subs.filter(
-              (s) => s.kind === "APPROVER_VALIDATION",
-            );
-            if (!validations.length) {
-              return [r.id, null] as const;
-            }
-
-            const latest = validations.reduce((best, curr) => {
-              const tb = new Date(best.createdAt).getTime();
-              const tc = new Date(curr.createdAt).getTime();
-              return tc > tb ? curr : best;
-            });
-
-            const decision = normalizeChecklistDecision(latest as any);
-            return [r.id, decision] as const;
-          } catch {
-            return [r.id, null] as const;
-          }
-        }),
-      );
-
-      const map: Record<string, ChecklistDecision | undefined> = {};
-      for (const [id, dec] of entries) {
-        map[id] = dec;
-      }
-      setChecklistDecisionMap(map);
-    };
-
-    void loadChecklistDecisions();
+      });
   }, [myItems]);
 
   // lista filtrada: apenas PENDING, APPROVED e/ou docs rejeitados
@@ -693,8 +715,6 @@ export default function RequesterDashboard() {
                       );
 
                       const docStatus = docStatusMap[r.id];
-                      const hasDocs = docStatus !== undefined;
-
                       const checklistDecision = checklistDecisionMap[r.id];
 
                       const syntheticValidationResult =
