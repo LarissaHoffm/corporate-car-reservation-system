@@ -112,7 +112,6 @@ function docStatusFromDocuments(docs: ApiDocument[]): DocStatus {
   return "Pending";
 }
 
-
 function docStatusToChip(s: DocStatus): "Pendente" | "Aprovado" | "Rejeitado" {
   if (s === "Validated") return "Aprovado";
   if (s === "PendingDocs") return "Rejeitado";
@@ -220,7 +219,10 @@ export default function RequesterDocumentsPage() {
   }, [toast]);
 
   useEffect(() => {
-    void loadRows();
+    loadRows().catch((err) => {
+      // fallback extra caso algo fuja do try/catch interno
+      console.error(err);
+    });
   }, [loadRows]);
 
   useEffect(() => {
@@ -232,16 +234,14 @@ export default function RequesterDocumentsPage() {
     let cancelled = false;
 
     const loadDocs = async () => {
-      try {
-        const docs = await listDocumentsByReservation(selectedId);
-        if (!cancelled) setFiles(docs);
-      } catch (err) {
-        console.error(err);
-        if (!cancelled) setFiles([]);
-      }
+      const docs = await listDocumentsByReservation(selectedId);
+      if (!cancelled) setFiles(docs);
     };
 
-    void loadDocs();
+    loadDocs().catch((err) => {
+      console.error(err);
+      if (!cancelled) setFiles([]);
+    });
 
     return () => {
       cancelled = true;
@@ -403,7 +403,9 @@ export default function RequesterDocumentsPage() {
   };
 
   const handleRefreshClick = () => {
-    void loadRows();
+    loadRows().catch((err) => {
+      console.error(err);
+    });
     setSelectedId("");
     setFiles([]);
   };
