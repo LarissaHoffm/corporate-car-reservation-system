@@ -134,7 +134,7 @@ export default function ApproverChecklistsPage() {
   }, [toast]);
 
   useEffect(() => {
-     loadRows();
+    loadRows();
   }, [loadRows]);
 
   const filteredRows = useMemo(() => {
@@ -196,22 +196,23 @@ export default function ApproverChecklistsPage() {
     setSelected(row);
     setReadOnlyView(false);
     setShowValidationModal(true);
-    void loadChecklistForReservation(row.reservationId);
+    loadChecklistForReservation(row.reservationId);
   };
 
   const handleViewChecklist = (row: ChecklistRow) => {
     setSelected(row);
     setReadOnlyView(true);
     setShowValidationModal(true);
-    void loadChecklistForReservation(row.reservationId);
+    loadChecklistForReservation(row.reservationId);
   };
 
   const handleRejectChecklist = (row: ChecklistRow) => {
     setSelected(row);
     setRejectReason("");
     setShowRejectModal(true);
-    void loadChecklistForReservation(row.reservationId);
+    loadChecklistForReservation(row.reservationId);
   };
+
 
   // Confirmar aprovação
   const handleConfirmValidation = async () => {
@@ -371,12 +372,13 @@ export default function ApproverChecklistsPage() {
 
             <Button
               variant="outline"
-              onClick={() => void loadRows()}
+              onClick={loadRows}
               disabled={loadingRows}
             >
               <RefreshCcw className="w-4 h-4 mr-2" />
               {loadingRows ? "Carregando…" : "Atualizar"}
             </Button>
+
           </div>
         </div>
 
