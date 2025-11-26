@@ -57,7 +57,14 @@ type ApiReservation = Reservation & {
 
 type StatusFilter = "all" | "pending" | "validated" | "rejected";
 
-// Funções auxiliares
+// Helpers genéricos
+
+function runAsync<T>(promise: Promise<T>): void {
+  // evita uso de "void" e ainda loga erro se acontecer
+  promise.catch((error) => {
+    console.error(error);
+  });
+}
 
 /**
  * Normaliza a decisão de validação a partir de:
@@ -124,6 +131,168 @@ function checklistStatusToChip(
   return "Pendente";
 }
 
+function statusDisplayLabel(status: ChecklistRowStatus): string {
+  if (status === "Pending") return "Pending validation";
+  if (status === "Validated") return "Validated";
+  return "Rejected";
+}
+
+// Helpers específicos da tela
+
+function shouldSkipReservationForChecklist(r: ApiReservation): boolean {
+  if (r.status === "CANCELED") return true;
+  if (!r.car) return true;
+  if (!r.car.model && !r.car.plate) return true;
+  return false;
+}
+
+async function fetchReservationSubmissionsSafe(
+  reservationId: string,
+): Promise<ChecklistSubmission[]> {
+  try {
+    return await ChecklistsAPI.listReservationSubmissions(reservationId);
+  } catch {
+    return [];
+  }
+}
+
+function createChecklistRowFromReservation(
+  r: ApiReservation,
+  status: ChecklistRowStatus,
+): ChecklistRow {
+  const carLabel = r.car?.model ?? r.car?.plate ?? "—";
+
+  let date = "—";
+  const d = r.startAt ? new Date(r.startAt) : null;
+  if (d && !Number.isNaN(d.getTime())) {
+    date = d.toLocaleDateString("pt-BR");
+  }
+
+  const displayId = makeFriendlyReservationCode({
+    id: r.id,
+    code: r.code ?? null,
+  });
+
+  return {
+    id: r.id,
+    reservationId: r.id,
+    displayId,
+    car: carLabel,
+    date,
+    status,
+  };
+}
+
+async function buildChecklistRows(
+  reservations: ApiReservation[],
+): Promise<ChecklistRow[]> {
+  const result: ChecklistRow[] = [];
+
+  for (const r of reservations) {
+    if (shouldSkipReservationForChecklist(r)) {
+      continue;
+    }
+
+    const subs = await fetchReservationSubmissionsSafe(r.id);
+    const status = checklistStatusFromSubmissions(subs);
+
+    if (!status) {
+      continue;
+    }
+
+    result.push(createChecklistRowFromReservation(r, status));
+  }
+
+  return result;
+}
+
+function renderChecklistPanelBody(
+  loadingPanel: boolean,
+  panelError: string | null,
+  items: ChecklistSubmissionPayloadItem[],
+  decision: "APPROVED" | "REJECTED" | null,
+  approverNotes: string,
+): React.ReactNode {
+  if (loadingPanel) {
+    return (
+      <div className="flex items-center gap-2 py-12 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Loading checklist…
+      </div>
+    );
+  }
+
+  if (panelError) {
+    return (
+      <div className="flex items-start gap-2 rounded-md border border-red-500/40 bg-red-500/5 px-3 py-2 text-sm text-red-600">
+        <AlertCircle className="mt-0.5 h-4 w-4" />
+        <span>{panelError}</span>
+      </div>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        No checklist data found for this reservation.
+      </p>
+    );
+  }
+
+  return (
+    <>
+      <div>
+        <h3 className="mb-4 text-base font-medium text-foreground">
+          Checklist items (read-only)
+        </h3>
+        <div className="space-y-3">
+          {items.map((item) => (
+            <div
+              key={item.id}
+              className="flex items-center space-x-3 rounded-lg border border-border p-3"
+            >
+              <Checkbox
+                checked={!!item.checked}
+                disabled
+                className="data-[state=checked]:border-[#1558E9] data-[state=checked]:bg-[#1558E9]"
+              />
+              <span className="text-sm text-foreground">{item.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {decision && (
+        <div className="space-y-1 text-xs text-muted-foreground">
+          <p>
+            Approver decision:{" "}
+            <span className="font-medium">
+              {decision === "APPROVED" ? "Approved" : "Rejected"}
+            </span>
+          </p>
+
+          {decision === "REJECTED" && (
+            <>
+              {approverNotes && (
+                <p>
+                  Reason:{" "}
+                  <span className="font-medium text-foreground">
+                    {approverNotes}
+                  </span>
+                </p>
+              )}
+              <p>
+                The branch administrator will contact you to regularize this
+                return after a rejected checklist.
+              </p>
+            </>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
 // Page
 
 export default function RequesterChecklistPage() {
@@ -160,57 +329,13 @@ export default function RequesterChecklistPage() {
   const loadRows = useCallback(async () => {
     setLoadingRows(true);
     try {
-      // Usa o client oficial de reservas do projeto
       const data = await ReservationsAPI.listMine();
 
       const arr: ApiReservation[] = Array.isArray(data)
         ? (data as ApiReservation[])
         : [];
 
-      const result: ChecklistRow[] = [];
-
-      for (const r of arr) {
-        // Não faz sentido mostrar reservas canceladas
-        if (r.status === "CANCELED") continue;
-
-        // Só consideramos reservas aprovadas/completadas com carro vinculado
-        if (!r.car || (!r.car.model && !r.car.plate)) continue;
-
-        let subs: ChecklistSubmission[] = [];
-        try {
-          subs = await ChecklistsAPI.listReservationSubmissions(r.id);
-        } catch {
-          subs = [];
-        }
-
-        const status = checklistStatusFromSubmissions(subs);
-
-        // Essa tela só mostra reservas que JÁ têm checklist enviado (USER_RETURN)
-        if (!status) continue;
-
-        const carLabel = r.car?.model ?? r.car?.plate ?? "—";
-
-        let date = "—";
-        const d = r.startAt ? new Date(r.startAt) : null;
-        if (d && !Number.isNaN(d.getTime())) {
-          date = d.toLocaleDateString("pt-BR");
-        }
-
-        const displayId = makeFriendlyReservationCode({
-          id: r.id,
-          code: r.code ?? null,
-        });
-
-        result.push({
-          id: r.id,
-          reservationId: r.id,
-          displayId,
-          car: carLabel,
-          date,
-          status,
-        });
-      }
-
+      const result = await buildChecklistRows(arr);
       setRows(result);
     } catch (err) {
       console.error(err);
@@ -225,7 +350,7 @@ export default function RequesterChecklistPage() {
   }, [toast]);
 
   useEffect(() => {
-    void loadRows();
+    runAsync(loadRows());
   }, [loadRows]);
 
   // Carregar submissões quando a reserva selecionada mudar
@@ -298,7 +423,7 @@ export default function RequesterChecklistPage() {
       }
     };
 
-    void loadSubs();
+    runAsync(loadSubs());
 
     return () => {
       cancelled = true;
@@ -370,7 +495,7 @@ export default function RequesterChecklistPage() {
   }, [selectedId]);
 
   const handleRefreshClick = () => {
-    void loadRows();
+    runAsync(loadRows());
     setSelectedId("");
     setItems([]);
     setDecision(null);
@@ -503,11 +628,7 @@ export default function RequesterChecklistPage() {
                                   checklistStatusToChip(row.status),
                                 )}
                               >
-                                {row.status === "Pending"
-                                  ? "Pending validation"
-                                  : row.status === "Validated"
-                                  ? "Validated"
-                                  : "Rejected"}
+                                {statusDisplayLabel(row.status)}
                               </Badge>
                             </div>
                             <div className="flex justify-start">
@@ -560,84 +681,16 @@ export default function RequesterChecklistPage() {
                         checklistStatusToChip(selected.status),
                       )}
                     >
-                      {selected.status === "Pending"
-                        ? "Pending validation"
-                        : selected.status === "Validated"
-                        ? "Validated"
-                        : "Rejected"}
+                      {statusDisplayLabel(selected.status)}
                     </Badge>
                   </div>
 
-                  {loadingPanel ? (
-                    <div className="flex items-center gap-2 py-12 text-sm text-muted-foreground">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Loading checklist…
-                    </div>
-                  ) : panelError ? (
-                    <div className="flex items-start gap-2 rounded-md border border-red-500/40 bg-red-500/5 px-3 py-2 text-sm text-red-600">
-                      <AlertCircle className="mt-0.5 h-4 w-4" />
-                      <span>{panelError}</span>
-                    </div>
-                  ) : items.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      No checklist data found for this reservation.
-                    </p>
-                  ) : (
-                    <>
-                      <div>
-                        <h3 className="mb-4 text-base font-medium text-foreground">
-                          Checklist items (read-only)
-                        </h3>
-                        <div className="space-y-3">
-                          {items.map((item) => (
-                            <div
-                              key={item.id}
-                              className="flex items-center space-x-3 rounded-lg border border-border p-3"
-                            >
-                              <Checkbox
-                                checked={!!item.checked}
-                                disabled
-                                className="data-[state=checked]:border-[#1558E9] data-[state=checked]:bg-[#1558E9]"
-                              />
-                              <span className="text-sm text-foreground">
-                                {item.label}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      {decision && (
-                        <div className="space-y-1 text-xs text-muted-foreground">
-                          <p>
-                            Approver decision:{" "}
-                            <span className="font-medium">
-                              {decision === "APPROVED"
-                                ? "Approved"
-                                : "Rejected"}
-                            </span>
-                          </p>
-
-                          {decision === "REJECTED" && (
-                            <>
-                              {approverNotes && (
-                                <p>
-                                  Reason:{" "}
-                                  <span className="font-medium text-foreground">
-                                    {approverNotes}
-                                  </span>
-                                </p>
-                              )}
-                              <p>
-                                The branch administrator will contact you to
-                                regularize this return after a rejected
-                                checklist.
-                              </p>
-                            </>
-                          )}
-                        </div>
-                      )}
-                    </>
+                  {renderChecklistPanelBody(
+                    loadingPanel,
+                    panelError,
+                    items,
+                    decision,
+                    approverNotes,
                   )}
                 </CardContent>
               ) : (

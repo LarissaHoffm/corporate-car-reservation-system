@@ -149,9 +149,8 @@ export default function AdminApproverReservationsPage() {
         const friendlyCode = makeFriendlyReservationCode(r.id);
 
         const hay =
-          `${r.id} ${friendlyCode} ${r.origin ?? ""} ${r.destination ?? ""} ${r.user?.name ?? ""} ${
-            r.user?.email ?? ""
-          }`.toLowerCase();
+          `${r.id} ${friendlyCode} ${r.origin ?? ""} ${r.destination ?? ""} ${r.user?.name ?? ""} ${r.user?.email ?? ""
+            }`.toLowerCase();
         return hay.includes(term);
       })
       .sort(
@@ -439,8 +438,10 @@ export default function AdminApproverReservationsPage() {
 
                       const deleteLabel =
                         r.user?.name ??
-                        `${r.origin} → ${r.destination}` ??
-                        r.id;
+                        (r.origin && r.destination
+                          ? `${r.origin} → ${r.destination}`
+                          : r.id);
+
 
                       const { badgeStatus, chipLabel, text } =
                         mapStatusPresentation(normalizedStatus);
