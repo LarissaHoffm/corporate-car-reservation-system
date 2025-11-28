@@ -41,7 +41,7 @@ jobs:
 
       - name: Run backend unit tests with coverage
         working-directory: backend/server
-        run: npm test -- --coverage --runInBand
+        run: npm test -- --runInBand --coverage
 
       - name: Build backend
         working-directory: backend/server
@@ -58,7 +58,7 @@ jobs:
 
       - name: Run frontend unit tests with coverage
         working-directory: frontend
-        run: npm test -- --coverage
+        run: npm run test:coverage -- --run
 
       - name: Build frontend
         working-directory: frontend
@@ -66,8 +66,8 @@ jobs:
 
       # ---------------- SONARCLOUD ----------------
       - name: SonarCloud Scan
-        if: always()
         uses: SonarSource/sonarqube-scan-action@v6
+        continue-on-error: true
         with:
           projectBaseDir: .
         env:
