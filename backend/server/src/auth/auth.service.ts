@@ -116,7 +116,6 @@ export class AuthService {
       httpOnly: true as const,
       sameSite,
       secure: this.cookieSecure,
-      domain: this.cookieDomain,
       path: '/',
       maxAge: this.refreshTtlSec * 1000,
     };
@@ -131,7 +130,6 @@ export class AuthService {
       httpOnly: false as const,
       sameSite,
       secure: this.cookieSecure,
-      domain: this.cookieDomain,
       path: '/',
       maxAge: this.refreshTtlSec * 1000,
     };

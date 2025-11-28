@@ -46,13 +46,11 @@ export class CsrfController {
       ['lax', 'strict', 'none'].includes(sameSiteRaw) ? sameSiteRaw : 'lax'
     ) as 'lax' | 'strict' | 'none';
     const secure = this.cfg.get<string>('COOKIE_SECURE') === 'true';
-    const domain = this.cfg.get<string>('COOKIE_DOMAIN') || undefined;
 
     res.cookie('csrftoken', randomUUID(), {
       httpOnly: false,
       sameSite,
       secure,
-      domain,
       path: '/',
       maxAge: refreshTtlSec * 1000, // ms
     });
