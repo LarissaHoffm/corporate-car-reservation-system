@@ -1,25 +1,77 @@
 
-[1m[46m RUN [49m[22m [36mv4.0.8 [39m[90mC:/Users/larih/corporate-car-reservation-system/frontend[39m
-      [2mCoverage enabled with [22m[33mv8[39m
+> test:coverage
+> vitest run --coverage --run
 
- [32m✓[39m src/components/ui/status.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 6[2mms[22m[39m
- [32m✓[39m src/components/auth/role-guard.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 42[2mms[22m[39m
- [32m✓[39m src/lib/http/api-interceptors.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 5[2mms[22m[39m
 
-[2m Test Files [22m [1m[32m3 passed[39m[22m[90m (3)[39m
-[2m      Tests [22m [1m[32m6 passed[39m[22m[90m (6)[39m
-[2m   Start at [22m 16:50:30
-[2m   Duration [22m 1.97s[2m (transform 284ms, setup 995ms, collect 512ms, tests 53ms, environment 2.91s, prepare 181ms)[22m
+ RUN  v4.0.8 C:/Users/larih/corporate-car-reservation-system/frontend
+      Coverage enabled with v8
 
-[34m % [39m[2mCoverage report from [22m[33mv8[39m
------------------|---------|----------|---------|---------|---------------------
-File             | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s   
------------------|---------|----------|---------|---------|---------------------
-All files        |   37.79 |    44.69 |      25 |   41.59 |                     
- components      |   44.44 |       40 |      50 |   61.53 |                     
-  role-guard.tsx |   44.44 |       40 |      50 |   61.53 | 14-16,34,42         
- components/ui   |     100 |      100 |     100 |     100 |                     
-  status.tsx     |     100 |      100 |     100 |     100 |                     
- lib/http        |   20.68 |    16.43 |      15 |   22.78 |                     
-  api.ts         |   20.68 |    16.43 |      15 |   22.78 | ...6,73-133,159-218 
------------------|---------|----------|---------|---------|---------------------
+ ✓ src/lib/http/cars.test.ts (6 tests) 11ms
+ ✓ src/lib/auth/utils.test.ts (3 tests) 22ms
+ ✓ src/lib/auth/token.test.ts (4 tests) 244ms
+ ✓ src/lib/http/reservations.test.ts (5 tests) 18ms
+ ✓ src/lib/http/documents.test.ts (8 tests) 16ms
+ ✓ src/lib/http/api-auth.test.ts (8 tests) 20ms
+ ✓ src/components/reservation-status-badge.test.tsx (3 tests) 73ms
+ ✓ src/components/auth/role-guard.test.tsx (2 tests) 62ms
+ ✓ src/hooks/use-reservations.test.tsx (3 tests) 99ms
+ ✓ src/components/role-guard.test.tsx (6 tests) 75ms
+ ✓ src/pages/admin/page.test.tsx (1 test) 163ms
+ ✓ src/pages/approver/page.test.tsx (1 test) 162ms
+ ✓ src/pages/requester/reservations/index.test.tsx (1 test) 359ms
+     ✓ renderiza título, contador de resultados e a reserva mockada  356ms
+ ✓ src/pages/shared/auth/LoginPage.test.tsx (8 tests) 1054ms
+     ✓ renderiza campos de usuário, senha e botão de login  463ms
+ ✓ src/pages/requester/page.test.tsx (3 tests) 1239ms
+     ✓ renderiza o dashboard com info básica do usuário e da reserva  743ms
+     ✓ abre o dossier ao clicar em View  336ms
+ ✓ src/lib/friendly-reservation-code.test.ts (6 tests) 7ms
+ ✓ src/components/ui/status.test.tsx (2 tests) 8ms
+ ✓ src/lib/http/api-interceptors.test.ts (4 tests) 10ms
+
+ Test Files  18 passed (18)
+      Tests  74 passed (74)
+   Start at  20:49:42
+   Duration  6.30s (transform 4.97s, setup 14.12s, collect 9.99s, tests 3.64s, environment 29.39s, prepare 2.00s)
+
+ % Coverage report from v8
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+All files          |   59.85 |    40.58 |   66.66 |   61.29 |                   
+ components        |      90 |       90 |     100 |     100 |                   
+  ...tus-badge.tsx |     100 |      100 |     100 |     100 |                   
+  role-guard.tsx   |   88.88 |       90 |     100 |     100 | 14-15             
+ components/ui     |   90.69 |    98.07 |   73.07 |   90.58 |                   
+  badge.tsx        |     100 |      100 |     100 |     100 |                   
+  button.tsx       |     100 |      100 |     100 |     100 |                   
+  card.tsx         |   57.14 |      100 |   57.14 |   57.14 | 41-51,74          
+  dialog.tsx       |    90.9 |      100 |   66.66 |    90.9 | 72,101            
+  input.tsx        |     100 |      100 |     100 |     100 |                   
+  label.tsx        |     100 |      100 |     100 |     100 |                   
+  select.tsx       |   91.66 |      100 |   71.42 |   91.66 | 101,135           
+  status.tsx       |      96 |    97.56 |     100 |   95.83 | 59                
+ hooks             |    80.5 |       48 |   86.95 |   79.68 |                   
+  ...servations.ts |    80.5 |       48 |   86.95 |   79.68 | ...13-215,232-234 
+ lib               |     100 |      100 |     100 |     100 |                   
+  ...ation-code.ts |     100 |      100 |     100 |     100 |                   
+ lib/auth          |   95.45 |    85.71 |     100 |   97.36 |                   
+  token.ts         |      95 |    84.21 |     100 |   97.05 | 16                
+  utils.ts         |     100 |      100 |     100 |     100 |                   
+ lib/http          |   66.83 |    48.59 |    74.5 |   69.06 |                   
+  api.ts           |   65.48 |    49.03 |   65.21 |   66.98 | ...38-186,248-250 
+  cars.ts          |     100 |      100 |     100 |     100 |                   
+  checklists.ts    |    7.69 |        0 |   16.66 |    9.09 | 90-164,176-181    
+  documents.ts     |     100 |       90 |     100 |     100 | 35                
+  reservations.ts  |   96.29 |       90 |     100 |   96.15 | 114               
+ pages/admin       |   32.23 |     7.79 |   41.17 |    34.9 |                   
+  page.tsx         |   32.23 |     7.79 |   41.17 |    34.9 | ...62-264,287-418 
+ pages/approver    |    40.9 |    14.11 |   41.93 |   44.11 |                   
+  page.tsx         |    40.9 |    14.11 |   41.93 |   44.11 | ...43,249,320-499 
+ pages/requester   |    45.1 |    35.82 |   61.29 |   47.67 |                   
+  page.tsx         |    45.1 |    35.82 |   61.29 |   47.67 | ...12,521-548,902 
+ ...r/reservations |   38.21 |     22.3 |   46.42 |   40.81 |                   
+  index.tsx        |   38.21 |     22.3 |   46.42 |   40.81 | ...23-462,564-576 
+ pages/shared/auth |   95.45 |    89.28 |     100 |   94.44 |                   
+  LoginPage.tsx    |   95.45 |    89.28 |     100 |   94.44 | 45-46             
+-------------------|---------|----------|---------|---------|-------------------

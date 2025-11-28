@@ -355,7 +355,9 @@ export class UsersService {
     }
 
     if ((dto as any).email !== undefined) {
-      data.email = String((dto as any).email).trim().toLowerCase();
+      data.email = String((dto as any).email)
+        .trim()
+        .toLowerCase();
     }
 
     if (dto.department !== undefined) {

@@ -47,15 +47,15 @@ async function bootstrap() {
   const baseOrigins = [
     'http://localhost',
     'http://localhost:5173',
-    'http://localhost:4173',         // Vite preview 
-    'http://localhost:3000',         // Swagger / API local
-    'https://reservcar.app.br',      // domínio prod
-    'https://www.reservcar.app.br',  // domínio com www
+    'http://localhost:4173', // Vite preview
+    'http://localhost:3000', // Swagger / API local
+    'https://reservcar.app.br', // domínio prod
+    'https://www.reservcar.app.br', // domínio com www
   ];
 
   const originSet = new Set<string>(baseOrigins);
 
-  // Permite complementar via env se precisar 
+  // Permite complementar via env se precisar
   const envSingle = cfg.get<string>('FRONTEND_URL');
   const envList = cfg.get<string>('FRONTEND_URLS');
 
@@ -88,7 +88,6 @@ async function bootstrap() {
     ],
     exposedHeaders: ['x-correlation-id'],
   });
-
 
   app.useGlobalPipes(
     new ValidationPipe({

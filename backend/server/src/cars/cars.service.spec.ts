@@ -127,9 +127,9 @@ describe('CarsService', () => {
     it('getById() deve lançar NotFoundException quando carro não existe', async () => {
       prisma.car.findFirst.mockResolvedValueOnce(null);
 
-      await expect(
-        service.getById('tenant-1', 'car-1'),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.getById('tenant-1', 'car-1')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
     });
   });
 
@@ -375,9 +375,9 @@ describe('CarsService', () => {
     it('remove() deve lançar NotFoundException quando carro não existe para o tenant', async () => {
       prisma.car.findFirst.mockResolvedValueOnce(null);
 
-      await expect(
-        service.remove('tenant-1', 'car-1'),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      await expect(service.remove('tenant-1', 'car-1')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
 
       expect(prisma.car.delete).not.toHaveBeenCalled();
     });

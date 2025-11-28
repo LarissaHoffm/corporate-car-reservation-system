@@ -80,7 +80,7 @@ export class ChecklistsController {
     return this.service.setTemplateActive(user, id, flag);
   }
 
-  // SUBMISSÕES 
+  // SUBMISSÕES
 
   @Post('reservations/:reservationId/submissions')
   submitChecklist(

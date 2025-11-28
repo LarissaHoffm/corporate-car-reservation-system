@@ -28,7 +28,7 @@ export class MetricsInterceptor implements NestInterceptor {
       const labels: HttpMetricLabels = {
         method,
         route,
-        status_code: String(status), 
+        status_code: String(status),
       };
 
       this.metrics.observeRequest(labels, durationSeconds);

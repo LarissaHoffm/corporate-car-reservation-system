@@ -1,6 +1,6 @@
 
-> server@0.0.1 format
-> prettier . --check
+> server@0.0.1 format:check
+> prettier "src/**/*.ts" --check
 
 Checking formatting...
 All matched files use Prettier code style!

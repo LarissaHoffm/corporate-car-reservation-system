@@ -38,9 +38,7 @@ import { MetricsController } from './infra/metrics/metrics.controller';
     ChecklistsModule,
     ReportsModule,
   ],
-  controllers: [
-    MetricsController, 
-  ],
+  controllers: [MetricsController],
   providers: [
     PrismaService,
     {

@@ -6,12 +6,12 @@ function makeCtx(role: string): ExecutionContext {
   const req = { user: { role } };
   return {
     switchToHttp: () => ({ getRequest: () => req }),
-    getHandler: () => ({} as any),
-    getClass: () => ({} as any),
+    getHandler: () => ({}) as any,
+    getClass: () => ({}) as any,
     getArgs: () => [] as any,
-    getArgByIndex: () => ({} as any),
-    switchToRpc: () => ({} as any),
-    switchToWs: () => ({} as any),
+    getArgByIndex: () => ({}) as any,
+    switchToRpc: () => ({}) as any,
+    switchToWs: () => ({}) as any,
     getType: () => 'http' as any,
   } as ExecutionContext;
 }

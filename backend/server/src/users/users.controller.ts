@@ -141,7 +141,7 @@ export class UsersController {
     @Req() req: any,
   ) {
     const u = req?.user ?? {};
-    const selfId: string | null = (u.id ?? u.sub) ?? null;
+    const selfId: string | null = u.id ?? u.sub ?? null;
 
     const ctx = {
       tenantId: u.tenantId ?? null,

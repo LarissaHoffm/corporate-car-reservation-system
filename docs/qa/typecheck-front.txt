@@ -1,4 +1,23 @@
 
-> typecheck
-> tsc -p tsconfig.json --noEmit
+> lint:types
+> tsc --noEmit
 
+src/components/auth/role-guard.test.tsx(22,18): error TS2322: Type '{ children: Element; roles: string[]; }' is not assignable to type 'IntrinsicAttributes & Props'.
+  Property 'roles' does not exist on type 'IntrinsicAttributes & Props'.
+src/lib/http/api-auth.test.ts(150,44): error TS2345: Argument of type '{ status: string; branchId: string; skip: number; take: number; }' is not assignable to parameter of type 'ReservationReportFilters'.
+  Types of property 'status' are incompatible.
+    Type 'string' is not assignable to type 'ReservationStatusType'.
+src/lib/http/api-interceptors.test.ts(21,46): error TS2339: Property 'handlers' does not exist on type 'AxiosInterceptorManager<InternalAxiosRequestConfig<any>>'.
+src/lib/http/api-interceptors.test.ts(35,46): error TS2339: Property 'handlers' does not exist on type 'AxiosInterceptorManager<InternalAxiosRequestConfig<any>>'.
+src/lib/http/api-interceptors.test.ts(46,47): error TS2339: Property 'handlers' does not exist on type 'AxiosInterceptorManager<AxiosResponse<any, any, {}>>'.
+src/lib/http/api-interceptors.test.ts(69,47): error TS2339: Property 'handlers' does not exist on type 'AxiosInterceptorManager<AxiosResponse<any, any, {}>>'.
+src/pages/requester/gasstations/index.tsx(617,27): error TS2322: Type '"xs"' is not assignable to type '"default" | "sm" | "lg" | "icon"'.
+src/pages/shared/reservations/index.tsx(144,13): error TS2367: This comparison appears to be unintentional because the types 'ReservationStatus' and '"CANCELLED"' have no overlap.
+src/pages/shared/reservations/index.tsx(247,29): error TS2339: Property 'error' does not exist on type 'OpResult'.
+  Property 'error' does not exist on type '{ ok: true; }'.
+src/pages/shared/reservations/index.tsx(265,29): error TS2339: Property 'error' does not exist on type 'OpResult'.
+  Property 'error' does not exist on type '{ ok: true; }'.
+src/pages/shared/reservations/index.tsx(297,29): error TS2339: Property 'error' does not exist on type 'OpResult'.
+  Property 'error' does not exist on type '{ ok: true; }'.
+src/pages/shared/reservations/index.tsx(428,25): error TS2367: This comparison appears to be unintentional because the types 'ReservationStatus' and '"CANCELLED"' have no overlap.
+src/pages/shared/reservations/index.tsx(580,23): error TS2367: This comparison appears to be unintentional because the types 'ReservationStatus' and '"CANCELLED"' have no overlap.
