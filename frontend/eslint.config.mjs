@@ -29,6 +29,8 @@ export default [
       "no-empty": "warn",
       "prefer-const": "warn",
 
+      "no-constant-binary-expression": "off",
+
       "@typescript-eslint/no-unused-vars": [
         "warn",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
