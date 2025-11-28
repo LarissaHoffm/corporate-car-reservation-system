@@ -1,6 +1,5 @@
-
-> format
-> prettier . --check
-
-Checking formatting...
-All matched files use Prettier code style!
+npm error Missing script: "format:check"
+npm error
+npm error To see a list of scripts, run:
+npm error   npm run
+npm error A complete log of this run can be found in: C:\Users\larih\AppData\Local\npm-cache\_logs\2025-11-27T20_09_34_369Z-debug-0.log

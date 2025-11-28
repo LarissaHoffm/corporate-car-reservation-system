@@ -6,14 +6,14 @@
 C:\Users\larih\corporate-car-reservation-system\frontend\src\hooks\use-toast.ts
   17:7  warning  'actionTypes' is assigned a value but only used as a type. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
 
+C:\Users\larih\corporate-car-reservation-system\frontend\src\pages\admin\page.tsx
+  110:10  warning  'extraLoading' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
 C:\Users\larih\corporate-car-reservation-system\frontend\src\pages\admin\users\index.tsx
   173:14  warning  'e' is defined but never used  @typescript-eslint/no-unused-vars
 
 C:\Users\larih\corporate-car-reservation-system\frontend\src\pages\shared\onboarding\index.tsx
   243:13  warning  Empty block statement  no-empty
-
-C:\Users\larih\corporate-car-reservation-system\frontend\src\pages\shared\reports\index.tsx
-  27:10  warning  'Input' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
 
 ✖ 4 problems (0 errors, 4 warnings)
 

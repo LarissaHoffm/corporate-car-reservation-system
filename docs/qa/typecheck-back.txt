@@ -1,4 +1,10 @@
 
-> server@0.0.1 typecheck
-> tsc -p tsconfig.build.json --noEmit
+> server@0.0.1 lint:types
+> tsc --noEmit
 
+src/auth/jwt-auth.guard.spec.ts(56,24): error TS2339: Property 'authorization' does not exist on type '{}'.
+src/auth/jwt-auth.guard.spec.ts(74,24): error TS2339: Property 'authorization' does not exist on type '{}'.
+src/auth/jwt-auth.guard.spec.ts(92,24): error TS2339: Property 'authorization' does not exist on type '{}'.
+src/auth/roles.guard.spec.ts(7,10): error TS2352: Conversion of type '{ switchToHttp: () => { getRequest: () => { user: { role: string; }; }; }; getHandler: () => any; getClass: () => any; getArgs: () => any; getArgByIndex: () => any; switchToRpc: () => any; switchToWs: () => any; getType: () => any; }' to type 'ExecutionContext' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  The types returned by 'switchToHttp()' are incompatible between these types.
+    Type '{ getRequest: () => { user: { role: string; }; }; }' is missing the following properties from type 'HttpArgumentsHost': getResponse, getNext

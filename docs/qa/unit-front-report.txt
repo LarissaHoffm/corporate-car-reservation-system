@@ -1,25 +1,34 @@
 
-[1m[46m RUN [49m[22m [36mv4.0.8 [39m[90mC:/Users/larih/corporate-car-reservation-system/frontend[39m
-      [2mCoverage enabled with [22m[33mv8[39m
+> test
+> vitest --run
 
- [32m✓[39m src/components/ui/status.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 5[2mms[22m[39m
- [32m✓[39m src/components/auth/role-guard.test.tsx [2m([22m[2m2 tests[22m[2m)[22m[32m 45[2mms[22m[39m
- [32m✓[39m src/lib/http/api-interceptors.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 5[2mms[22m[39m
 
-[2m Test Files [22m [1m[32m3 passed[39m[22m[90m (3)[39m
-[2m      Tests [22m [1m[32m6 passed[39m[22m[90m (6)[39m
-[2m   Start at [22m 16:42:02
-[2m   Duration [22m 2.04s[2m (transform 305ms, setup 1.28s, collect 484ms, tests 56ms, environment 2.94s, prepare 207ms)[22m
+ RUN  v4.0.8 C:/Users/larih/corporate-car-reservation-system/frontend
 
-[34m % [39m[2mCoverage report from [22m[33mv8[39m
------------------|---------|----------|---------|---------|---------------------
-File             | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s   
------------------|---------|----------|---------|---------|---------------------
-All files        |   37.79 |    44.69 |      25 |   41.59 |                     
- components      |   44.44 |       40 |      50 |   61.53 |                     
-  role-guard.tsx |   44.44 |       40 |      50 |   61.53 | 14-16,34,42         
- components/ui   |     100 |      100 |     100 |     100 |                     
-  status.tsx     |     100 |      100 |     100 |     100 |                     
- lib/http        |   20.68 |    16.43 |      15 |   22.78 |                     
-  api.ts         |   20.68 |    16.43 |      15 |   22.78 | ...6,73-133,159-218 
------------------|---------|----------|---------|---------|---------------------
+ ✓ src/lib/auth/token.test.ts (4 tests) 72ms
+ ✓ src/lib/auth/utils.test.ts (3 tests) 19ms
+ ✓ src/components/reservation-status-badge.test.tsx (3 tests) 68ms
+ ✓ src/lib/http/cars.test.ts (6 tests) 9ms
+ ✓ src/lib/http/reservations.test.ts (5 tests) 13ms
+ ✓ src/lib/http/documents.test.ts (8 tests) 13ms
+ ✓ src/lib/http/api-auth.test.ts (8 tests) 19ms
+ ✓ src/components/auth/role-guard.test.tsx (2 tests) 55ms
+ ✓ src/components/role-guard.test.tsx (6 tests) 77ms
+ ✓ src/hooks/use-reservations.test.tsx (3 tests) 78ms
+ ✓ src/pages/admin/page.test.tsx (1 test) 148ms
+ ✓ src/pages/approver/page.test.tsx (1 test) 139ms
+ ✓ src/pages/requester/reservations/index.test.tsx (1 test) 319ms
+     ✓ renderiza título, contador de resultados e a reserva mockada  316ms
+ ✓ src/pages/shared/auth/LoginPage.test.tsx (8 tests) 852ms
+     ✓ renderiza campos de usuário, senha e botão de login  397ms
+ ✓ src/pages/requester/page.test.tsx (3 tests) 938ms
+     ✓ renderiza o dashboard com info básica do usuário e da reserva  650ms
+ ✓ src/components/ui/status.test.tsx (2 tests) 5ms
+ ✓ src/lib/http/api-interceptors.test.ts (4 tests) 7ms
+ ✓ src/lib/friendly-reservation-code.test.ts (6 tests) 5ms
+
+ Test Files  18 passed (18)
+      Tests  74 passed (74)
+   Start at  20:49:18
+   Duration  6.68s (transform 5.12s, setup 15.50s, collect 9.62s, tests 2.84s, environment 38.52s, prepare 791ms)
+
