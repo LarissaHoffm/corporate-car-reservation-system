@@ -19,13 +19,11 @@ import { useAuth } from "@/lib/auth/useAuth";
 import { api } from "@/lib/http/api";
 import { useToast } from "@/components/ui/use-toast";
 
-type ThemeChoice = "light" | "dark";
 type LanguageCode = "pt" | "en" | "es" | "fr";
 
 interface ProfilePreferences {
   emailNotifications: boolean;
   systemNotifications: boolean;
-  theme: ThemeChoice;
   language: LanguageCode;
 }
 
@@ -37,7 +35,7 @@ function makePrefsStorageKey(id?: string | null, email?: string | null) {
 
 export default function ProfileSettings() {
   const { t } = useTranslation();
-  const { setTheme } = useTheme();
+  const { theme, setTheme } = useTheme();
   const { toast } = useToast();
   const { user: authUser, setUser: setAuthUser } = useAuth();
 
@@ -52,11 +50,10 @@ export default function ProfileSettings() {
   const [department, setDepartment] = useState("");
   const [phone, setPhone] = useState("");
 
-  // preferências (tema/idioma; campos de notificação continuam existindo, mas sem UI)
+  // preferências (idioma; notificações seguem existindo como estado interno)
   const [prefs, setPrefs] = useState<ProfilePreferences>({
     emailNotifications: true,
     systemNotifications: true,
-    theme: "light",
     language: "pt",
   });
 
@@ -71,7 +68,7 @@ export default function ProfileSettings() {
     setDepartment(authUser.department ?? "TI");
     setPhone(authUser.phone ?? "");
 
-    // carrega preferências (tema, idioma, notificações) do localStorage
+    // carrega preferências (idioma, notificações) do localStorage
     try {
       const key = makePrefsStorageKey(authUser.id, authUser.email);
       const raw = localStorage.getItem(key);
@@ -84,14 +81,14 @@ export default function ProfileSettings() {
     }
   }, [authUser, hasInit]);
 
-  // aplica tema + idioma sempre que prefs mudar
+  // aplica idioma sempre que prefs.language mudar
   useEffect(() => {
-    setTheme(prefs.theme);
     i18n.changeLanguage(prefs.language);
-  }, [prefs.theme, prefs.language, setTheme]);
+  }, [prefs.language]);
 
-  const changeTheme = (theme: ThemeChoice) => {
-    setPrefs((p) => ({ ...p, theme }));
+  const changeTheme = (next: "light" | "dark") => {
+    // delega totalmente para o ThemeProvider (usa o mesmo storageKey "app-theme")
+    setTheme(next);
   };
 
   const changeLanguage = (lang: LanguageCode) => {
@@ -243,7 +240,7 @@ export default function ProfileSettings() {
           </div>
         </div>
 
-        {/* PREFERÊNCIAS (somente Tema + Idioma) */}
+        {/* PREFERÊNCIAS (Tema + Idioma) */}
         <div className="mb-8">
           <h2 className="mb-6 text-xl font-semibold text-[#1558E9]">
             {t("profile.preferences")}
@@ -260,7 +257,7 @@ export default function ProfileSettings() {
                   <button
                     onClick={() => changeTheme("light")}
                     className={`flex items-center gap-2 rounded-lg border px-4 py-2 transition-colors focus:ring-2 focus:ring-[#1558E9] focus:ring-offset-2 ${
-                      prefs.theme === "light"
+                      theme === "light"
                         ? "border-[#1558E9] bg-blue-50 text-[#1558E9]"
                         : "border-border/50 text-foreground hover:border-border"
                     }`}
@@ -271,7 +268,7 @@ export default function ProfileSettings() {
                   <button
                     onClick={() => changeTheme("dark")}
                     className={`flex items-center gap-2 rounded-lg border px-4 py-2 transition-colors focus:ring-2 focus:ring-[#1558E9] focus:ring-offset-2 ${
-                      prefs.theme === "dark"
+                      theme === "dark"
                         ? "border-[#1558E9] bg-blue-50 text-[#1558E9]"
                         : "border-border/50 text-foreground hover:border-border"
                     }`}
@@ -327,7 +324,6 @@ export default function ProfileSettings() {
     </div>
   );
 }
-
 
 function useRefFlag() {
   const [ref] = useState(() => ({ current: false }));

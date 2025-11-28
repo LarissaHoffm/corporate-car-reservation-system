@@ -39,7 +39,6 @@ import SharedDocumentsPage from "@/pages/shared/documents";
 import SharedGasStationsPage from "@/pages/shared/gas-stations";
 import SharedReservationsPage from "@/pages/shared/reservations";
 import SharedMyProfilePage from "@/pages/shared/my-profile/page";
-import SharedOnboardingPage from "@/pages/shared/onboarding";
 
 // Providers/UI
 import { ThemeProvider } from "@/components/providers/theme-provider";
@@ -86,7 +85,6 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/onboarding" element={<SharedOnboardingPage />} />
         <Route path="/change-password" element={<ChangePasswordPage />} />
 
         {/* Requester (protegida) */}

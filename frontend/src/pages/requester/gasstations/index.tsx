@@ -184,7 +184,6 @@ export default function GasStationsPage() {
     return () => {
       isMounted = false;
     };
-    
   }, []);
 
   const selectedReservation = useMemo(
@@ -438,7 +437,7 @@ export default function GasStationsPage() {
                     Abrir rota no Google Maps
                   </Button>
                 </div>
-                {/* Mapa: embed do Google se houver key, senão imagem estática */}
+                {/* Mapa: embed do Google se houver key e rota, senão aviso textual */}
                 <div className="h-96 bg-card rounded-lg relative overflow-hidden">
                   {embedUrl ? (
                     <iframe
@@ -450,23 +449,17 @@ export default function GasStationsPage() {
                       src={embedUrl}
                     />
                   ) : (
-                    <>
-                      <img
-                        src="/gas-station.png"
-                        alt="Route map with gas stations"
-                        className="w-full h-full object-cover"
-                      />
-                      <div className="absolute top-4 left-4 bg-card p-2 rounded shadow-sm text-xs">
-                        <div className="flex items-center gap-2 mb-1">
-                          <div className="w-2 h-2 bg-blue-600 rounded-full" />
-                          <span>Origin</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 bg-red-600 rounded-full" />
-                          <span>Destination</span>
-                        </div>
-                      </div>
-                    </>
+                    <div className="flex h-full items-center justify-center px-6">
+                      <p className="max-w-md text-center text-sm text-muted-foreground">
+                        Selecione uma reserva com origem e destino cadastrados
+                        para visualizar a rota no mapa. Você também pode usar o
+                        botão{" "}
+                        <span className="font-semibold">
+                          &quot;Abrir rota no Google Maps&quot;
+                        </span>{" "}
+                        para ver o trajeto diretamente no Google Maps.
+                      </p>
+                    </div>
                   )}
                 </div>
               </CardContent>
@@ -574,7 +567,7 @@ export default function GasStationsPage() {
               {filteredStations.map((station) => (
                 <Card key={station.id} className="border-border/50 shadow-sm">
                   <CardContent className="p-4">
-                    <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start justify_between gap-3">
                       <div className="flex-1">
                         <div className="flex flex-wrap items-center gap-2 mb-1">
                           <h3 className="font-medium text-foreground">
