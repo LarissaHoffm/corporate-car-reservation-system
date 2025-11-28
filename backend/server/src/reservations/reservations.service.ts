@@ -677,9 +677,7 @@ export class ReservationsService {
     return 'Pending';
   }
 
-  private normalizeChecklistDecision(
-    raw: any,
-  ): 'APPROVED' | 'REJECTED' | null {
+  private normalizeChecklistDecision(raw: any): 'APPROVED' | 'REJECTED' | null {
     if (!raw) return null;
     const s = String(raw).toUpperCase();
     if (s === 'APPROVED' || s === 'VALIDATED' || s === 'APPROVE') {
@@ -719,9 +717,7 @@ export class ReservationsService {
       },
     });
 
-    const docsAggregate = this.aggregateDocsStatusForReservation(
-      docs as any[],
-    );
+    const docsAggregate = this.aggregateDocsStatusForReservation(docs as any[]);
     if (docsAggregate !== 'Validated') {
       return false;
     }
@@ -819,10 +815,7 @@ export class ReservationsService {
         tenantId: actor.tenantId,
         carId,
       },
-      orderBy: [
-        { startAt: 'desc' },
-        { createdAt: 'desc' },
-      ],
+      orderBy: [{ startAt: 'desc' }, { createdAt: 'desc' }],
       select: {
         id: true,
         origin: true,

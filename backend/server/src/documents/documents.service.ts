@@ -39,7 +39,7 @@ export class DocumentsService {
     };
   }
 
-  // Upload                                                             
+  // Upload
 
   async uploadToReservation(params: {
     reservationId: string;
@@ -115,9 +115,7 @@ export class DocumentsService {
     });
   }
 
- 
-  // Listagens                                                        
-
+  // Listagens
 
   async listByReservation(
     actor: { userId: string; role: string; tenantId: string },
@@ -182,8 +180,7 @@ export class DocumentsService {
     });
   }
 
-  //Get / File                                                         
-  
+  //Get / File
 
   async get(
     actor: { tenantId: string; role: string; userId: string },
@@ -247,7 +244,7 @@ export class DocumentsService {
   }
 
   // Validação                                                          */
-  
+
   async validateDocument(
     id: string,
     dto: ValidateDocumentDto,

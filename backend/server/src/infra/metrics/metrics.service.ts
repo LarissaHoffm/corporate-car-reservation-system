@@ -12,7 +12,7 @@ export type HttpMetricLabels = {
   status_code: string;
 };
 
-// Nomes das labels 
+// Nomes das labels
 type HttpMetricLabelName = keyof HttpMetricLabels;
 
 @Injectable()

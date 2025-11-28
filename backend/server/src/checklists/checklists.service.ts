@@ -234,7 +234,11 @@ export class ChecklistsService {
     return updated;
   }
 
-  async setTemplateActive(actor: AuthUser, templateId: string, active: boolean) {
+  async setTemplateActive(
+    actor: AuthUser,
+    templateId: string,
+    active: boolean,
+  ) {
     if (actor.role !== Role.ADMIN) {
       throw new ForbiddenException(
         'Somente ADMIN pode gerenciar templates de checklist',
@@ -622,12 +626,14 @@ export class ChecklistsService {
     return 'PENDING';
   }
 
-  private aggregateDocsStatusForReservation(docs: {
-    type: string | null;
-    status: string | null;
-    createdAt: Date;
-    updatedAt: Date | null;
-  }[]): 'Pending' | 'InValidation' | 'PendingDocs' | 'Validated' {
+  private aggregateDocsStatusForReservation(
+    docs: {
+      type: string | null;
+      status: string | null;
+      createdAt: Date;
+      updatedAt: Date | null;
+    }[],
+  ): 'Pending' | 'InValidation' | 'PendingDocs' | 'Validated' {
     if (!docs.length) {
       return 'Pending';
     }
@@ -645,8 +651,7 @@ export class ChecklistsService {
     source.forEach((doc, index) => {
       const key = doc.type ?? '__NO_TYPE__';
       const tsBase = doc.updatedAt ?? doc.createdAt;
-      const ts =
-        tsBase instanceof Date ? tsBase.getTime() : index;
+      const ts = tsBase instanceof Date ? tsBase.getTime() : index;
       const status = this.normalizeValidationStatus(doc.status);
 
       const current = byType.get(key);
@@ -675,9 +680,7 @@ export class ChecklistsService {
     return 'Pending';
   }
 
-  private normalizeChecklistDecision(
-    raw: any,
-  ): 'APPROVED' | 'REJECTED' | null {
+  private normalizeChecklistDecision(raw: any): 'APPROVED' | 'REJECTED' | null {
     if (!raw) return null;
     const s = String(raw).toUpperCase();
     if (s === 'APPROVED' || s === 'VALIDATED' || s === 'APPROVE') {
@@ -712,9 +715,7 @@ export class ChecklistsService {
       },
     });
 
-    const docsAggregate = this.aggregateDocsStatusForReservation(
-      docs as any[],
-    );
+    const docsAggregate = this.aggregateDocsStatusForReservation(docs as any[]);
     if (docsAggregate !== 'Validated') {
       return false;
     }

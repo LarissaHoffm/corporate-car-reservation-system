@@ -23,7 +23,12 @@ function monthsAgo(months: number): Date {
 function escapeCsvValue(value: unknown): string {
   if (value === null || value === undefined) return '';
   let s = String(value);
-  if (s.includes('"') || s.includes(';') || s.includes('\n') || s.includes('\r')) {
+  if (
+    s.includes('"') ||
+    s.includes(';') ||
+    s.includes('\n') ||
+    s.includes('\r')
+  ) {
     s = '"' + s.replace(/"/g, '""') + '"';
   }
   return s;
@@ -35,7 +40,10 @@ function buildCsvRow(values: unknown[]): string {
 
 // --------- Código amigável de reserva ---------
 
-function makeFriendlyReservationCode(id: string, createdAt?: Date | null): string {
+function makeFriendlyReservationCode(
+  id: string,
+  createdAt?: Date | null,
+): string {
   if (!id) return '';
   const year =
     createdAt instanceof Date && !isNaN(createdAt.getTime())
@@ -334,7 +342,14 @@ export class ReportsService {
     let { range } = params;
 
     if (!tenantId || !userId) {
-      return buildCsvRow(['Código', 'Status', 'Início', 'Fim', 'Origem', 'Destino']);
+      return buildCsvRow([
+        'Código',
+        'Status',
+        'Início',
+        'Fim',
+        'Origem',
+        'Destino',
+      ]);
     }
 
     // Compat: se vier "quarterly-trend", trata como last-12-months
@@ -362,7 +377,9 @@ export class ReportsService {
         break;
       case 'canceled-12-months':
         where.startAt = { gte: monthsAgo(12) };
-        where.status = { in: [ReservationStatus.CANCELED, ReservationStatus.REJECTED] };
+        where.status = {
+          in: [ReservationStatus.CANCELED, ReservationStatus.REJECTED],
+        };
         break;
       case 'all':
       default:

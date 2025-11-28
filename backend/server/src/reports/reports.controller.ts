@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Get,
-  Query,
-  Req,
-  Res,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Query, Req, Res, UseGuards } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiForbiddenResponse,
@@ -69,20 +62,20 @@ export class ReportsController {
         typeof query.skip === 'number'
           ? query.skip
           : query.skip != null
-          ? Number(query.skip)
-          : 0,
+            ? Number(query.skip)
+            : 0,
       take:
         typeof query.take === 'number'
           ? query.take
           : query.take != null
-          ? Number(query.take)
-          : 20,
+            ? Number(query.take)
+            : 20,
       top:
         typeof query.top === 'number'
           ? query.top
           : query.top != null
-          ? Number(query.top)
-          : 10,
+            ? Number(query.top)
+            : 10,
     } as any;
 
     return this.reportsService.getReservationsReport({
