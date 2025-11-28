@@ -1,5 +1,5 @@
 import { useEffect, useState, FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -37,7 +37,7 @@ export default function LoginPage() {
       await login(formData.username, formData.password, true);
 
       try {
-        const me = await api.get("/auth/me"); // ajuste a rota se a sua for diferente
+        const me = await api.get("/auth/me");
         const must =
           (me?.data?.mustChangePassword ??
             me?.data?.user?.mustChangePassword) === true;
@@ -144,26 +144,19 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            <div className="text-right mt-4">
-              <Link
-                to="/forgot-password"
-                className="text-sm text-muted-foreground hover:text-[#1558E9] underline focus:ring-2 focus:ring-[#1558E9] focus:ring-offset-2 rounded"
-              >
-                Forgot your password?
-              </Link>
-            </div>
+            {/* Removemos o "Forgot your password?" aqui */}
 
             <div className="mt-8 pt-6 border-t border-border/50">
               <div className="text-center space-y-3">
                 <p className="text-sm font-medium text-muted-foreground">
                   Need Help?
                 </p>
-                <Link
-                  to="mailto:larissahoffds@gmail.com?subject=Suporte ReservCar&body=Olá, estou com problemas para acessar minha conta no ReservCar."
+                <a
+                  href="mailto:larissahoffds@gmail.com?subject=Suporte ReservCar&body=Olá, estou com problemas para acessar minha conta no ReservCar."
                   className="text-sm text-muted-foreground hover:text-[#1558E9] block focus:ring-2 focus:ring-[#1558E9] focus:ring-offset-2 rounded"
                 >
                   Contact our Support
-                </Link>
+                </a>
               </div>
             </div>
           </CardContent>

@@ -2,7 +2,6 @@ import { Routes, Route, Navigate, Link, useLocation } from "react-router-dom";
 
 // Auth
 import LoginPage from "@/pages/shared/auth/LoginPage";
-import ForgotPasswordPage from "@/pages/shared/auth/ForgotPasswordPage";
 import ChangePasswordPage from "@/pages/shared/auth/ChangePasswordPage";
 
 // Requester
@@ -87,7 +86,6 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/onboarding" element={<SharedOnboardingPage />} />
         <Route path="/change-password" element={<ChangePasswordPage />} />
 

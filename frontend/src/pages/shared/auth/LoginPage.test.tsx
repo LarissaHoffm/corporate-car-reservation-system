@@ -60,9 +60,6 @@ describe("LoginPage", () => {
     expect(
       screen.getByRole("button", { name: /login/i }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(/forgot your password\?/i),
-    ).toBeInTheDocument();
   });
 
   it("permite alternar visibilidade da senha", () => {
