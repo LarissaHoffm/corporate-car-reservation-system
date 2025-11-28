@@ -52,9 +52,7 @@ describe('MetricsInterceptor', () => {
     const ctx = makeExecutionContext(500);
     const next: CallHandler = {
       handle: () =>
-        throwError(() =>
-          Object.assign(new Error('fail'), { status: 500 }),
-        ),
+        throwError(() => Object.assign(new Error('fail'), { status: 500 })),
     };
 
     await expect(

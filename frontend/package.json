@@ -4,8 +4,10 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint \"src/**/*.{ts,tsx}\"",
-    "format": "prettier . --check",
+    "lint": "eslint src/**/*.{ts,tsx}",
+    "lint:types": "tsc --noEmit",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "format:write": "prettier . --write",
     "test": "vitest",
     "test:coverage": "vitest run --coverage"

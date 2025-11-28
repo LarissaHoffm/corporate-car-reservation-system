@@ -8,7 +8,9 @@ describe('MetricsController', () => {
   beforeEach(() => {
     service = {
       getMetrics: jest.fn().mockResolvedValue('metrics-data'),
-      getRegistry: jest.fn().mockReturnValue({ contentType: 'text/plain' } as any),
+      getRegistry: jest
+        .fn()
+        .mockReturnValue({ contentType: 'text/plain' } as any),
       observeRequest: jest.fn(),
     } as unknown as jest.Mocked<MetricsService>;
 

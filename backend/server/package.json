@@ -20,8 +20,9 @@
     "prisma:seed": "prisma db seed",
     "typecheck": "tsc -p tsconfig.build.json --noEmit",
     "lint": "eslint .",
-    "format": "prettier . --check",
-    "format:write": "prettier . --write"
+    "lint:types": "tsc --noEmit",
+    "format": "prettier \"src/**/*.ts\" --write",
+    "format:check": "prettier \"src/**/*.ts\" --check"
   },
   "dependencies": {
     "@azure/storage-blob": "^12.28.0",

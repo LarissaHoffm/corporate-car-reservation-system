@@ -31,12 +31,18 @@ describe('ReservationsController', () => {
   });
 
   it('list retorna reservas', async () => {
-    const res = await (controller as any).list({ user: { tenantId: 't1' } }, {});
+    const res = await (controller as any).list(
+      { user: { tenantId: 't1' } },
+      {},
+    );
     expect(res[0].status).toBe('PENDING');
   });
 
   it('create cria reserva PENDING', async () => {
-    const res = await (controller as any).create({ user: { id: 'u1', tenantId: 't1' } }, { origin: 'A', destination: 'B' });
+    const res = await (controller as any).create(
+      { user: { id: 'u1', tenantId: 't1' } },
+      { origin: 'A', destination: 'B' },
+    );
     expect(res.status).toBe('PENDING');
   });
 

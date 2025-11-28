@@ -1,7 +1,5 @@
 import { Test } from '@nestjs/testing';
-import {
-  NotFoundException,
-} from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 
 import { StationsService } from './stations.service';
 import { PrismaService } from '../infra/prisma.service';
@@ -198,10 +196,25 @@ describe('StationsService', () => {
         updatedAt: new Date('2024-01-02T00:00:00Z'),
       };
 
+      prisma.station.findFirst.mockResolvedValue({ id: 's1' });
       prisma.station.update.mockResolvedValue(updated);
-      prisma.station.count.mockResolvedValue(1);
+
+      prisma.$transaction.mockImplementation(async (cb: any) => {
+        const tx = {
+          station: {
+            findFirst: jest.fn((args) => prisma.station.findFirst(args)),
+            update: jest.fn((args) => prisma.station.update(args)),
+          },
+        };
+        return cb(tx);
+      });
 
       const result = await service.update(actor, 's1', dto);
+
+      expect(prisma.station.findFirst).toHaveBeenCalledWith({
+        where: { id: 's1', tenantId: actor.tenantId },
+        select: { id: true },
+      });
 
       expect(prisma.station.update).toHaveBeenCalledWith({
         where: { id: 's1' },
@@ -218,10 +231,6 @@ describe('StationsService', () => {
           isActive: true,
           updatedAt: true,
         },
-      });
-
-      expect(prisma.station.count).toHaveBeenCalledWith({
-        where: { id: 's1', tenantId: actor.tenantId },
       });
 
       expect(result).toEqual(updated);
@@ -241,8 +250,18 @@ describe('StationsService', () => {
         updatedAt: new Date('2024-01-02T00:00:00Z'),
       };
 
+      prisma.station.findFirst.mockResolvedValue({ id: 's1' });
       prisma.station.update.mockResolvedValue(updated);
-      prisma.station.count.mockResolvedValue(1);
+
+      prisma.$transaction.mockImplementation(async (cb: any) => {
+        const tx = {
+          station: {
+            findFirst: jest.fn((args) => prisma.station.findFirst(args)),
+            update: jest.fn((args) => prisma.station.update(args)),
+          },
+        };
+        return cb(tx);
+      });
 
       const result = await service.update(actor, 's1', dto);
 
@@ -266,21 +285,24 @@ describe('StationsService', () => {
 
     it('deve lançar NotFoundException quando posto não pertence ao tenant', async () => {
       const dto = { name: 'Qualquer' };
-      const updated = {
-        id: 's1',
-        name: 'Qualquer',
-        address: null,
-        branchId: null,
-        isActive: true,
-        updatedAt: new Date('2024-01-02T00:00:00Z'),
-      };
 
-      prisma.station.update.mockResolvedValue(updated);
-      prisma.station.count.mockResolvedValue(0);
+      prisma.station.findFirst.mockResolvedValue(null);
+
+      prisma.$transaction.mockImplementation(async (cb: any) => {
+        const tx = {
+          station: {
+            findFirst: jest.fn((args) => prisma.station.findFirst(args)),
+            update: jest.fn((args) => prisma.station.update(args)),
+          },
+        };
+        return cb(tx);
+      });
 
       await expect(service.update(actor, 's1', dto)).rejects.toBeInstanceOf(
         NotFoundException,
       );
+
+      expect(prisma.station.update).not.toHaveBeenCalled();
     });
   });
 
