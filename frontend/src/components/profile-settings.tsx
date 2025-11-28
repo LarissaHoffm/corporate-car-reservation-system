@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import i18n from "@/lib/i18n";
 
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -53,7 +52,7 @@ export default function ProfileSettings() {
   const [department, setDepartment] = useState("");
   const [phone, setPhone] = useState("");
 
-  // preferências
+  // preferências (tema/idioma; campos de notificação continuam existindo, mas sem UI)
   const [prefs, setPrefs] = useState<ProfilePreferences>({
     emailNotifications: true,
     systemNotifications: true,
@@ -244,51 +243,13 @@ export default function ProfileSettings() {
           </div>
         </div>
 
-        {/* PREFERÊNCIAS */}
+        {/* PREFERÊNCIAS (somente Tema + Idioma) */}
         <div className="mb-8">
           <h2 className="mb-6 text-xl font-semibold text-[#1558E9]">
             {t("profile.preferences")}
           </h2>
 
           <div className="space-y-6">
-            <div>
-              <h3 className="mb-4 text-lg font-medium text-foreground">
-                {t("profile.notifications")}
-              </h3>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground">
-                    {t("profile.emailNotifications")}
-                  </span>
-                  <Switch
-                    checked={prefs.emailNotifications}
-                    onCheckedChange={(checked) =>
-                      setPrefs((p) => ({
-                        ...p,
-                        emailNotifications: checked,
-                      }))
-                    }
-                    className="data-[state=checked]:bg-[#1558E9]"
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-foreground">
-                    {t("profile.systemNotifications")}
-                  </span>
-                  <Switch
-                    checked={prefs.systemNotifications}
-                    onCheckedChange={(checked) =>
-                      setPrefs((p) => ({
-                        ...p,
-                        systemNotifications: checked,
-                      }))
-                    }
-                    className="data-[state=checked]:bg-[#1558E9]"
-                  />
-                </div>
-              </div>
-            </div>
-
             <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
               {/* Tema */}
               <div>
@@ -367,10 +328,7 @@ export default function ProfileSettings() {
   );
 }
 
-/**
- * Pequeno helper para ter um "ref booleano" sem importar useRef diretamente aqui em cima.
- * Mantém o comportamento original do hasInit, mas encapsulado.
- */
+
 function useRefFlag() {
   const [ref] = useState(() => ({ current: false }));
   return ref as { current: boolean };

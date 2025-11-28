@@ -42,7 +42,6 @@ import type {
   Station as ApiStation,
   StationInput as ApiStationInput,
 } from "@/lib/http/stations";
-import useStationCities from "@/hooks/use-stations.cities";
 
 /* ------------------------- Tipos e constantes ------------------------- */
 type StationStatus = "Active" | "Inactive";
@@ -112,13 +111,11 @@ export default function SharedGasStationsPage() {
     items: apiItems,
     loading,
     onSearch: onSearchApi,
-    setQuery,
     createStation,
     updateStation,
     removeStation,
     refresh,
   } = useStations();
-  const { selectItems: cityItems, loading: citiesLoading } = useStationCities();
 
   const stations: Station[] = useMemo(() => {
     const metaMap = loadMetaMap();
@@ -142,7 +139,6 @@ export default function SharedGasStationsPage() {
 
   // filtros
   const [search, setSearch] = useState("");
-  const [cityFilter, setCityFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<"all" | StationStatus>(
     "all",
   );
@@ -169,10 +165,6 @@ export default function SharedGasStationsPage() {
     setSearch(v);
     onSearchApi(v);
   };
-  const handleCityFilter = (v: string) => {
-    setCityFilter(v);
-    setQuery({ city: v === "all" ? "" : v });
-  };
 
   const filtered = useMemo(
     () =>
@@ -181,14 +173,13 @@ export default function SharedGasStationsPage() {
           !search ||
           s.name.toLowerCase().includes(search.toLowerCase()) ||
           s.address.toLowerCase().includes(search.toLowerCase());
-        const byCity = cityFilter === "all" ? true : s.city === cityFilter;
         const byStatus =
           statusFilter === "all" ? true : s.status === statusFilter;
         const byFuel =
           fuelFilter === "all" ? true : s.fuelTypes.includes(fuelFilter);
-        return byText && byCity && byStatus && byFuel;
+        return byText && byStatus && byFuel;
       }),
-    [stations, search, cityFilter, statusFilter, fuelFilter],
+    [stations, search, statusFilter, fuelFilter],
   );
 
   // garante um posto selecionado quando a lista muda
@@ -423,31 +414,6 @@ export default function SharedGasStationsPage() {
                   className="h-11 pl-10 bg-muted/30 border-border/50 focus:ring-2 focus:ring-[#1558E9] focus:border-[#1558E9] shadow-sm"
                 />
               </div>
-
-              <Select
-                value={cityFilter}
-                onValueChange={(v: string) => handleCityFilter(v)}
-              >
-                <SelectTrigger className="h-11 w-full md:w-[180px] border-border/50 shadow-sm">
-                  <SelectValue placeholder="City" />
-                </SelectTrigger>
-                <SelectContent>
-                  {citiesLoading ? (
-                    <>
-                      <SelectItem value="all">All Cities</SelectItem>
-                      <SelectItem value="__loading" disabled>
-                        Loading...
-                      </SelectItem>
-                    </>
-                  ) : (
-                    (cityItems.length ? cityItems : ["all"]).map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c === "all" ? "All Cities" : c}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
 
               <Select
                 value={statusFilter}
@@ -774,7 +740,7 @@ export default function SharedGasStationsPage() {
                   Back
                 </Button>
               </DialogClose>
-            <Button
+              <Button
                 className="bg-[#1558E9] hover:bg-[#1558E9]/90"
                 onClick={submitCreate}
                 disabled={loading}

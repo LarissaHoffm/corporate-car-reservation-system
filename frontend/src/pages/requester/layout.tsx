@@ -2,18 +2,15 @@ import * as React from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Car, Search, Sun, Moon, Bell, LogOut } from "lucide-react";
+import { Car, Sun, Moon, LogOut } from "lucide-react";
 
 import { SidebarNav } from "@/components/sidebar-nav";
-import { NotificationsOverlay } from "@/components/notifications-overlay";
 import { useTheme } from "@/components/providers/theme-provider";
 import { useAuth } from "@/lib/auth";
 
 export default function RequesterLayout() {
   const { theme, setTheme } = useTheme();
-  const [showNotifications, setShowNotifications] = React.useState(false);
   const navigate = useNavigate();
 
   // pega o usuário e o método de logout do contexto
@@ -61,23 +58,10 @@ export default function RequesterLayout() {
                 ReservCar
               </span>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 w-8 p-0 focus:ring-2 focus:ring-[#1558E9] focus:ring-offset-2"
-              onClick={() => setShowNotifications(true)}
-            >
-              <Bell className="h-4 w-4" />
-            </Button>
+            {/* Botão de notificações removido */}
           </div>
 
-          <div className="mt-4 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search..."
-              className="pl-10 h-10 border-border/50 focus:border-[#1558E9] focus:ring-2 focus:ring-[#1558E9] focus:ring-offset-2"
-            />
-          </div>
+          {/* Barra de busca removida */}
         </div>
 
         <div className="flex-1 px-4 py-6">
@@ -123,7 +107,7 @@ export default function RequesterLayout() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={handleLogout} 
+              onClick={handleLogout}
               className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
             >
               <LogOut className="h-4 w-4" />
@@ -138,11 +122,7 @@ export default function RequesterLayout() {
           <Outlet />
         </div>
       </section>
-
-      <NotificationsOverlay
-        isOpen={showNotifications}
-        onClose={() => setShowNotifications(false)}
-      />
+      {/* NotificationsOverlay removido */}
     </div>
   );
 }

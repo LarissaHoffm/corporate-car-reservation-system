@@ -2,19 +2,16 @@ import * as React from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Car, Search, Sun, Moon, Bell, LogOut } from "lucide-react";
+import { Car, Sun, Moon, LogOut } from "lucide-react";
 
 import { SidebarNav } from "@/components/sidebar-nav";
-import { NotificationsOverlay } from "@/components/notifications-overlay";
 import { useTheme } from "@/components/providers/theme-provider";
 import { RoleGuard } from "@/components/role-guard";
-import { useAuth } from "@/lib/auth"; // ✅
+import { useAuth } from "@/lib/auth";
 
 export default function AdminLayout() {
   const { theme, setTheme } = useTheme();
-  const [showNotifications, setShowNotifications] = React.useState(false);
   const navigate = useNavigate();
 
   const { user, logout } = useAuth();
@@ -44,7 +41,7 @@ export default function AdminLayout() {
       await logout();
       clearFunctionalCaches();
     } finally {
-      navigate("/login", { replace: true }); // vai para login
+      navigate("/login", { replace: true });
     }
   }
 
@@ -53,7 +50,7 @@ export default function AdminLayout() {
       <div className="flex h-screen bg-background">
         {/* Sidebar */}
         <aside className="w-64 bg-card border-r border-border/50 shadow-lg flex flex-col">
-          {/* Logo + notif */}
+          {/* Logo (sem botão de notificações e sem search) */}
           <div className="p-6 border-b border-border/50">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -62,24 +59,9 @@ export default function AdminLayout() {
                   ReservCar
                 </span>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0 focus:ring-2 focus:ring-[#1558E9] focus:ring-offset-2"
-                onClick={() => setShowNotifications(true)}
-              >
-                <Bell className="h-4 w-4" />
-              </Button>
+              {/*  Botão de notificações removido */}
             </div>
-
-            {/* Search */}
-            <div className="mt-4 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search..."
-                className="pl-10 h-10 border-border/50 focus:border-[#1558E9] focus:ring-2 focus:ring-[#1558E9] focus:ring-offset-2"
-              />
-            </div>
+            {/*  Barra de busca removida */}
           </div>
 
           {/* Navegação */}
@@ -124,7 +106,7 @@ export default function AdminLayout() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={handleLogout} // ⬅️ só esta linha mudou
+                onClick={handleLogout}
                 className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50 focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
               >
                 <LogOut className="h-4 w-4" />
@@ -140,10 +122,7 @@ export default function AdminLayout() {
           </div>
         </section>
 
-        <NotificationsOverlay
-          isOpen={showNotifications}
-          onClose={() => setShowNotifications(false)}
-        />
+        {/* NotificationsOverlay removido */}
       </div>
     </RoleGuard>
   );
