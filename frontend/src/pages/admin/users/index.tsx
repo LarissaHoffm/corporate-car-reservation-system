@@ -530,10 +530,16 @@ export default function AdminUsersPage() {
                             size="sm"
                             className="hover:bg-card/50"
                             onClick={() => handleUserClick(user.id)}
-                            title="Editar"
+                            title="Ver / Editar"
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
+
+                          {/*
+                            Botão de remoção desativado para manter histórico
+                            de usuários em produção (decisão de negócio do TCC).
+                            Para reativar no futuro, basta remover este bloco
+                            de comentário.
 
                           <Button
                             variant="ghost"
@@ -551,6 +557,7 @@ export default function AdminUsersPage() {
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
+                          */}
                         </div>
                       </td>
                     </tr>
@@ -734,9 +741,14 @@ export default function AdminUsersPage() {
                       else if (d.length <= 6)
                         masked = `(${d.slice(0, 2)}) ${d.slice(2)}`;
                       else if (d.length <= 10)
-                        masked = `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+                        masked = `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(
+                          6,
+                        )}`;
                       else
-                        masked = `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+                        masked = `(${d.slice(0, 2)}) ${d.slice(
+                          2,
+                          7,
+                        )}-${d.slice(7)}`;
 
                       setPhoneMasked(masked);
                       setNewUserData((p) => ({ ...p, phone: digits }));
