@@ -9,7 +9,8 @@
 
 - 🌐 **Produção:** https://reservcar.app.br   
 - 📄 **Swagger da API:** https://reservcar.app.br/api/docs  
-- 📊 **Observabilidade (Grafana):** `http://132.196.142.24:3001` (ambiente de produção)  
+- 📊 **Observabilidade (Grafana):** `http://132.196.142.24:3001` (ambiente de produção)
+- 📊 **SonarCloud:** https://sonarcloud.io/project/overview?id=LarissaHoffm_corporate-car-reservation-system
 - 📚 **Documentação detalhada (RFC, C4, UML, QA):** ver Wiki do repositório e pasta [`/docs`](./docs)
 
 ---
