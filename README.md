@@ -187,6 +187,30 @@ Responsabilidades principais:
   - latência,
   - códigos de resposta,
   - saúde geral da aplicação.
+---
+### 🌐 Acesso em produção
+
+A aplicação está disponível em ambiente de produção no seguinte endereço:
+
+- **URL (produção):** https://reservcar.app.br  
+
+Ao acessar por esse link, o frontend é carregado e se comunica com a API através do proxy reverso (`/api`) já configurado no servidor.
+
+###  Usuários de demonstração
+
+Para fins de avaliação e demonstração do sistema, foram criados usuários com perfis diferentes:
+
+| Perfil      | E-mail / Login                     | Senha           |
+|------------|------------------------------------|-----------------|
+| Admin      | admin@reservcar.com                | **Admin123!** |
+| Approver   | approver@reservcar.com             | **Approver123!** |
+| Requester  | requester@reservcar.com             | **Requester123!** |
+
+###  Vídeo de demonstração do fluxo
+
+Um exemplo de fluxo completo do sistema (login, reserva, aprovação, devolução e validações) pode ser visto neste vídeo:
+
+- [Vídeo de demonstração do ReservCar](https://youtu.be/0tVRv6r2oo0)
 
 ---
 
